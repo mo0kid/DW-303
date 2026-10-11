@@ -222,10 +222,16 @@ impl PitchCv {
 /// The collector satisfies Vc/Rc = alpha*Is*(exp(Veb/Vt)-1)
 /// minus Is*(exp(Vcb/Vt)-1). Bounded bisection covers cutoff and saturation,
 /// including the reverse base-collector junction; no comparator is used.
+/// Iteration bound and tolerance for the shaper's collector solve.
+const MAX_SHAPER_ITERATIONS: usize = 40;
+const SHAPER_TOLERANCE_VOLTS: f64 = 1.0e-9;
+
 pub struct SquareShaper {
     c: Components,
     input_cap: f64,
     collector: f64,
+    /// Previous static collector solution (Newton warm start).
+    solution: f64,
     output_cap: f64,
     input_retention: f64,
     collector_retention: f64,
@@ -241,6 +247,7 @@ impl SquareShaper {
             c,
             input_cap: 0.0,
             collector: 0.0,
+            solution: 0.0,
             output_cap: 0.0,
             input_retention: 0.0,
             collector_retention: 0.0,
@@ -273,6 +280,7 @@ impl SquareShaper {
     pub fn reset(&mut self) {
         self.input_cap = 0.0;
         self.collector = 0.0;
+        self.solution = 0.0;
         self.output_cap = 0.0;
         self.diagnostics = OscDiagnostics::default();
     }
@@ -281,23 +289,40 @@ impl SquareShaper {
         self.diagnostics
     }
 
-    fn static_collector(&self, base: f64) -> f64 {
+    fn static_collector(&self, base: f64, guess: f64) -> f64 {
         let vt = BOLTZMANN_OVER_Q * self.c.temperature_kelvin;
         let forward = self.c.transistor_alpha
             * self.c.transistor_is
             * libm::expm1(((self.c.square_supply - base) / vt).clamp(-80.0, 40.0));
+        // KCL residual f(vc) is strictly increasing in vc, so Newton steps are
+        // safeguarded by a shrinking [low, high] bracket (bisection fallback).
+        // Warm-started from the previous solution this typically takes 2-3 steps.
         let mut low = 0.0;
         let mut high = self.c.square_supply;
-        for _ in 0..32 {
-            let vc = (low + high) * 0.5;
-            let reverse = self.c.transistor_is * libm::expm1(((vc - base) / vt).clamp(-80.0, 40.0));
-            if vc / self.c.square_collector_resistance - forward + reverse > 0.0 {
+        let mut vc = guess.clamp(low, high);
+        for _ in 0..MAX_SHAPER_ITERATIONS {
+            let x = ((vc - base) / vt).clamp(-80.0, 40.0);
+            let e = libm::exp(x);
+            let f = vc / self.c.square_collector_resistance - forward
+                + self.c.transistor_is * (e - 1.0);
+            if f > 0.0 {
                 high = vc;
             } else {
                 low = vc;
             }
+            let slope = 1.0 / self.c.square_collector_resistance + self.c.transistor_is * e / vt;
+            let mut next = vc - f / slope;
+            if !(next > low && next < high) {
+                next = 0.5 * (low + high);
+            }
+            let converged =
+                (next - vc).abs() < SHAPER_TOLERANCE_VOLTS || high - low < SHAPER_TOLERANCE_VOLTS;
+            vc = next;
+            if converged {
+                break;
+            }
         }
-        (low + high) * 0.5
+        vc
     }
     /// Process the saw-node voltage into the AC-coupled WAVEFORM square terminal.
     pub fn tick(&mut self, saw: f64) -> f64 {
@@ -306,7 +331,8 @@ impl SquareShaper {
         let ac = saw - self.input_cap;
         self.input_cap = clean_state(saw + (self.input_cap - saw) * self.input_retention);
         let base = self.c.square_supply - self.c.square_bias + self.c.square_drive * ac;
-        let target = self.static_collector(base);
+        let target = self.static_collector(base, self.solution);
+        self.solution = target;
         self.collector = clean_state(target + (self.collector - target) * self.collector_retention);
         let output = self.collector - self.output_cap;
         self.output_cap = clean_state(
@@ -340,6 +366,7 @@ pub struct Vco {
     sample_rate: f64,
     dc: f64,
     reference_frequency: f64,
+    band_limit: Option<f64>,
     cosine: [f64; HARMONICS],
     sine: [f64; HARMONICS],
     square: SquareShaper,
@@ -381,6 +408,7 @@ impl Vco {
             dc: 0.0,
             reference_frequency: c.reference_hz * cycle_charge(Components::NOMINAL)
                 / cycle_charge(c),
+            band_limit: None,
             cosine: [0.0; HARMONICS],
             sine: [0.0; HARMONICS],
             square: SquareShaper::new(c),
@@ -457,6 +485,22 @@ impl Vco {
     pub fn charging_current_a(&self, cv: f64, tuning: f64) -> f64 {
         self.frequency_hz(cv, tuning) * cycle_charge(self.c)
     }
+    /// Limit synthesised harmonics to `hz` (passband edge; fade over a further
+    /// 20%). When the voice runs oversampled and decimates, harmonics above the
+    /// host band are discarded anyway, so this saves work without audible
+    /// change. `None` restores the full oversampled band (0.40/0.48 x rate).
+    pub fn set_band_limit(&mut self, hz: Option<f64>) {
+        self.band_limit = hz.filter(|hz| hz.is_finite() && *hz > 0.0);
+    }
+    fn band_ratios(&self) -> (f64, f64) {
+        match self.band_limit {
+            Some(hz) => {
+                let pass = (hz / self.sample_rate).min(0.40);
+                (pass, (pass * 1.2).min(0.48))
+            }
+            None => (0.40, 0.48),
+        }
+    }
     /// Advance the capacitor cycle and return saw and PNP square node voltages.
     /// Frequencies above 0.45 × sample rate are limited and counted.
     pub fn tick(&mut self, cv: f64, tuning: f64) -> VcoOut {
@@ -474,17 +518,19 @@ impl Vco {
         let mut hc = co;
         let mut hs = si;
         let mut saw = self.dc;
-        // Flat passband to 0.4*rate; smooth fade to zero at 0.48*rate.
-        // Also taper the fixed work limit to avoid a hard 256th-harmonic edge.
+        // Flat passband to `pass` (default 0.4*rate); smooth fade to zero at
+        // `stop` (default 0.48*rate). Also taper the fixed work limit to avoid
+        // a hard 256th-harmonic edge.
+        let (pass, stop) = self.band_ratios();
         for h in 1..=HARMONICS {
             let ratio = h as f64 * frequency / self.sample_rate;
-            if ratio >= 0.48 {
+            if ratio >= stop {
                 break;
             }
-            let rate_gain = if ratio <= 0.40 {
+            let rate_gain = if ratio <= pass {
                 1.0
             } else {
-                0.5 + 0.5 * libm::cos(PI * (ratio - 0.40) / 0.08)
+                0.5 + 0.5 * libm::cos(PI * (ratio - pass) / (stop - pass))
             };
             let cap_gain = if h <= 224 {
                 1.0
@@ -517,7 +563,7 @@ mod tests {
         let vt = BOLTZMANN_OVER_Q * s.c.temperature_kelvin;
         for veb in [0.1, 0.4, 0.55, 0.6, 0.65, 0.75] {
             let base = s.c.square_supply - veb;
-            let vc = s.static_collector(base);
+            let vc = s.static_collector(base, 0.0);
             let ic = s.c.transistor_alpha * s.c.transistor_is * libm::expm1(veb / vt)
                 - s.c.transistor_is * libm::expm1((vc - base) / vt);
             let error = (vc / s.c.square_collector_resistance - ic).abs();
@@ -525,7 +571,7 @@ mod tests {
         }
         // Finite endpoints remain bounded even at strongly overdriven junctions.
         for base in [-100.0, 100.0] {
-            let vc = s.static_collector(base);
+            let vc = s.static_collector(base, 0.0);
             assert!(vc >= 0.0 && vc <= s.c.square_supply);
         }
     }

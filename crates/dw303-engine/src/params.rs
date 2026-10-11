@@ -16,8 +16,9 @@ pub const TEMPO: ParameterId = ParameterId(8);
 pub const WAVEFORM: ParameterId = ParameterId(9);
 pub const SYNC_MODE: ParameterId = ParameterId(10);
 pub const QUALITY: ParameterId = ParameterId(11);
+pub const RUN: ParameterId = ParameterId(12);
 
-pub const COUNT: usize = 11;
+pub const COUNT: usize = 12;
 
 /// Knobs are panel rotation fractions (0 = fully counter-clockwise); the
 /// circuit crates apply the pot tapers themselves.
@@ -81,6 +82,15 @@ pub static DESCRIPTORS: [ParameterDescriptor<'static>; COUNT] = [
         range: range(0.0, 1.0, Some(1)), // 0 = economy, 1 = full circuit
         default: 1.0,
         automatable: false,
+    },
+    ParameterDescriptor {
+        id: RUN,
+        name: "Run",
+        unit: "",
+        // Starts/stops the internal clock; host and MIDI sync follow their transport.
+        range: range(0.0, 1.0, Some(1)),
+        default: 0.0,
+        automatable: true,
     },
 ];
 

@@ -8,6 +8,9 @@ description = "DW-303 processor: sequencer, circuit voice, parameters and state"
 
 [dependencies]
 ravet-foundation.workspace = true
+dw303-sequencer = { path = "../dw303-sequencer" }
+dw303-voice = { path = "../dw303-voice" }
+dw303-vcf = { path = "../dw303-vcf" }
 
 [lints]
 workspace = true

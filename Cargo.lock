@@ -61,6 +61,9 @@ dependencies = [
 name = "dw303-engine"
 version = "0.1.0"
 dependencies = [
+ "dw303-sequencer",
+ "dw303-vcf",
+ "dw303-voice",
  "ravet-foundation",
 ]
 
@@ -79,6 +82,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dw303-render"
+version = "0.1.0"
+dependencies = [
+ "dw303-engine",
+ "ravet-foundation",
+]
+
+[[package]]
 name = "dw303-sequencer"
 version = "0.1.0"
 dependencies = [
@@ -90,6 +101,16 @@ name = "dw303-vcf"
 version = "0.1.0"
 dependencies = [
  "libm",
+]
+
+[[package]]
+name = "dw303-voice"
+version = "0.1.0"
+dependencies = [
+ "dw303-env",
+ "dw303-osc",
+ "dw303-vcf",
+ "ravet-signal",
 ]
 
 [[package]]
@@ -113,3 +134,7 @@ version = "0.0.1"
 dependencies = [
  "libm",
 ]
+
+[[package]]
+name = "ravet-signal"
+version = "0.0.1"

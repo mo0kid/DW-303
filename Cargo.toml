@@ -4,8 +4,10 @@ members = [
     "crates/dw303-vcf",
     "crates/dw303-env",
     "crates/dw303-sequencer",
+    "crates/dw303-voice",
     "crates/dw303-engine",
     "crates/dw303-clap",
+    "tools/dw303-render",
 ]
 resolver = "3"
 
