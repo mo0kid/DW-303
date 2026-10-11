@@ -21,6 +21,7 @@ struct Dw303Callbacks<'a> {
     host: HostMainThreadHandle<'a>,
     params: Option<HostParams>,
     error: Option<&'static str>,
+    display: Display,
     attachments: [ParameterAttachment<'static>; params::COUNT],
 }
 fn parse_edit(
@@ -52,35 +53,136 @@ fn parse_edit(
     }
     Ok((kind, ravet_foundation::ParameterId(id), value))
 }
-/// Bounded placeholder protocol for future sequencer editing.
-fn parse_panel(text: &str) -> Result<bool, &'static str> {
+use dw303_engine::link::{Button, Display, Led, Mode, PanelAction, Section};
+/// Validate every field before sending a physical edge to the audio editor.
+/// VERIFY: seven selector detents share groups as tracks 1/2, 3/4, 5/6, 7;
+/// original pattern-mode switch wiring still needs comparison.
+fn parse_panel(text: &str) -> Result<Option<PanelAction>, &'static str> {
     if text.len() > 4096 {
         return Err("Editor message too large");
     }
     let value: Value = serde_json::from_str(text).map_err(|_| "Invalid editor message")?;
     if value["type"] != "panel" {
-        return Ok(false);
+        return Ok(None);
     }
     let object = value.as_object().ok_or("Invalid panel message")?;
-    if object.len() < 2 || object.len() > 4 {
-        return Err("Invalid panel message");
-    }
     let action = value["action"].as_str().ok_or("Invalid panel action")?;
-    if !["pitch", "function", "pattern-group", "mode"].contains(&action) {
-        return Err("Unknown panel action");
-    }
-    for (key, v) in object {
-        match key.as_str() {
-            "type" | "action" => (),
-            "key"
-                if v.as_str().is_some_and(|s| {
-                    s.len() <= 32 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-                }) => {}
-            "value" if v.as_u64().is_some_and(|n| n <= 16) => (),
-            _ => return Err("Invalid panel field"),
+    if matches!(action, "mode" | "pattern-group" | "section") {
+        if object.len() != 3 || !object.contains_key("value") {
+            return Err("Invalid selector fields");
         }
+        let n = value["value"].as_u64().ok_or("Invalid selector")?;
+        return Ok(Some(match action {
+            "mode" => PanelAction::Mode(match n {
+                0 => Mode::TrackWrite,
+                1 => Mode::TrackPlay,
+                2 => Mode::PatternPlay,
+                3 => Mode::PatternWrite,
+                _ => return Err("Invalid mode"),
+            }),
+            "pattern-group" if n < 7 => PanelAction::Track(n as u8),
+            "section" if n < 2 => {
+                PanelAction::Section(if n == 0 { Section::A } else { Section::B })
+            }
+            _ => return Err("Invalid selector"),
+        }));
     }
-    Ok(true)
+    if action != "button"
+        || object.len() != 4
+        || !object.contains_key("key")
+        || !object.contains_key("edge")
+    {
+        return Err("Invalid button fields");
+    }
+    let button = match value["key"].as_str().ok_or("Invalid key")? {
+        "run-stop" => Button::RunStop,
+        "function" => Button::Function,
+        "pitch-mode" => Button::PitchMode,
+        "time-mode" => Button::TimeMode,
+        "tap" => Button::Tap,
+        "clear" => Button::Clear,
+        "key-c" => Button::Pitch(0),
+        "key-c-sharp" => Button::Pitch(1),
+        "key-d" => Button::Pitch(2),
+        "key-d-sharp" => Button::Pitch(3),
+        "key-e" => Button::Pitch(4),
+        "key-f" => Button::Pitch(5),
+        "key-f-sharp" => Button::Pitch(6),
+        "key-g" => Button::Pitch(7),
+        "key-g-sharp" => Button::Pitch(8),
+        "key-a" => Button::Pitch(9),
+        "key-a-sharp" => Button::Pitch(10),
+        "key-b" => Button::Pitch(11),
+        "key-c-up" => Button::Pitch(12),
+        "key-down" => Button::Down,
+        "key-up" => Button::Up,
+        "key-accent" => Button::Accent,
+        "key-slide" => Button::Slide,
+        "key-back" => Button::Back,
+        "key-step" => Button::Step,
+        "key-triplet" => Button::Triplet,
+        _ => return Err("Unknown panel key"),
+    };
+    Ok(Some(match value["edge"].as_str() {
+        Some("press") => PanelAction::Press(button),
+        Some("release") => PanelAction::Release(button),
+        _ => return Err("Invalid button edge"),
+    }))
+}
+fn lamp(l: Led) -> u8 {
+    match l {
+        Led::Off => 0,
+        Led::On => 1,
+        Led::Blink => 2,
+    }
+}
+fn combine(a: Led, b: Led) -> Led {
+    if a == Led::On || b == Led::On {
+        Led::On
+    } else if a == Led::Blink || b == Led::Blink {
+        Led::Blink
+    } else {
+        Led::Off
+    }
+}
+/// VERIFY: shared lamps follow artwork positions; firmware multiplexing needs hardware comparison.
+fn panel_lamps(d: Display) -> serde_json::Map<String, Value> {
+    let l = d.leds;
+    let mut map = serde_json::Map::new();
+    for (name, led) in [
+        ("run", if d.running { Led::On } else { Led::Off }),
+        ("pitch-c", l.modes[0]),
+        ("function", l.modes[1]),
+        ("pattern", l.modes[2]),
+    ] {
+        map.insert(name.into(), json!(lamp(led)));
+    }
+    for (name, n) in [
+        ("c-sharp", 1),
+        ("d-sharp", 3),
+        ("f-sharp", 6),
+        ("g-sharp", 8),
+        ("a-sharp", 10),
+    ] {
+        map.insert(format!("pitch-{name}"), json!(lamp(l.pitch[n])));
+    }
+    for (i, n) in [0, 2, 4, 5, 7, 9, 11, 12].into_iter().enumerate() {
+        map.insert(
+            format!("step-{}", i + 1),
+            json!(lamp(combine(l.pitch[n], l.selectors[i]))),
+        );
+    }
+    for (i, led) in l.modifiers.into_iter().enumerate() {
+        map.insert(
+            format!("step-{}", i + 9),
+            json!(lamp(if i >= 2 && d.edit_mode == 0 {
+                l.sections[i - 2]
+            } else {
+                led
+            })),
+        );
+    }
+    map
 }
 fn panel_size(size: GuiSize) -> GuiSize {
     let rounded_height = |width: u32| (width as f64 * 785.0 / 1636.0).round() as u32;
@@ -133,7 +235,12 @@ impl ParameterControl for GuiControl<'_> {
 impl Callbacks for Dw303Callbacks<'_> {
     fn message(&mut self, json: &str) {
         let result = (|| {
-            if parse_panel(json)? {
+            if let Some(action) = parse_panel(json)? {
+                self.shared
+                    .link
+                    .push(action)
+                    .map_err(|_| "Panel queue full; repeat the edge")?;
+                self.host.request_process();
                 return Ok("panel");
             }
             let (kind, id, value) = parse_edit(json)?;
@@ -181,7 +288,11 @@ impl Callbacks for Dw303Callbacks<'_> {
                 json!(attachment.physical()),
             );
         }
-        Some(json!({"params":values,"leds":{"run":u8::from(self.shared.value(11)==1.0)},"error":self.error,"pending":self.shared.edits.pending()}).to_string())
+        if let Some(display) = self.shared.link.display() {
+            self.display = display;
+        }
+        let d = self.display;
+        Some(json!({"params":values,"leds":panel_lamps(d),"selection":{"mode":d.mode,"group":d.group,"track":d.track,"section":if d.section_b {"B"}else{"A"},"pattern":d.pattern+1,"step":d.step+1,"editMode":d.edit_mode},"error":self.error,"pending":self.shared.edits.pending()}).to_string())
     }
 }
 impl Drop for Dw303Callbacks<'_> {
@@ -219,6 +330,10 @@ impl PluginGuiImpl for Dw303Main<'_> {
             host: self.host,
             params: self.host.get_extension::<HostParams>(),
             error: None,
+            display: Display {
+                mode: 2,
+                ..Display::default()
+            },
             attachments: core::array::from_fn(|i| {
                 ParameterAttachment::new(
                     params::schema().expect("valid static schema"),
@@ -380,13 +495,43 @@ mod tests {
             assert!(parse_panel(text).is_err());
         }
         assert_eq!(
-            parse_panel(r#"{"type":"panel","action":"pitch","key":"key-c"}"#),
-            Ok(true)
+            parse_panel(r#"{"type":"panel","action":"button","key":"key-c","edge":"press"}"#),
+            Ok(Some(PanelAction::Press(Button::Pitch(0))))
         );
         assert_eq!(
-            parse_panel(r#"{"type":"panel","action":"mode","value":5}"#),
-            Ok(true)
+            parse_panel(r#"{"type":"panel","action":"mode","value":3}"#),
+            Ok(Some(PanelAction::Mode(Mode::PatternWrite)))
         );
+    }
+    #[test]
+    fn every_artwork_lamp_is_published() {
+        let map = panel_lamps(Display::default());
+        let ids: Vec<_> = HTML
+            .split("id=\"led-")
+            .skip(1)
+            .map(|s| s.split('"').next().unwrap())
+            .collect();
+        assert_eq!(map.len(), ids.len());
+        for id in ids {
+            assert!(map.contains_key(id));
+        }
+        for (key, button) in [
+            ("run-stop", Button::RunStop),
+            ("key-c", Button::Pitch(0)),
+            ("key-slide", Button::Slide),
+        ] {
+            for (edge, action) in [
+                ("press", PanelAction::Press(button)),
+                ("release", PanelAction::Release(button)),
+            ] {
+                assert_eq!(
+                    parse_panel(&format!(
+                        r#"{{"type":"panel","action":"button","key":"{key}","edge":"{edge}"}}"#
+                    )),
+                    Ok(Some(action))
+                );
+            }
+        }
     }
     #[test]
     fn inline_page_fits_and_contains_all_controls() {

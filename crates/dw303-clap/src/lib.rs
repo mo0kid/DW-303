@@ -2,9 +2,14 @@
 //! and parameter state, with an optional embedded macOS editor.
 use clack_extensions::{audio_ports::*, note_ports::*, params::*, state::*, tail::*};
 use clack_plugin::{events::event_types::ParamValueEvent, prelude::*, utils::Cookie};
-use dw303_engine::{Dw303Engine, params};
+use dw303_engine::{
+    Dw303Engine,
+    link::{Memory, PanelLink},
+    params,
+};
 use ravet_clap::{MAXIMUM_EVENTS, MainBusBridge};
 use ravet_foundation::{AudioLayout, ParameterId, ParameterState, ProcessConfig};
+use std::sync::Arc;
 use std::{
     ffi::CStr,
     fmt::Write,
@@ -21,7 +26,8 @@ mod gui;
 /// Stable CLAP identifier used by hosts and saved sessions.
 pub const PLUGIN_ID: &str = "co.djwaudio.dw303";
 const STATE_PRODUCT: [u8; 8] = *b"DJWDW303";
-const STATE_VERSION: u32 = 1;
+const STATE_VERSION: u32 = 2;
+const PARAM_BYTES: usize = 16 + params::COUNT * 8;
 
 /// DW-303 CLAP factory and extension declaration.
 pub struct Dw303Plugin;
@@ -53,6 +59,7 @@ impl DefaultPluginFactory for Dw303Plugin {
     }
     fn new_shared(_: HostSharedHandle<'_>) -> Result<Dw303Shared, PluginError> {
         Ok(Dw303Shared {
+            link: Arc::new(PanelLink::new()),
             edits: editor::Edits::default(),
             values: params::DESCRIPTORS.map(|d| AtomicU64::new(d.default.to_bits() as u64)),
             generation: AtomicU32::new(0),
@@ -76,6 +83,7 @@ impl DefaultPluginFactory for Dw303Plugin {
 /// Parameter values shared between threads. A state restore bumps
 /// `generation`; the audio thread then re-sends every value to the engine.
 pub struct Dw303Shared {
+    link: Arc<PanelLink>,
     edits: editor::Edits,
     values: [AtomicU64; params::COUNT],
     generation: AtomicU32,
@@ -150,6 +158,15 @@ fn queue_edit(shared: &Dw303Shared, id: ParameterId, value: f32) -> Result<(), E
     )
 }
 impl Dw303Main<'_> {
+    /// Queue one physical panel edge or selector; retry unchanged on `Full`.
+    pub fn panel_action(
+        &self,
+        action: dw303_engine::link::PanelAction,
+    ) -> Result<(), dw303_engine::link::Full> {
+        self.shared.link.push(action)?;
+        self.host.request_process();
+        Ok(())
+    }
     fn request_edit_flush(&self) {
         if let Some(params) = self.host.get_extension::<HostParams>() {
             params.request_flush(&self.host);
@@ -351,31 +368,64 @@ impl PluginMainThreadParams for Dw303Main<'_> {
 
 impl PluginStateImpl for Dw303Main<'_> {
     fn save(&self, output: &mut clack_plugin::stream::OutputStream) -> Result<(), PluginError> {
-        let schema = params::schema().map_err(|_| PluginError::Message("schema"))?;
         let values = core::array::from_fn(|i| self.shared.value(i));
-        let state = schema
-            .state(values)
-            .map_err(|_| PluginError::Message("invalid parameter state"))?;
-        let mut bytes = [0; 16 + params::COUNT * 8];
-        state
-            .encode(STATE_PRODUCT, STATE_VERSION, &mut bytes)
-            .map_err(|_| PluginError::Message("state encode"))?;
+        let bytes = encode_state(values, &self.shared.link.memory())?;
         output.write_all(&bytes)?;
         Ok(())
     }
     fn load(&self, input: &mut clack_plugin::stream::InputStream) -> Result<(), PluginError> {
         let mut bytes = Vec::new();
         input.take(64 * 1024).read_to_end(&mut bytes)?;
-        let schema = params::schema().map_err(|_| PluginError::Message("schema"))?;
-        let state = ParameterState::decode(schema, STATE_PRODUCT, STATE_VERSION, &bytes)
-            .map_err(|_| PluginError::Message("invalid DW-303 state"))?;
-        self.shared.restore_values(*state.values());
+        let (values, memory) = decode_state(&bytes)?;
+        self.shared.link.load_memory(memory);
+        self.shared.restore_values(values);
         self.host.request_process();
         if let Some(params) = self.host.get_extension::<HostParams>() {
             params.rescan(&self.host, ParamRescanFlags::VALUES);
         }
         Ok(())
     }
+}
+
+fn encode_state(values: [f32; params::COUNT], memory: &Memory) -> Result<Vec<u8>, PluginError> {
+    let schema = params::schema().map_err(|_| PluginError::Message("schema"))?;
+    let state = schema
+        .state(values)
+        .map_err(|_| PluginError::Message("parameter state"))?;
+    let mut bytes = vec![0; PARAM_BYTES + 4 + Memory::ENCODED_SIZE];
+    state
+        .encode(STATE_PRODUCT, STATE_VERSION, &mut bytes[..PARAM_BYTES])
+        .map_err(|_| PluginError::Message("state encode"))?;
+    bytes[PARAM_BYTES..PARAM_BYTES + 4]
+        .copy_from_slice(&(Memory::ENCODED_SIZE as u32).to_le_bytes());
+    memory
+        .encode(&mut bytes[PARAM_BYTES + 4..])
+        .map_err(|_| PluginError::Message("memory encode"))?;
+    Ok(bytes)
+}
+fn decode_state(bytes: &[u8]) -> Result<([f32; params::COUNT], Memory), PluginError> {
+    let invalid = || PluginError::Message("invalid DW-303 state");
+    let schema = params::schema().map_err(|_| invalid())?;
+    if bytes.len() == PARAM_BYTES {
+        let state =
+            ParameterState::decode(schema, STATE_PRODUCT, 1, bytes).map_err(|_| invalid())?;
+        return Ok((*state.values(), dw303_engine::factory_memory()));
+    }
+    if bytes.len() != PARAM_BYTES + 4 + Memory::ENCODED_SIZE {
+        return Err(invalid());
+    }
+    let state = ParameterState::decode(schema, STATE_PRODUCT, STATE_VERSION, &bytes[..PARAM_BYTES])
+        .map_err(|_| invalid())?;
+    let length = u32::from_le_bytes(
+        bytes[PARAM_BYTES..PARAM_BYTES + 4]
+            .try_into()
+            .map_err(|_| invalid())?,
+    ) as usize;
+    if length != Memory::ENCODED_SIZE {
+        return Err(invalid());
+    }
+    let memory = Memory::decode(&bytes[PARAM_BYTES + 4..]).map_err(|_| invalid())?;
+    Ok((*state.values(), memory))
 }
 
 /// Audio-thread engine bridge and bounded editor-event consumer.
@@ -463,8 +513,9 @@ impl<'a> PluginAudioProcessor<'a, Dw303Shared, Dw303Main<'a>> for Dw303Audio<'a>
             MAXIMUM_EVENTS,
             AudioLayout::STEREO_INSTRUMENT,
         )?;
-        let bridge = MainBusBridge::prepare(Dw303Engine::new(), config, Some(0))
-            .map_err(|_| PluginError::Message("invalid DW-303 activation"))?;
+        let bridge =
+            MainBusBridge::prepare(Dw303Engine::with_link(shared.link.clone()), config, Some(0))
+                .map_err(|_| PluginError::Message("invalid DW-303 activation"))?;
         let mut audio = Self {
             host,
             shared,
@@ -528,6 +579,7 @@ mod tests {
     use super::*;
     fn shared() -> Dw303Shared {
         Dw303Shared {
+            link: Arc::new(PanelLink::new()),
             edits: editor::Edits::default(),
             values: params::DESCRIPTORS.map(|d| AtomicU64::new(d.default.to_bits() as u64)),
             generation: AtomicU32::new(0),
@@ -574,6 +626,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(restored.values(), state.values());
+    }
+    #[test]
+    fn state_v2_roundtrip_v1_factory_and_corruption() {
+        let values = params::DESCRIPTORS.map(|d| d.default);
+        let mut memory = Memory::default();
+        memory.bank.patterns[7].steps[2].pitch = 9;
+        let bytes = encode_state(values, &memory).unwrap();
+        assert_eq!(decode_state(&bytes).unwrap(), (values, memory));
+        let mut v1 = [0; PARAM_BYTES];
+        params::schema()
+            .unwrap()
+            .state(values)
+            .unwrap()
+            .encode(STATE_PRODUCT, 1, &mut v1)
+            .unwrap();
+        assert_eq!(
+            decode_state(&v1).unwrap(),
+            (values, dw303_engine::factory_memory())
+        );
+        for length in [0, PARAM_BYTES - 1, PARAM_BYTES + 3, bytes.len() - 1] {
+            assert!(decode_state(&bytes[..length]).is_err());
+        }
+        let mut bad = bytes.clone();
+        bad[PARAM_BYTES] = 0;
+        assert!(decode_state(&bad).is_err());
+        let mut bad = bytes;
+        bad[PARAM_BYTES + 4] = 0;
+        assert!(decode_state(&bad).is_err());
     }
     #[test]
     fn invalid_edits_leave_queue_and_parameters_unchanged() {

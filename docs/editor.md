@@ -9,7 +9,7 @@ teardown follow RAVET's gain-clap owner/callback implementation.
 The panel uses the original `media/DW-303_UI.svg` geometry, gradients and outlined
 lettering. SVG filter definitions/attributes and black knob discs were removed;
 CSS draws shaded rotary knobs. The assembled page, including RAVET controls and
-styles, is 432,132 bytes, below the 1 MiB inline limit. No remote resources load.
+styles, remains below the 1 MiB inline limit. No remote resources load.
 Default size is 1227×589 logical points; width ranges from 818 to 2045 and height
 is rounded from the 1636:785 aspect ratio (393–981 points). The design canvas
 scales uniformly. CLAP resize hints advertise that ratio; size adjustment is
@@ -57,89 +57,52 @@ surfaces. Host/editor values refresh through the WebView snapshot callback;
 refresh does not submit edits. Individual parameter reads are atomic; a set of
 values is not a simultaneous audio-block snapshot.
 
-## Wire protocol and sequencer placeholders
+## Front-panel wire protocol
 
-Parameter messages contain exactly three fields:
+Parameter messages retain the existing exact three-field `edit`, `begin`,
+`value`, `end` protocol, schema IDs and finite physical values. Panel messages
+now reach the audio-thread sequencer editor:
 
 ```json
-{"type":"value","id":2,"value":0.7}
+{"type":"panel","action":"button","key":"key-c","edge":"press"}
+{"type":"panel","action":"button","key":"key-c","edge":"release"}
+{"type":"panel","action":"mode","value":3}
+{"type":"panel","action":"pattern-group","value":6}
+{"type":"panel","action":"section","value":1}
 ```
 
-Types are `edit`, `begin`, `value`, `end`. IDs must belong to the schema; values
-must be finite after conversion to f32. Messages over 4096 UTF-8 bytes, malformed
-JSON, unknown IDs/types, missing/extra fields and nonnumeric values reject.
-Attachments clamp/snap finite physical values using schema rules.
+Button objects require exactly four fields; selector objects exactly three.
+Unknown keys/edges/actions, missing or extra fields, fractional/negative/out of
+range values, and messages over 4096 bytes reject before queueing. MODE accepts
+0..3, PATT.GROUP 0..6, section 0..1. MODE labels are Track Write, Track Play,
+Pattern Play, Pattern Write; section 0/1 is A/B. PATT.GROUP emits a track detent
+whose paired group also selects pattern memory. Native adapters may use
+`Dw303Main::panel_action`; queue fullness is reported without waiting.
 
-`window.panel({action, key?, value?})` posts `{type:"panel", ...}`. Rust validates
-and safely ignores these messages. Actions are `pitch`, `function`,
-`pattern-group`, `mode`; key strings are at most 32 ASCII alphanumeric/hyphen
-characters; values are integers 0–16. Unknown fields/actions reject. MODE and
-PATT.GROUP use local rotary controls with IDs 101/100 internally; they never
-send these IDs to the CLAP parameter interface.
+Pointer down/up, cancel/lost capture, keyboard Enter/Space down/up, blur and
+assistive-technology click activation submit distinct physical edges. RUN/STOP
+submits a panel edge, and RUN parameter 12 reflects the clock through CLAP's
+existing parameter refresh. MODE and PATT.GROUP remain local rotary controls,
+never CLAP parameter IDs 100/101. Snapshot selection drives their values and
+mode/group/section/pattern/step status text. The supplied artwork's mismatched
+hit-target semantic labels and Tempo/Volume bindings are corrected in JS;
+layout and CSS are unchanged.
 
-Stable button IDs are `run-stop`, `function`, `pitch-mode`, `time-mode`, `tap`,
-`clear`, and `key-` followed by `c`, `d`, `e`, `f`, `g`, `a`, `b`, `c-up`,
-`c-sharp`, `d-sharp`, `f-sharp`, `g-sharp`, `a-sharp`, `down`, `up`, `accent`,
-`slide`, or `back`. Rotary IDs are `pattern-group` and `mode`.
+Snapshots include all 21 physical lamps with values 0=off, 1=on, 2=blink.
+The page uses a shared 2.5 Hz blink phase. `selection` includes zero-based mode,
+editMode, group, track, one-based pattern and step, and section `A`/`B`.
+JSON construction and display work remain on the main thread.
 
-Snapshots have `params` keyed by decimal parameter ID, `leds` keyed by lamp
-name, optional `error`, and `pending`. Lamp values are 0/1; the page also accepts
-booleans. SVG lamp DOM IDs use `led-<name>`: `run`, `function`, `pattern`,
-`pitch-c`, `pitch-c-sharp`, `pitch-d-sharp`, `pitch-f-sharp`, `pitch-g-sharp`,
-`pitch-a-sharp`, and `step-1` through `step-12`. Rust currently supplies RUN only.
-RUN reflects parameter 12, including host automation; it is not measured
-sequencer playback telemetry. The remaining sequencer actions and indicators
-await the edit-state-machine bridge.
+See [panel-link.md](panel-link.md) for thread contracts, precise physical lamp
+and button mappings, state v2/v1 behavior, test evidence, all VERIFY items and
+remaining limitations. The JS wiring probe is
+`node crates/dw303-clap/tests/panel.js`. `python3 editor/verify.py` still assembles
+the exact RAVET page; native WebKit rendering currently fails under the sandbox
+with launchservices/file sandbox-extension errors and a timeout. Run it outside
+the sandbox to verify actual WebKit layout, controls and screenshot output.
 
-## Verification, 2026-10-11
-
-- Package unit tests pass: protocol validation/bounds, all twelve parameter
-  round trips through CLAP events and state, continuous gestures, full-generation
-  ID preservation, backpressure, overflow/end reservation, restore cancellation,
-  stale reflection protection, concurrent queue ordering, inline page bound and
-  resize idempotence.
-- `rustfmt --edition 2024 --check crates/dw303-clap/src/{lib,gui,editor}.rs` passes.
-- `cargo clippy --offline -p dw303-clap --all-targets --no-deps -- -D warnings`
-  passes for this crate. The required command without `--no-deps` currently
-  fails on three `chunks_exact_to_as_chunks` warnings in the concurrently edited
-  `dw303-osc/src/lib.rs:595–597`; those paths are outside this assignment.
-- Default and no-default-features debug builds pass; release bundling via
-  `python3 scripts/bundle-clap.py` passes and ad hoc signs the macOS bundle.
-- Full `/tmp/clapval/clap-validator validate target/clap/release/DW-303.clap`
-  finishes with **33 passed, 1 failed, 10 skipped, 0 warnings**. Parameter
-  conversions now pass after fixing RUN's discrete display strings. The remaining
-  `process-varying-sample-rates` failure is activation at 8000 Hz: 4× oversampling
-  produces 32000 Hz, rejected by the circuit crates' 44100–384000 Hz preparation
-  bounds. Correct rate support requires work outside this assignment; no rate
-  substitution or silent audio fallback was introduced to mask it.
-- Inline SVG parses as XML and both assembled JavaScript scripts pass Node's
-  syntax check. Actual rendering is **not verified** in this sandbox: hidden
-  WebKit could not create native sandbox extensions, headless Firefox aborted,
-  and computer-use access to Firefox was unavailable. No screenshot is claimed.
-
-For an unsandboxed hidden WebKit render and keyboard/default/wheel/snapshot
-probe, run `python3 editor/verify.py`. It creates only temporary compiled/HTML
-artifacts and writes `/tmp/dw303-editor.png`. To assemble a standalone static
-preview for a normal browser, run `python3 editor/verify.py --assemble-only` and
-open `/tmp/dw303-editor.html`; static parameter edits explicitly report the absent
-host bridge. No `editor/preview.html` is required.
-
-Manual host verification still required: open the bundle in a Cocoa CLAP host,
-check artwork/control alignment at 50%, 75% and 125%, exercise drag/Shift/Alt,
-wheel, keyboard and defaults, record automation with begin/value/end gestures,
-restore state during a drag, and close/reopen the editor while transport runs.
-Check RUN/STOP and waveform/sync/quality host updates and RUN lamp refresh.
-
-## VERIFY items and weaknesses
-
-- **VERIFY:** MODE detent names/order and the provisional six-position mapping
-  against the TB-303 owner's manual before sequencer wiring. PATT.GROUP's four
-  positions reflect the plan; both controls currently emit ignored placeholder
-  actions and do not represent persistent sequencer state.
-- Existing engine **VERIFY:** original TEMPO range (40–300 BPM). The editor
-  deliberately follows the existing schema and introduces no circuit values.
-- Sequencer editing, pattern state, other lamps, human visual/keyboard/AX checks
-  and real DAW automation/lifecycle evidence remain pending. RAVET's synchronous
-  JS post acknowledges submission, not eventual host acceptance; queue errors
-  appear on the following snapshot. A host that refuses events indefinitely
-  prevents delivery. All controls rely on the host's Cocoa main thread/run loop.
+Manual host checks remain: panel alignment at 50%, 75% and 125%, drag/Shift/Alt,
+wheel, keyboard/defaults, automation gestures, restore while editing, and
+close/reopen while playing or holding a panel key. Hardware/manual comparison
+is still needed for PATT.GROUP detents and original LED multiplexing; the
+existing engine TEMPO range remains VERIFY. No new circuit values are claimed.
