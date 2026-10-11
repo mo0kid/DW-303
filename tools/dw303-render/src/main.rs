@@ -21,6 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (params::TEMPO, 125.0),
         (params::RUN, 1.0),
     ];
+    let mut hold: Option<u8> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -30,6 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 settings.push((params::TEMPO, args.next().ok_or("--tempo value")?.parse()?))
             }
             "--economy" => settings.push((params::QUALITY, 0.0)),
+            "--hold" => hold = Some(args.next().ok_or("--hold KEY")?.parse::<u8>()?),
             "--set" => {
                 let s = args.next().ok_or("--set ID=VALUE")?;
                 let (id, value) = s.split_once('=').ok_or("--set ID=VALUE")?;
@@ -53,6 +55,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             data: EventData::ParameterValue { id, value },
         })
         .collect();
+    let mut initial = initial;
+    if let Some(key) = hold {
+        // Sustained MIDI note with the sequencer stopped.
+        initial.retain(
+            |e| !matches!(e.data, EventData::ParameterValue { id, .. } if id == params::RUN),
+        );
+        initial.push(Event {
+            frame_offset: 0,
+            data: EventData::NoteOn {
+                channel: 0,
+                key,
+                velocity: 0.5,
+            },
+        });
+    }
 
     let total = (seconds * rate) as usize;
     let mut samples = Vec::with_capacity(total);
