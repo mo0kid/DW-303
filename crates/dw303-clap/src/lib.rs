@@ -1,6 +1,5 @@
 //! DW-303 CLAP instrument: stereo output, MIDI note input, DW-303 parameters
-//! and complete parameter state. Pattern state and the editor follow in later
-//! phases (see PLAN.md).
+//! and parameter state, with an optional embedded macOS editor.
 use clack_extensions::{audio_ports::*, note_ports::*, params::*, state::*, tail::*};
 use clack_plugin::{events::event_types::ParamValueEvent, prelude::*, utils::Cookie};
 use dw303_engine::{Dw303Engine, params};
@@ -10,13 +9,21 @@ use std::{
     ffi::CStr,
     fmt::Write,
     io::{Read, Write as IoWrite},
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
+    sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
 };
 
+mod editor;
+pub use editor::EditError;
+#[cfg(all(target_os = "macos", feature = "native-editor"))]
+#[allow(unsafe_code)]
+mod gui;
+
+/// Stable CLAP identifier used by hosts and saved sessions.
 pub const PLUGIN_ID: &str = "co.djwaudio.dw303";
 const STATE_PRODUCT: [u8; 8] = *b"DJWDW303";
 const STATE_VERSION: u32 = 1;
 
+/// DW-303 CLAP factory and extension declaration.
 pub struct Dw303Plugin;
 
 impl Plugin for Dw303Plugin {
@@ -30,6 +37,8 @@ impl Plugin for Dw303Plugin {
             .register::<PluginParams>()
             .register::<PluginState>()
             .register::<PluginTail>();
+        #[cfg(all(target_os = "macos", feature = "native-editor"))]
+        builder.register::<clack_extensions::gui::PluginGui>();
     }
 }
 
@@ -44,7 +53,8 @@ impl DefaultPluginFactory for Dw303Plugin {
     }
     fn new_shared(_: HostSharedHandle<'_>) -> Result<Dw303Shared, PluginError> {
         Ok(Dw303Shared {
-            values: params::DESCRIPTORS.map(|d| AtomicU32::new(d.default.to_bits())),
+            edits: editor::Edits::default(),
+            values: params::DESCRIPTORS.map(|d| AtomicU64::new(d.default.to_bits() as u64)),
             generation: AtomicU32::new(0),
             fault: AtomicU32::new(0),
             parameter_refresh: AtomicBool::new(false),
@@ -54,14 +64,20 @@ impl DefaultPluginFactory for Dw303Plugin {
         host: HostMainThreadHandle<'a>,
         shared: &'a Dw303Shared,
     ) -> Result<Dw303Main<'a>, PluginError> {
-        Ok(Dw303Main { host, shared })
+        Ok(Dw303Main {
+            host,
+            shared,
+            #[cfg(all(target_os = "macos", feature = "native-editor"))]
+            gui: std::cell::RefCell::new(None),
+        })
     }
 }
 
 /// Parameter values shared between threads. A state restore bumps
 /// `generation`; the audio thread then re-sends every value to the engine.
 pub struct Dw303Shared {
-    values: [AtomicU32; params::COUNT],
+    edits: editor::Edits,
+    values: [AtomicU64; params::COUNT],
     generation: AtomicU32,
     fault: AtomicU32,
     parameter_refresh: AtomicBool,
@@ -71,11 +87,37 @@ impl PluginShared<'_> for Dw303Shared {}
 
 impl Dw303Shared {
     fn value(&self, index: usize) -> f32 {
-        f32::from_bits(self.values[index].load(Ordering::Acquire))
+        f32::from_bits(self.values[index].load(Ordering::Acquire) as u32)
     }
     fn store(&self, index: usize, value: f32) -> bool {
-        self.values[index].swap(value.to_bits(), Ordering::AcqRel) != value.to_bits()
+        let generation = self.generation.load(Ordering::Acquire);
+        let word = ((generation as u64) << 32) | value.to_bits() as u64;
+        self.values[index].swap(word, Ordering::AcqRel) as u32 != value.to_bits()
     }
+    /// Publish restore-tagged values before admitting the new audio generation.
+    fn restore_values(&self, values: [f32; params::COUNT]) {
+        let generation = self.generation.load(Ordering::Acquire).wrapping_add(1);
+        for (slot, value) in self.values.iter().zip(values) {
+            slot.store(
+                ((generation as u64) << 32) | value.to_bits() as u64,
+                Ordering::Release,
+            );
+        }
+        self.generation.store(generation, Ordering::Release);
+    }
+    /// One attempt per field: a concurrent restore always wins.
+    fn reflect_value(&self, index: usize, value: f32, generation: u32) -> bool {
+        let old = self.values[index].load(Ordering::Acquire);
+        if (old >> 32) as u32 != generation {
+            return false;
+        }
+        let next = ((generation as u64) << 32) | value.to_bits() as u64;
+        old != next
+            && self.values[index]
+                .compare_exchange(old, next, Ordering::AcqRel, Ordering::Acquire)
+                .is_ok()
+    }
+    /// Last recorded audio callback fault (zero means success).
     pub fn fault_code(&self) -> u32 {
         self.fault.load(Ordering::Relaxed)
     }
@@ -87,9 +129,67 @@ fn index_of(id: ClapId) -> Option<usize> {
         .position(|d| d.id == ParameterId(id.get()))
 }
 
+/// Main-thread parameter/state owner and optional embedded editor.
 pub struct Dw303Main<'a> {
     host: HostMainThreadHandle<'a>,
     shared: &'a Dw303Shared,
+    #[cfg(all(target_os = "macos", feature = "native-editor"))]
+    gui: std::cell::RefCell<Option<gui::GuiState<'a>>>,
+}
+
+fn queue_edit(shared: &Dw303Shared, id: ParameterId, value: f32) -> Result<(), EditError> {
+    let i = index_of(ClapId::new(id.0)).ok_or(EditError::UnknownParameter)?;
+    let value = params::DESCRIPTORS[i]
+        .range
+        .canonicalize(value)
+        .ok_or(EditError::InvalidValue)?;
+    shared.edits.push(
+        ClapId::new(id.0),
+        value,
+        shared.generation.load(Ordering::Acquire),
+    )
+}
+impl Dw303Main<'_> {
+    fn request_edit_flush(&self) {
+        if let Some(params) = self.host.get_extension::<HostParams>() {
+            params.request_flush(&self.host);
+        } else {
+            self.host.request_process();
+        }
+    }
+    /// Begin one continuous parameter gesture; only one can be open.
+    pub fn begin_parameter_gesture(&self, id: ParameterId) -> Result<(), EditError> {
+        index_of(ClapId::new(id.0)).ok_or(EditError::UnknownParameter)?;
+        self.shared.edits.begin(
+            ClapId::new(id.0),
+            self.shared.generation.load(Ordering::Acquire),
+        )?;
+        self.request_edit_flush();
+        Ok(())
+    }
+    /// Queue a finite, canonical physical value for the current gesture.
+    pub fn update_parameter_gesture(&self, id: ParameterId, value: f32) -> Result<(), EditError> {
+        let i = index_of(ClapId::new(id.0)).ok_or(EditError::UnknownParameter)?;
+        let value = params::DESCRIPTORS[i]
+            .range
+            .canonicalize(value)
+            .ok_or(EditError::InvalidValue)?;
+        self.shared.edits.update(ClapId::new(id.0), value)?;
+        self.request_edit_flush();
+        Ok(())
+    }
+    /// End the current gesture using its reserved queue slot.
+    pub fn end_parameter_gesture(&self) -> Result<(), EditError> {
+        self.shared.edits.end()?;
+        self.request_edit_flush();
+        Ok(())
+    }
+    /// Submit a complete host-visible begin/value/end parameter edit.
+    pub fn edit_parameter(&self, id: ParameterId, value: f32) -> Result<(), EditError> {
+        queue_edit(self.shared, id, value)?;
+        self.request_edit_flush();
+        Ok(())
+    }
 }
 
 impl<'a> PluginMainThread<'a, Dw303Shared> for Dw303Main<'a> {
@@ -176,6 +276,7 @@ impl PluginMainThreadParams for Dw303Main<'_> {
         }
         match ParameterId(id.get()) {
             params::TEMPO => write!(writer, "{value:.1} BPM"),
+            params::RUN => writer.write_str(if value < 0.5 { "Stopped" } else { "Running" }),
             params::WAVEFORM => writer.write_str(if value < 0.5 { "Saw" } else { "Square" }),
             params::SYNC_MODE => writer.write_str(match value.round() as i32 {
                 0 => "Internal",
@@ -191,10 +292,12 @@ impl PluginMainThreadParams for Dw303Main<'_> {
         let d = params::DESCRIPTORS[index_of(id)?];
         let text = text.to_str().ok()?.trim();
         let choice = match (d.id, text) {
-            (params::WAVEFORM, "Saw")
+            (params::RUN, "Stopped")
+            | (params::WAVEFORM, "Saw")
             | (params::SYNC_MODE, "Internal")
             | (params::QUALITY, "Economy") => Some(0.0),
-            (params::WAVEFORM, "Square")
+            (params::RUN, "Running")
+            | (params::WAVEFORM, "Square")
             | (params::SYNC_MODE, "Host")
             | (params::QUALITY, "Full") => Some(1.0),
             (params::SYNC_MODE, "MIDI clock") => Some(2.0),
@@ -212,7 +315,8 @@ impl PluginMainThreadParams for Dw303Main<'_> {
         };
         d.range.canonicalize(value as f32).map(f64::from)
     }
-    fn flush(&self, input: &InputEvents, _: &mut OutputEvents) {
+    fn flush(&self, input: &InputEvents, output: &mut OutputEvents) {
+        let mut changed = false;
         for event in input {
             if let Some(event) = event.as_event::<ParamValueEvent>()
                 && let Some(id) = event.param_id()
@@ -221,8 +325,26 @@ impl PluginMainThreadParams for Dw303Main<'_> {
                     .range
                     .canonicalize(event.value() as f32)
             {
-                self.shared.store(index, value);
+                changed |= self.shared.store(index, value);
             }
+        }
+        if changed {
+            self.shared
+                .restore_values(core::array::from_fn(|i| self.shared.value(i)));
+        }
+        let generation = self.shared.generation.load(Ordering::Acquire);
+        let pending = self.shared.edits.drain(
+            output,
+            generation,
+            || self.shared.generation.load(Ordering::Acquire),
+            |id, value| {
+                if let Some(i) = index_of(id) {
+                    self.shared.store(i, value);
+                }
+            },
+        );
+        if pending {
+            self.request_edit_flush();
         }
     }
 }
@@ -247,10 +369,7 @@ impl PluginStateImpl for Dw303Main<'_> {
         let schema = params::schema().map_err(|_| PluginError::Message("schema"))?;
         let state = ParameterState::decode(schema, STATE_PRODUCT, STATE_VERSION, &bytes)
             .map_err(|_| PluginError::Message("invalid DW-303 state"))?;
-        for (i, value) in state.values().iter().enumerate() {
-            self.shared.store(i, *value);
-        }
-        self.shared.generation.fetch_add(1, Ordering::AcqRel);
+        self.shared.restore_values(*state.values());
         self.host.request_process();
         if let Some(params) = self.host.get_extension::<HostParams>() {
             params.rescan(&self.host, ParamRescanFlags::VALUES);
@@ -259,6 +378,7 @@ impl PluginStateImpl for Dw303Main<'_> {
     }
 }
 
+/// Audio-thread engine bridge and bounded editor-event consumer.
 pub struct Dw303Audio<'a> {
     host: HostAudioProcessorHandle<'a>,
     shared: &'a Dw303Shared,
@@ -289,13 +409,39 @@ impl Dw303Audio<'_> {
 
     /// Publish automation applied on the audio thread back to the host view.
     fn reflect(&self) {
+        if self.shared.generation.load(Ordering::Acquire) != self.generation {
+            return;
+        }
         let values = self.bridge.processor().parameters().values();
         let mut changed = false;
         for (i, value) in values.iter().enumerate() {
-            changed |= self.shared.store(i, *value);
+            changed |= self.shared.reflect_value(i, *value, self.generation);
         }
         if changed && !self.shared.parameter_refresh.swap(true, Ordering::AcqRel) {
             self.host.request_callback();
+        }
+    }
+
+    fn editor_events(&mut self, output: &mut OutputEvents<'_>) {
+        let shared = self.shared;
+        let bridge = &mut self.bridge;
+        let pending = shared.edits.drain(
+            output,
+            self.generation,
+            || shared.generation.load(Ordering::Acquire),
+            |id, value| {
+                let event = [ParamValueEvent::new(0, id, Pckn::match_all(), value as f64)];
+                let result = bridge.flush(&InputEvents::from_buffer(&event));
+                debug_assert!(result.is_ok());
+            },
+        );
+        self.reflect();
+        if pending {
+            if let Some(params) = self.host.get_extension::<HostParams>() {
+                params.request_flush(&self.host);
+            } else {
+                self.host.request_process();
+            }
         }
     }
 
@@ -335,6 +481,7 @@ impl<'a> PluginAudioProcessor<'a, Dw303Shared, Dw303Main<'a>> for Dw303Audio<'a>
         events: Events,
     ) -> Result<ProcessStatus, PluginError> {
         self.synchronize();
+        self.editor_events(events.output);
         let result = self
             .bridge
             .process(&mut audio, events.input, process.transport);
@@ -354,8 +501,9 @@ impl<'a> PluginAudioProcessor<'a, Dw303Shared, Dw303Main<'a>> for Dw303Audio<'a>
 }
 
 impl PluginAudioProcessorParams for Dw303Audio<'_> {
-    fn flush(&mut self, input: &InputEvents, _: &mut OutputEvents) {
+    fn flush(&mut self, input: &InputEvents, output: &mut OutputEvents) {
         self.synchronize();
+        self.editor_events(output);
         let result = self.bridge.flush(input);
         if result.is_ok() {
             self.reflect();
@@ -373,4 +521,84 @@ impl PluginTailImpl for Dw303Audio<'_> {
 #[allow(unsafe_code)]
 mod export {
     clack_plugin::clack_export_entry!(clack_plugin::entry::SinglePluginEntry<super::Dw303Plugin>);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn shared() -> Dw303Shared {
+        Dw303Shared {
+            edits: editor::Edits::default(),
+            values: params::DESCRIPTORS.map(|d| AtomicU64::new(d.default.to_bits() as u64)),
+            generation: AtomicU32::new(0),
+            fault: AtomicU32::new(0),
+            parameter_refresh: AtomicBool::new(false),
+        }
+    }
+    #[test]
+    fn every_parameter_round_trips_through_host_events_and_state_codec() {
+        let shared = shared();
+        for (i, descriptor) in params::DESCRIPTORS.iter().enumerate() {
+            queue_edit(&shared, descriptor.id, descriptor.range.maximum()).unwrap();
+            let mut sink = editor::tests::Sink::new(128);
+            assert!(!shared.edits.drain(
+                &mut OutputEvents::from_buffer(&mut sink),
+                0,
+                || 0,
+                |id, value| {
+                    shared.store(index_of(id).unwrap(), value);
+                }
+            ));
+            assert_eq!(sink.length, 3);
+            assert_eq!(sink.events[0], (0, ClapId::new(descriptor.id.0), 0.0));
+            assert_eq!(
+                sink.events[1],
+                (1, ClapId::new(descriptor.id.0), descriptor.range.maximum())
+            );
+            assert_eq!(sink.events[2], (2, ClapId::new(descriptor.id.0), 0.0));
+            assert_eq!(shared.value(i), descriptor.range.maximum());
+        }
+        let state = params::schema()
+            .unwrap()
+            .state(core::array::from_fn(|i| shared.value(i)))
+            .unwrap();
+        let mut bytes = [0; 16 + params::COUNT * 8];
+        state
+            .encode(STATE_PRODUCT, STATE_VERSION, &mut bytes)
+            .unwrap();
+        let restored = ParameterState::decode(
+            params::schema().unwrap(),
+            STATE_PRODUCT,
+            STATE_VERSION,
+            &bytes,
+        )
+        .unwrap();
+        assert_eq!(restored.values(), state.values());
+    }
+    #[test]
+    fn invalid_edits_leave_queue_and_parameters_unchanged() {
+        let shared = shared();
+        assert_eq!(
+            queue_edit(&shared, ParameterId(99), 0.5),
+            Err(EditError::UnknownParameter)
+        );
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(
+                queue_edit(&shared, params::CUTOFF, value),
+                Err(EditError::InvalidValue)
+            );
+        }
+        assert!(!shared.edits.pending());
+        assert_eq!(shared.value(1), 0.5);
+    }
+    #[test]
+    fn restore_tag_prevents_stale_reflection_before_and_after_publication() {
+        let shared = shared();
+        // A restore has written this field but has not published its generation.
+        shared.values[0].store((1_u64 << 32) | 0.25_f32.to_bits() as u64, Ordering::Release);
+        assert!(!shared.reflect_value(0, 0.9, 0));
+        shared.restore_values([0.75; params::COUNT]);
+        assert!(!shared.reflect_value(0, 0.9, 0));
+        assert_eq!(shared.value(0), 0.75);
+    }
 }

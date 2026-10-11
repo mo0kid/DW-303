@@ -6,14 +6,34 @@
 //!                      Veg ----------------------------------------^ (Vca)
 //! ```
 //!
-//! The circuit runs at `OVERSAMPLING` times the host rate and is decimated
-//! with two f64 elliptic half-band stages.
+//! The circuit runs at an oversampled rate (1x/2x/4x/8x, chosen from the
+//! host rate by [`oversampling_for`]) and is decimated with f64 elliptic
+//! half-band stages.
 use dw303_env::{AccentSweep, FilterControl, Meg, OutputStage, Vca, Veg};
 use dw303_osc::{PitchCv, Vco};
 use dw303_vcf::{Quality, Vcf};
 use ravet_signal::{ConfiguredHalfBand2x, HalfBandIirDesign};
 
-pub const OVERSAMPLING: usize = 4;
+/// Preferred minimum internal circuit rate (4x at 44.1 kHz).
+pub const MIN_CIRCUIT_RATE: f64 = 176_400.0;
+/// Highest internal rate the circuit stages accept.
+pub const MAX_CIRCUIT_RATE: f64 = 384_000.0;
+/// Lowest internal rate the circuit stages accept.
+const STAGE_MIN_RATE: f64 = 44_100.0;
+
+/// Oversampling factor for a host rate: the smallest of 1/2/4/8 reaching
+/// `MIN_CIRCUIT_RATE`, without exceeding `MAX_CIRCUIT_RATE`.
+/// Returns `None` when no factor gives a rate the stages accept.
+pub fn oversampling_for(host_rate: f64) -> Option<usize> {
+    let valid = |f: usize| {
+        let rate = host_rate * f as f64;
+        (STAGE_MIN_RATE..=MAX_CIRCUIT_RATE).contains(&rate)
+    };
+    [1, 2, 4, 8]
+        .into_iter()
+        .find(|&f| valid(f) && host_rate * f as f64 >= MIN_CIRCUIT_RATE)
+        .or_else(|| [8, 4, 2, 1].into_iter().find(|&f| valid(f)))
+}
 
 /// Highest VCO harmonic frequency synthesised (above audibility, below the
 /// decimator's stopband at 44.1 kHz host rates).
@@ -82,7 +102,8 @@ pub struct Voice {
     filter_control: FilterControl,
     vca: Vca,
     output: OutputStage,
-    decimators: [ConfiguredHalfBand2x; 2],
+    decimators: [ConfiguredHalfBand2x; 3],
+    oversampling: usize,
     target: Knobs,
     knobs: Knobs,
     knob_coefficient: f64,
@@ -106,7 +127,9 @@ impl Voice {
             decimators: [
                 ConfiguredHalfBand2x::new(design, design),
                 ConfiguredHalfBand2x::new(design, design),
+                ConfiguredHalfBand2x::new(design, design),
             ],
+            oversampling: 4,
             target: Knobs::default(),
             knobs: Knobs::default(),
             knob_coefficient: 0.0,
@@ -114,10 +137,12 @@ impl Voice {
     }
 
     pub fn prepare(&mut self, host_sample_rate: f64) -> Result<(), VoiceError> {
-        if !(host_sample_rate.is_finite() && host_sample_rate >= 8_000.0) {
+        if !host_sample_rate.is_finite() {
             return Err(VoiceError::InvalidSampleRate);
         }
-        let rate = host_sample_rate * OVERSAMPLING as f64;
+        let oversampling =
+            oversampling_for(host_sample_rate).ok_or(VoiceError::InvalidSampleRate)?;
+        let rate = host_sample_rate * oversampling as f64;
         let ok = self.pitch.prepare(rate).is_ok()
             && self.vco.prepare(rate).is_ok()
             && self.vcf.prepare(rate).is_ok()
@@ -129,6 +154,7 @@ impl Voice {
         if !ok {
             return Err(VoiceError::InvalidSampleRate);
         }
+        self.oversampling = oversampling;
         // Harmonics above the host band are removed by the decimator anyway.
         self.vco
             .set_band_limit(Some((0.45 * host_sample_rate).min(VCO_BAND_LIMIT_HZ)));
@@ -206,18 +232,72 @@ impl Voice {
 
     /// Render one host-rate sample (digital full scale = `FULL_SCALE_VOLTS`).
     pub fn tick(&mut self, input: VoiceInput) -> f64 {
-        let mut x = [0.0; OVERSAMPLING];
-        for (i, sample) in x.iter_mut().enumerate() {
+        let mut x = [0.0; 8];
+        let mut count = self.oversampling;
+        for (i, sample) in x[..count].iter_mut().enumerate() {
             *sample = self.tick_circuit(input, input.trigger && i == 0);
         }
-        let a = self.decimators[0].downsample([x[0], x[1]]);
-        let b = self.decimators[0].downsample([x[2], x[3]]);
-        self.decimators[1].downsample([a, b]) / FULL_SCALE_VOLTS
+        let mut stage = 0;
+        while count > 1 {
+            for i in 0..count / 2 {
+                x[i] = self.decimators[stage].downsample([x[2 * i], x[2 * i + 1]]);
+            }
+            count /= 2;
+            stage += 1;
+        }
+        x[0] / FULL_SCALE_VOLTS
+    }
+
+    /// Current oversampling factor (1, 2, 4 or 8).
+    pub fn oversampling(&self) -> usize {
+        self.oversampling
     }
 }
 
 impl Default for Voice {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oversampling_covers_common_and_extreme_host_rates() {
+        for (rate, factor) in [
+            (8_000.0, 8),
+            (22_050.0, 8),
+            (44_100.0, 4),
+            (48_000.0, 4),
+            (88_200.0, 2),
+            (96_000.0, 2),
+            (192_000.0, 1),
+            (384_000.0, 1),
+        ] {
+            assert_eq!(oversampling_for(rate), Some(factor), "{rate}");
+        }
+        assert_eq!(oversampling_for(1_000.0), None);
+        assert_eq!(oversampling_for(768_000.0), None);
+    }
+
+    #[test]
+    fn prepares_and_renders_finite_audio_across_host_rates() {
+        for rate in [8_000.0, 44_100.0, 96_000.0, 192_000.0, 384_000.0] {
+            let mut voice = Voice::new();
+            voice.prepare(rate).expect("supported rate");
+            let mut input = VoiceInput {
+                note: 12,
+                gate: true,
+                trigger: true,
+                accent: true,
+                slide: false,
+            };
+            for _ in 0..(rate as usize / 10) {
+                assert!(voice.tick(input).is_finite());
+                input.trigger = false;
+            }
+        }
     }
 }

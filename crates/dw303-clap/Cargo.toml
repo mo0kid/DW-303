@@ -18,3 +18,12 @@ ravet-foundation.workspace = true
 ravet-clap = { path = "../../../ravet/crates/ravet-clap" }
 clack-plugin = "=0.2.0"
 clack-extensions = { version = "=0.2.0", features = ["clack-plugin", "audio-ports", "note-ports", "params", "state", "tail"] }
+
+[features]
+default = ["native-editor"]
+native-editor = ["dep:ravet-webview", "dep:ravet-surface", "dep:serde_json", "clack-extensions/gui"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+ravet-webview = { path = "../../../ravet/crates/ravet-webview", optional = true }
+ravet-surface = { path = "../../../ravet/crates/ravet-surface", optional = true }
+serde_json = { version = "=1.0.151", optional = true }
