@@ -1,15 +1,19 @@
 //! The complete DW-303 signal path, following the TB-303 block diagram:
 //!
 //! ```text
-//! PitchCv -> Vco -> WAVEFORM -> Vcf -> Vca -> OutputStage
-//!                      Meg -> AccentSweep -> FilterControl (bias) -^
-//!                      Veg ----------------------------------------^ (Vca)
+//! PitchCv -> Vco -> WAVEFORM -> Vcf --(output + resonance tap)--> Vca -> OutputStage
+//! TriggerPulse -> Meg -> Accent (VR7) -> AccentSweep (VR4B) -> FilterControl -^
+//!              -> Veg (C42/Q31) --------------------------------------------^ (Vca)
 //! ```
+//!
+//! Wiring order follows `docs/circuit/env.md` ("integration order").
 //!
 //! The circuit runs at an oversampled rate (1x/2x/4x/8x, chosen from the
 //! host rate by [`oversampling_for`]) and is decimated with f64 elliptic
 //! half-band stages.
-use dw303_env::{AccentSweep, FilterControl, Meg, OutputStage, Vca, Veg};
+use dw303_env::{
+    Accent, AccentSweep, FilterControl, Meg, OutputStage, TriggerPulse, Vca, VcfSignals, Veg,
+};
 use dw303_osc::{PitchCv, Vco};
 use dw303_vcf::{Quality, Vcf};
 use ravet_signal::{ConfiguredHalfBand2x, HalfBandIirDesign};
@@ -62,7 +66,7 @@ pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 
 /// Output node voltage that maps to digital full scale (1.0).
 /// VERIFY: calibrate against the TD-03 line level captures.
-pub const FULL_SCALE_VOLTS: f64 = 2.0;
+pub const FULL_SCALE_VOLTS: f64 = 0.5;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -117,9 +121,11 @@ pub struct Voice {
     pitch: PitchCv,
     vco: Vco,
     vcf: Vcf,
+    trigger: TriggerPulse,
     meg: Meg,
     veg: Veg,
-    accent: AccentSweep,
+    accent: Accent,
+    sweep: AccentSweep,
     filter_control: FilterControl,
     vca: Vca,
     output: OutputStage,
@@ -145,10 +151,12 @@ impl Voice {
             pitch: PitchCv::new(dw303_osc::Components::NOMINAL),
             vco: Vco::new(dw303_osc::Components::NOMINAL),
             vcf: Vcf::new(dw303_vcf::Components::NOMINAL),
+            trigger: TriggerPulse::new(dw303_env::Components::NOMINAL),
             meg: Meg::new(dw303_env::Components::NOMINAL),
             veg: Veg::new(dw303_env::Components::NOMINAL),
-            accent: AccentSweep::new(dw303_env::Components::NOMINAL),
-            filter_control: FilterControl::new(dw303_env::Components::NOMINAL),
+            accent: Accent::new(dw303_env::Components::NOMINAL),
+            sweep: AccentSweep::new(dw303_env::Components::NOMINAL),
+            filter_control: FilterControl::new(calibrated_env_components()),
             vca: Vca::new(dw303_env::Components::NOMINAL),
             output: OutputStage::new(dw303_env::Components::NOMINAL),
             decimators: core::array::from_fn(|_| ConfiguredHalfBand2x::new(design, design)),
@@ -175,9 +183,12 @@ impl Voice {
         let ok = self.pitch.prepare(rate).is_ok()
             && self.vco.prepare(rate).is_ok()
             && self.vcf.prepare(rate).is_ok()
+            && self.trigger.prepare(rate).is_ok()
             && self.meg.prepare(rate).is_ok()
             && self.veg.prepare(rate).is_ok()
             && self.accent.prepare(rate).is_ok()
+            && self.sweep.prepare(rate).is_ok()
+            && self.filter_control.prepare(rate).is_ok()
             && self.vca.prepare(rate).is_ok()
             && self.output.prepare(rate).is_ok();
         if !ok {
@@ -196,9 +207,12 @@ impl Voice {
         self.pitch.reset();
         self.vco.reset();
         self.vcf.reset();
+        self.trigger.reset();
         self.meg.reset();
         self.veg.reset();
         self.accent.reset();
+        self.sweep.reset();
+        self.filter_control.reset();
         self.vca.reset();
         self.output.reset();
         for d in &mut self.decimators {
@@ -244,23 +258,32 @@ impl Voice {
         self.knobs.square = self.target.square;
     }
 
-    /// One oversampled circuit tick, returning the output node voltage.
+    /// One oversampled circuit tick, returning the OUTPUT jack voltage.
     fn tick_circuit(&mut self, input: VoiceInput, trigger: bool) -> f64 {
         self.smooth_knobs();
         let k = self.knobs;
         let cv = self.pitch.tick(input.note, input.slide);
         let osc = self.vco.tick(cv, k.tuning);
-        let source = if k.square { osc.square } else { osc.saw };
-        let meg = self.meg.tick(trigger, input.accent, k.decay);
-        let accent_gate = input.accent && input.gate;
-        let sweep = self.accent.tick(accent_gate, meg, k.accent, k.resonance);
-        let bias = self
+        let waveform = if k.square { osc.square } else { osc.saw };
+        let pulse = self.trigger.tick(trigger);
+        let meg = self.meg.tick(pulse, input.accent, k.decay);
+        let accent_wiper = self.accent.tick(input.accent, meg, k.accent);
+        let sweep = self.sweep.tick(accent_wiper, k.resonance);
+        let ladder_current = self
             .filter_control
-            .bias_current(k.cutoff, k.env_mod, meg, sweep);
-        let filtered = self.vcf.tick(source, bias, k.resonance);
-        let veg = self.veg.tick(input.gate, trigger);
-        let amplified = self.vca.tick(filtered, veg, accent_gate, k.accent);
-        self.output.tick(amplified, k.volume)
+            .ladder_current(k.cutoff, k.env_mod, meg, sweep);
+        self.veg.set_gate(input.gate);
+        let veg_current = self.veg.tick(pulse);
+        let vcf = self.vcf.tick(waveform, ladder_current, k.resonance);
+        let vca = self.vca.tick(
+            VcfSignals {
+                output: vcf.output,
+                resonance_tap: vcf.resonance_tap,
+            },
+            veg_current,
+            accent_wiper,
+        );
+        self.output.tick(vca, k.volume, 0.0)
     }
 
     /// Render one host-rate sample (digital full scale = `FULL_SCALE_VOLTS`).
@@ -304,6 +327,33 @@ impl Voice {
     pub fn rate_ratio(&self) -> RateRatio {
         self.ratio
     }
+}
+
+/// Page-7 VCF calibration: CUTOFF centre, RES max, ENV MOD/DECAY/ACCENT min
+/// ring at 500 Hz (2 ms). The service procedure trims TM3. Here TM3 keeps its
+/// nominal value and the unknown Q10 (PNP) / Q11 (NPN) saturation-current ratio
+/// absorbs the difference, because TM3 alone cannot reach the VCF's required
+/// current in the current device models.
+/// VERIFY: calibrate the cutoff range against TD-03 knob sweeps.
+pub const CALIBRATION_RING_HZ: f64 = 500.0;
+
+/// Rest MEG and accent-sweep voltages used for the calibration point, as
+/// produced by `dw303-env` after settling with all knobs at minimum.
+const CALIBRATION_MEG_REST: f64 = 0.5;
+const CALIBRATION_SWEEP_REST: f64 = 3.3165;
+
+pub fn calibrated_env_components() -> dw303_env::Components {
+    let mut c = dw303_env::Components::NOMINAL;
+    let vcf = Vcf::new(dw303_vcf::Components::NOMINAL);
+    let Some(target) = vcf.calibration_current(CALIBRATION_RING_HZ) else {
+        return c;
+    };
+    let mut control = FilterControl::new(c);
+    let actual = control.ladder_current(0.5, 0.0, CALIBRATION_MEG_REST, CALIBRATION_SWEEP_REST);
+    if actual.is_finite() && actual > 0.0 {
+        c.expo_is_ratio *= target / actual;
+    }
+    c
 }
 
 impl Default for Voice {

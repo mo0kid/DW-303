@@ -1,0 +1,76 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: dw303 veg ba662a substitute signal paths and discrete output mixer
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 481
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+rail                                        12
+ref                                      5.333
+gate                                      11.8
+trig                                         0
+d36                                0.000264653
+b32                                0.000264917
+c32                                    11.9999
+e32                                1.15807e-12
+veg                                    11.9999
+d35                                       11.8
+r131                                      11.8
+e31                                       11.8
+envabc                                     1.2
+abc                                        1.2
+acc                                          0
+accrc                              9.40502e-05
+d27a                               0.000138074
+signal                                       0
+tap                                          0
+c21                                      5.333
+plus                                     5.333
+c22                                      5.333
+vb                                       5.333
+minus                                    5.333
+otaout                                   5.333
+buffer                                   5.333
+vbout                                    5.333
+n127                                     5.333
+vcaout                                       0
+vol                                          0
+c59                                          0
+sum                                     4.8012
+mix                                          0
+c58                                          0
+b34                                    5.33258
+c34                                    11.3093
+vmix                                   11.9609
+b33                                    11.3328
+mixout                                 3.91064
+c56                                          0
+line                                         0
+b.xota.bbuf#branch                           0
+v.xota.vabc#branch                 9.99801e-06
+vmix#branch                                  0
+vtap#branch                                  0
+vsignal#branch                               0
+vacc#branch                        2.00107e-09
+venvsense#branch                   1.08025e-11
+vtrig#branch                       1.20019e-11
+vgate#branch                       2.00728e-13
+vref#branch                       -4.18171e-08
+v12#branch                        -0.000391023
+
+
+No. of Data Rows : 40254
+ngspice-47 done

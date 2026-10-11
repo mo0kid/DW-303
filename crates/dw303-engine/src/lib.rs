@@ -15,8 +15,8 @@ use ravet_foundation::{
     ProcessStatus, Processor, Tail,
 };
 
-/// MIDI key of the voice's lowest C (sequencer note index 0, 65.4 Hz).
-pub const LOWEST_C_KEY: u8 = 36;
+/// MIDI key of the voice's lowest C (sequencer note index 0 = 1.000 V = 32.70 Hz, C1).
+pub const LOWEST_C_KEY: u8 = 24;
 
 /// Circuit voice and audio-thread front-panel sequencer.
 pub struct Dw303Engine {

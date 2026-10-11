@@ -1,0 +1,546 @@
+{
+  "schema_version": 1,
+  "units": "SI; dB amplitude; phase radians",
+  "temperature_c": 27,
+  "reference_status": "generic-model simulation, not hardware truth",
+  "ngspice_version": [
+    "** ngspice-47 : Circuit level simulation program",
+    "** Compiled with KLU Direct Linear Solver",
+    "** The U. C. Berkeley CAD Group"
+  ],
+  "vco": {
+    "tm4_fraction": 0.62835693359375,
+    "c1": {
+      "cv_v": 1,
+      "frequency_hz": 33.12669847910297,
+      "target_hz": 32.70319566257483,
+      "pitch_error_cents": 22.275369585688665,
+      "saw_min_v": 5.288472362895,
+      "saw_max_v": 10.74811960098,
+      "square_min_v": 5.332897756516,
+      "square_max_v": 8.481277551641
+    },
+    "c2": {
+      "cv_v": 2,
+      "frequency_hz": 65.699937864043,
+      "target_hz": 65.40639132514966,
+      "pitch_error_cents": 7.7524649721972505,
+      "saw_min_v": 5.26501976272,
+      "saw_max_v": 10.74804830843,
+      "square_min_v": 5.332888010736,
+      "square_max_v": 8.693573448108
+    },
+    "a2": {
+      "cv_v": 2.75,
+      "frequency_hz": 110.00070013002852,
+      "target_hz": 110,
+      "pitch_error_cents": 0.01101895533471898,
+      "saw_min_v": 5.259105849424,
+      "saw_max_v": 10.74793678281,
+      "square_min_v": 5.332878567806,
+      "square_max_v": 8.619292753349
+    },
+    "c4": {
+      "cv_v": 4,
+      "frequency_hz": 260.0515911121008,
+      "target_hz": 261.6255653005986,
+      "pitch_error_cents": -10.44679048132043,
+      "saw_min_v": 5.261685681597,
+      "saw_max_v": 10.74755309474,
+      "square_min_v": 5.33285617878,
+      "square_max_v": 8.607600859097
+    },
+    "slide_tau_s": 0.02199966192582552
+  },
+  "vcf": {
+    "i2u_res0": {
+      "current_a": 2e-06,
+      "resonance": 0,
+      "peak_hz": 22.38721138568,
+      "peak_db": -38.92292270714,
+      "phase_at_peak_rad": -0.05950659972549,
+      "late_output_rms_v": 1.2393340139114548e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i2u_res0.5": {
+      "current_a": 2e-06,
+      "resonance": 0.5,
+      "peak_hz": 19.95262314969,
+      "peak_db": -39.46210517185,
+      "phase_at_peak_rad": 0.05700511548744,
+      "late_output_rms_v": 1.0511889781258886e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i2u_res1": {
+      "current_a": 2e-06,
+      "resonance": 1,
+      "peak_hz": 17.78279410039,
+      "peak_db": -40.13031569325,
+      "phase_at_peak_rad": 0.1950705373695,
+      "late_output_rms_v": 7.124782055982615e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i10u_res0": {
+      "current_a": 1e-05,
+      "resonance": 0,
+      "peak_hz": 70.79457843841,
+      "peak_db": -27.97029387744,
+      "phase_at_peak_rad": -0.1442451772224,
+      "late_output_rms_v": 1.199485248858386e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i10u_res0.5": {
+      "current_a": 1e-05,
+      "resonance": 0.5,
+      "peak_hz": 66.83439175686,
+      "peak_db": -30.2326284506,
+      "phase_at_peak_rad": -0.09792791766631,
+      "late_output_rms_v": 9.895746470564767e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i10u_res1": {
+      "current_a": 1e-05,
+      "resonance": 1,
+      "peak_hz": 34.47466065732,
+      "peak_db": -32.27821224114,
+      "phase_at_peak_rad": 0.3370548286826,
+      "late_output_rms_v": 7.248931314768604e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i40u_res0": {
+      "current_a": 4e-05,
+      "resonance": 0,
+      "peak_hz": 153.992652606,
+      "peak_db": -22.60005561216,
+      "phase_at_peak_rad": -0.102345579537,
+      "late_output_rms_v": 1.1825089951019201e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i40u_res0.5": {
+      "current_a": 4e-05,
+      "resonance": 0.5,
+      "peak_hz": 167.8804018123,
+      "peak_db": -26.36203813062,
+      "phase_at_peak_rad": -0.1348596328749,
+      "late_output_rms_v": 9.979848434003509e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i40u_res1": {
+      "current_a": 4e-05,
+      "resonance": 1,
+      "peak_hz": 51.58221650723,
+      "peak_db": -29.71639706887,
+      "phase_at_peak_rad": 0.3525005455099,
+      "late_output_rms_v": 6.898359029156839e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i160u_res0": {
+      "current_a": 0.00016,
+      "resonance": 0,
+      "peak_hz": 307.2557365267,
+      "peak_db": -20.70696955634,
+      "phase_at_peak_rad": -0.04389581584748,
+      "late_output_rms_v": 1.1610041643404431e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "i160u_res0.5": {
+      "current_a": 0.00016,
+      "resonance": 0.5,
+      "peak_hz": 375.8374042885,
+      "peak_db": -25.09080258131,
+      "phase_at_peak_rad": -0.1016348837764,
+      "late_output_rms_v": 8.816409972262983e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "i160u_res1": {
+      "current_a": 0.00016,
+      "resonance": 1,
+      "peak_hz": 68.78599123088,
+      "peak_db": -29.02402259678,
+      "phase_at_peak_rad": 0.3200321912392,
+      "late_output_rms_v": 6.962851881936078e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "tm3_page7": [
+      {
+        "tm3_ohm": 0,
+        "current_a": 1.255584810583e-05,
+        "ac_peak_hz": 37.58374042884,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 117500,
+        "current_a": 6.150415684454e-06,
+        "ac_peak_hz": 29.00681198693,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 235000,
+        "current_a": 4.084530000866e-06,
+        "ac_peak_hz": 24.40619068042,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 352500,
+        "current_a": 3.061740721324e-06,
+        "ac_peak_hz": 21.7520403402,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 470000,
+        "current_a": 2.450577851255e-06,
+        "ac_peak_hz": 19.38652635952,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      }
+    ],
+    "observed_self_oscillation_threshold_res": null
+  },
+  "env": {
+    "decay_min_accentFalse": {
+      "peak_meg_v": 11.30790559109,
+      "peak_env_v": 10.09127997984,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06734759023173172,
+      "pulse_above_6v_s": 0.0013429605779700007,
+      "meg_at_4s_v": 0.7371382906412,
+      "env_at_4s_v": 0.02077535034592
+    },
+    "decay_min_accentTrue": {
+      "peak_meg_v": 11.30854356014,
+      "peak_env_v": 10.08611773113,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06734077724473689,
+      "pulse_above_6v_s": 0.001339843521489999,
+      "meg_at_4s_v": 0.7371379691432,
+      "env_at_4s_v": 0.02062116115476
+    },
+    "decay_mid_accentFalse": {
+      "peak_meg_v": 11.33524070916,
+      "peak_env_v": 10.11857140024,
+      "nominal_rc_tau_s": 0.15890909090909092,
+      "fit_tau_floor_1p5v_s": 0.1548929078803106,
+      "pulse_above_6v_s": 0.001341582769009999,
+      "meg_at_4s_v": 0.7577417272731,
+      "env_at_4s_v": 0.02080725703828
+    },
+    "decay_mid_accentTrue": {
+      "peak_meg_v": 11.30867238766,
+      "peak_env_v": 10.08624627935,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.0675372645944021,
+      "pulse_above_6v_s": 0.001339829530100001,
+      "meg_at_4s_v": 0.737181705114,
+      "env_at_4s_v": 0.02062121609716
+    },
+    "decay_max_accentFalse": {
+      "peak_meg_v": 11.35449355518,
+      "peak_env_v": 10.13779312959,
+      "nominal_rc_tau_s": 1.068,
+      "fit_tau_floor_1p5v_s": 0.999399540760207,
+      "pulse_above_6v_s": 0.0013426005914200009,
+      "meg_at_4s_v": 1.237684125224,
+      "env_at_4s_v": 0.1361553287785
+    },
+    "decay_max_accentTrue": {
+      "peak_meg_v": 11.30867269034,
+      "peak_env_v": 10.08624658136,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06753766003683263,
+      "pulse_above_6v_s": 0.0013398289266399986,
+      "meg_at_4s_v": 0.7371817930991,
+      "env_at_4s_v": 0.02062121620772
+    },
+    "accents1_res0": {
+      "c13_before_last_note_v": 3.255458017868,
+      "c13_end_last_step_v": 3.93447107685997,
+      "sweep_peak_last_step_v": 5.919260362756
+    },
+    "accents2_res0": {
+      "c13_before_last_note_v": 3.934032775041,
+      "c13_end_last_step_v": 4.155574627582816,
+      "sweep_peak_last_step_v": 6.197227690806
+    },
+    "accents3_res0": {
+      "c13_before_last_note_v": 4.154991454498,
+      "c13_end_last_step_v": 4.2267888018783255,
+      "sweep_peak_last_step_v": 6.283122974505
+    },
+    "accents4_res0": {
+      "c13_before_last_note_v": 4.22615896418,
+      "c13_end_last_step_v": 4.249746904325893,
+      "sweep_peak_last_step_v": 6.310552638602
+    },
+    "accents5_res0": {
+      "c13_before_last_note_v": 4.249102005932,
+      "c13_end_last_step_v": 4.257233483755219,
+      "sweep_peak_last_step_v": 6.319665983663
+    },
+    "accents6_res0": {
+      "c13_before_last_note_v": 4.256583699631,
+      "c13_end_last_step_v": 4.259658605727581,
+      "sweep_peak_last_step_v": 6.322566606811
+    },
+    "accents7_res0": {
+      "c13_before_last_note_v": 4.259007218179,
+      "c13_end_last_step_v": 4.260442213225978,
+      "sweep_peak_last_step_v": 6.323498161578
+    },
+    "accents8_res0": {
+      "c13_before_last_note_v": 4.259790309295,
+      "c13_end_last_step_v": 4.260690593379633,
+      "sweep_peak_last_step_v": 6.323779817418
+    },
+    "accents1_res0.5": {
+      "c13_before_last_note_v": 3.255458017855,
+      "c13_end_last_step_v": 3.855451177424694,
+      "sweep_peak_last_step_v": 4.687543164148
+    },
+    "accents2_res0.5": {
+      "c13_before_last_note_v": 3.854988915839,
+      "c13_end_last_step_v": 4.011165755582745,
+      "sweep_peak_last_step_v": 5.059717939525
+    },
+    "accents3_res0.5": {
+      "c13_before_last_note_v": 4.010581494558,
+      "c13_end_last_step_v": 4.050904119170657,
+      "sweep_peak_last_step_v": 5.155863483721
+    },
+    "accents4_res0.5": {
+      "c13_before_last_note_v": 4.050288713086,
+      "c13_end_last_step_v": 4.061144371850626,
+      "sweep_peak_last_step_v": 5.180499742336
+    },
+    "accents5_res0.5": {
+      "c13_before_last_note_v": 4.060520936776,
+      "c13_end_last_step_v": 4.063792190835428,
+      "sweep_peak_last_step_v": 5.186858943385
+    },
+    "accents6_res0.5": {
+      "c13_before_last_note_v": 4.063166692423,
+      "c13_end_last_step_v": 4.064457839733201,
+      "sweep_peak_last_step_v": 5.188469813614
+    },
+    "accents7_res0.5": {
+      "c13_before_last_note_v": 4.063831812648,
+      "c13_end_last_step_v": 4.064628413452646,
+      "sweep_peak_last_step_v": 5.18888037115
+    },
+    "accents8_res0.5": {
+      "c13_before_last_note_v": 4.064002256744,
+      "c13_end_last_step_v": 4.06467212466864,
+      "sweep_peak_last_step_v": 5.188985552944
+    },
+    "accents1_res1": {
+      "c13_before_last_note_v": 3.255458017867,
+      "c13_end_last_step_v": 3.7871268082632517,
+      "sweep_peak_last_step_v": 4.350580917099
+    },
+    "accents2_res1": {
+      "c13_before_last_note_v": 3.786618516639,
+      "c13_end_last_step_v": 3.8813076891221416,
+      "sweep_peak_last_step_v": 4.607592406483
+    },
+    "accents3_res1": {
+      "c13_before_last_note_v": 3.880707636456,
+      "c13_end_last_step_v": 3.897614607117077,
+      "sweep_peak_last_step_v": 4.654892755452
+    },
+    "accents4_res1": {
+      "c13_before_last_note_v": 3.896998640437,
+      "c13_end_last_step_v": 3.9004996259382714,
+      "sweep_peak_last_step_v": 4.663274167182
+    },
+    "accents5_res1": {
+      "c13_before_last_note_v": 3.899880871087,
+      "c13_end_last_step_v": 3.9009994897799025,
+      "sweep_peak_last_step_v": 4.664741700603
+    },
+    "accents6_res1": {
+      "c13_before_last_note_v": 3.900380244427,
+      "c13_end_last_step_v": 3.9010870661092683,
+      "sweep_peak_last_step_v": 4.664997638918
+    },
+    "accents7_res1": {
+      "c13_before_last_note_v": 3.900467735282,
+      "c13_end_last_step_v": 3.9011023879002993,
+      "sweep_peak_last_step_v": 4.665042447337
+    },
+    "accents8_res1": {
+      "c13_before_last_note_v": 3.900483044557,
+      "c13_end_last_step_v": 3.9011050673348566,
+      "sweep_peak_last_step_v": 4.665050285069
+    },
+    "converter_current_range_a": [
+      9.918293772089e-07,
+      0.0003032738045201
+    ]
+  },
+  "vca": {
+    "i1u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -40.17630098306,
+      "line_gain_db": -34.57039299188,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.925827183333696,
+      "ota_voltage_gain": 1.0133329104009228,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i1u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -33.41381559327,
+      "line_gain_db": -27.80790760209,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833329603,
+      "ota_voltage_gain": 1.0133329104010695,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i1u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i10u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -20.16072542855,
+      "line_gain_db": -14.55481743738,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.925827183331596,
+      "ota_voltage_gain": 10.151516511811929,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i10u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -13.39824003877,
+      "line_gain_db": -7.79233204759,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833334628,
+      "ota_voltage_gain": 10.15151651180171,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i10u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i47u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -6.717407196537,
+      "line_gain_db": -1.111499205362,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.9258271833321707,
+      "ota_voltage_gain": 47.71960465091756,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i47u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": 0.04507819325213,
+      "line_gain_db": 5.650986184427,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833320635,
+      "ota_voltage_gain": 47.71960465091968,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i47u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i100u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -0.1591694081596,
+      "line_gain_db": 5.446738583015,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.9258271833317773,
+      "ota_voltage_gain": 101.53335252585843,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "i100u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": 6.60331598163,
+      "line_gain_db": 12.2092239728,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833320415,
+      "ota_voltage_gain": 101.53335252586844,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "i100u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "veg": {
+      "peak_control_current_a": 4.476640779035e-05,
+      "minimum_c42_v": 0.4900895700687,
+      "fit_recharge_tau_s": 1.6018998286584631,
+      "control_current_at_3p1s_a": 3.2005593578709944e-06
+    }
+  },
+  "include_sha256": {
+    "vcf-stage.inc": "666c2d10cfdfc845a6c10dd1b6b1cfbfe5647ceb0f747389b95c0ec6bb9f5ac8",
+    "models.inc": "7e3787240148fff513cc2c18e677288619fc9f83c59e75ac310fbd0d5864a4ee",
+    "control-stage.inc": "65503b19d73e2c6f48f872a5cef0f22673b255866120b86d5f5828e88410e6c5",
+    "env-stage.inc": "d04499fc0aaccf0f19e774e73bf66521b284221f555ac62ee2b07c2f48f9cc06"
+  }
+}

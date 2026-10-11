@@ -16,83 +16,91 @@ pub enum StageError {
     InvalidSampleRate,
 }
 
-/// Component/calibration values; all quantities are SI.
-///
-/// Reference designators are deliberately omitted until the schematic scan can
-/// be read reliably. Invalid/out-of-range values fall back individually to nominal.
+/// Printed component values and adjustment targets, in SI units.
+/// Invalid values fall back individually to nominal.
 #[derive(Clone, Copy, Debug)]
 pub struct Components {
-    /// VERIFY: slide switch's effective series resistance, ohms.
+    /// R74–R90/R96 ladder Thevenin resistance (200k arms in parallel).
     pub slide_resistance: f64,
-    /// VERIFY: slide storage capacitor, farads (nominal RC = 60 ms).
+    /// C35, 0.22 uF.
     pub slide_capacitance: f64,
-    /// VERIFY: lowest sequencer C calibration in Hz (C2 in MIDI convention).
+    /// TM4 adjustment: A at 2.75 V = 110 Hz; lowest C at 1 V.
     pub reference_hz: f64,
-    /// Matched-pair junction temperature, kelvin; nominal laboratory temperature.
+    /// Chosen operating temperature of the Q26 2SC1583 pair, kelvin.
     pub temperature_kelvin: f64,
-    /// VERIFY: full TUNING pot excursion in octaves; linear pot/summing assumption.
+    /// VR2 50k(B), R118 100k; page-1 specification gives +/-700 cents.
+    /// VERIFY: O3 pin-3 destination; span calibrated to spec, not inferred rail.
     pub tuning_octaves: f64,
-    /// VERIFY: timing capacitor in farads.
+    /// VR2 linear panel pot, 50k(B).
+    pub tuning_resistance: f64,
+    /// R118, tuning summing resistor, 100k.
+    pub tuning_input_resistance: f64,
+    /// R106, CV summing resistor, 27k.
+    pub cv_input_resistance: f64,
+    /// R100 posistor, 560 ohms at the chosen operating temperature.
+    pub posistor_resistance: f64,
+    /// VERIFY: R100 PTC coefficient; ideal 1/Tnom compensation per kelvin.
+    pub posistor_temperature_coefficient: f64,
+    /// TM5 4.7k rheostat range; nominal position is solved for 1 V/oct.
+    pub width_resistance: f64,
+    /// C33, .01 uF.
     pub timing_capacitance: f64,
-    /// VERIFY: low reset endpoint of timing/source-follower node, volts.
+    /// Q28 source waveform annotation, 5.5 V just before reset.
     pub saw_low: f64,
-    /// VERIFY: high threshold of timing/source-follower node, volts.
+    /// Q28 source waveform annotation, 12 V just after reset.
     pub saw_high: f64,
-    /// VERIFY: charging transistor effective Early voltage, volts.
-    pub early_voltage: f64,
-    /// VERIFY: reset fraction of cycle; reset conductance tracks charging current.
-    pub reset_fraction: f64,
-    /// VERIFY: reset spans this many exponential RC time constants.
-    pub reset_time_constants: f64,
-    /// VERIFY: square PNP emitter supply, volts.
+    /// Q27 emitter / R45 top, 12 V rail.
     pub square_supply: f64,
-    /// VERIFY: square base DC bias below emitter, volts.
-    pub square_bias: f64,
-    /// VERIFY: saw-to-base coupling divider gain.
-    pub square_drive: f64,
-    /// VERIFY: input coupling resistance, ohms.
+    /// R36 return, 5.333 V rail (exact 64/12 for DAC calibration).
+    pub square_return: f64,
+    /// R35, DC saw-to-Q8-base path, 100k.
+    pub square_dc_resistance: f64,
+    /// R34, series path from C10 to Q8 base, 10k.
     pub square_input_resistance: f64,
-    /// VERIFY: input coupling capacitor, farads.
+    /// C10, .01 uF.
     pub square_input_capacitance: f64,
-    /// VERIFY: PNP collector load resistor, ohms.
+    /// R36, collector return resistance, 10k.
     pub square_collector_resistance: f64,
-    /// VERIFY: collector parasitic/loading capacitor, farads.
-    pub square_collector_capacitance: f64,
-    /// VERIFY: output coupling load resistance, ohms.
-    pub square_output_resistance: f64,
-    /// VERIFY: output coupling capacitor, farads.
-    pub square_output_capacitance: f64,
-    /// VERIFY: 2SA733 substitute saturation current, amperes.
-    pub transistor_is: f64,
-    /// VERIFY: 2SA733 substitute forward common-base current gain.
-    pub transistor_alpha: f64,
+    /// R45, emitter supply resistance, 22k.
+    pub square_emitter_resistance: f64,
+    /// C11, emitter storage capacitor, 1 uF.
+    pub square_emitter_capacitance: f64,
+    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation.
+    pub transistor_vbe: f64,
+    /// VERIFY: Q8 forward beta, estimated 200; no device curve supplied.
+    pub transistor_beta: f64,
+    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V.
+    pub transistor_vce_sat: f64,
 }
 
 impl Components {
-    /// Best-estimate nominal values, pending schematic/SPICE validation.
+    /// Nominal schematic values, with TM4/TM5 adjusted per service-notes page 7.
     pub const NOMINAL: Self = Self {
         slide_resistance: 100_000.0,
-        slide_capacitance: 0.6e-6,
-        reference_hz: 65.406_391_325_149_66,
-        temperature_kelvin: 298.15,
-        tuning_octaves: 1.0,
+        slide_capacitance: 0.22e-6,
+        reference_hz: 32.703_195_662_574_83,
+        temperature_kelvin: 300.0,
+        tuning_octaves: 7.0 / 6.0,
+        tuning_resistance: 50_000.0,
+        tuning_input_resistance: 100_000.0,
+        cv_input_resistance: 27_000.0,
+        posistor_resistance: 560.0,
+        posistor_temperature_coefficient: 1.0 / 300.0,
+        width_resistance: 4_700.0,
         timing_capacitance: 10e-9,
-        saw_low: 0.5,
-        saw_high: 5.0,
-        early_voltage: 60.0,
-        reset_fraction: 0.0025,
-        reset_time_constants: 4.6,
-        square_supply: 5.333,
-        square_bias: 0.60,
-        square_drive: 0.40,
-        square_input_resistance: 100_000.0,
-        square_input_capacitance: 100e-9,
-        square_collector_resistance: 22_000.0,
-        square_collector_capacitance: 150e-12,
-        square_output_resistance: 100_000.0,
-        square_output_capacitance: 220e-9,
-        transistor_is: 1e-14,
-        transistor_alpha: 0.995,
+        saw_low: 5.5,
+        saw_high: 12.0,
+        square_supply: 12.0,
+        square_return: 64.0 / 12.0,
+        square_dc_resistance: 100_000.0,
+        square_input_resistance: 10_000.0,
+        square_input_capacitance: 10e-9,
+        square_collector_resistance: 10_000.0,
+        square_emitter_resistance: 22_000.0,
+        square_emitter_capacitance: 1e-6,
+        transistor_vbe: 0.65,
+        transistor_beta: 200.0,
+        transistor_vce_sat: 0.2,
     };
 
     fn valid(mut self) -> Self {
@@ -109,6 +117,12 @@ impl Components {
         bound!(reference_hz, 1.0, 10_000.0);
         bound!(temperature_kelvin, 200.0, 400.0);
         bound!(tuning_octaves, 0.0, 4.0);
+        bound!(tuning_resistance, 1.0, 1e9);
+        bound!(tuning_input_resistance, 1.0, 1e9);
+        bound!(cv_input_resistance, 1.0, 1e9);
+        bound!(posistor_resistance, 1.0, 1e9);
+        bound!(posistor_temperature_coefficient, 0.0, 0.005);
+        bound!(width_resistance, 1.0, 1e9);
         bound!(timing_capacitance, 1e-12, 1e-3);
         bound!(saw_low, 0.0, 10.0);
         bound!(saw_high, 0.1, 20.0);
@@ -116,20 +130,21 @@ impl Components {
             self.saw_low = n.saw_low;
             self.saw_high = n.saw_high;
         }
-        bound!(early_voltage, 1.0, 1000.0);
-        bound!(reset_fraction, 1e-5, 0.1);
-        bound!(reset_time_constants, 0.1, 20.0);
         bound!(square_supply, 1.0, 20.0);
-        bound!(square_bias, 0.0, 1.0);
-        bound!(square_drive, 0.01, 2.0);
+        bound!(square_return, 0.0, 20.0);
+        if self.square_return >= self.square_supply {
+            self.square_return = n.square_return;
+            self.square_supply = n.square_supply;
+        }
+        bound!(square_dc_resistance, 1.0, 1e9);
         bound!(square_input_resistance, 1.0, 1e9);
         bound!(square_input_capacitance, 1e-12, 1.0);
         bound!(square_collector_resistance, 1.0, 1e9);
-        bound!(square_collector_capacitance, 1e-12, 1.0);
-        bound!(square_output_resistance, 1.0, 1e9);
-        bound!(square_output_capacitance, 1e-12, 1.0);
-        bound!(transistor_is, 1e-20, 1e-6);
-        bound!(transistor_alpha, 0.5, 0.99999);
+        bound!(square_emitter_resistance, 1.0, 1e9);
+        bound!(square_emitter_capacitance, 1e-12, 1.0);
+        bound!(transistor_vbe, 0.1, 1.0);
+        bound!(transistor_beta, 1.0, 1000.0);
+        bound!(transistor_vce_sat, 0.01, 0.5);
         self
     }
 }
@@ -165,12 +180,17 @@ fn clean_state(x: f64) -> f64 {
 }
 
 /// Ideal calibrated sequencer DAC mapping, volts: one semitone is 1/12 V.
-/// VERIFY: physical DAC resistor ladder errors and absolute offset are not captured.
+/// R78 terminates at the reference rail: DAC code = min(note + 11, 63).
+/// VERIFY: IC10 supply is unprinted; ideal logic-high = 64/12 V, per transcription.
 pub fn cv_for_note(note: u8) -> f64 {
-    f64::from(note) / 12.0
+    f64::from(note.min(52) + 12) / 12.0
 }
 
 /// Sequencer DAC and switched slide capacitor voltage.
+/// VERIFY: O2 latch/slide clock ambiguity is delegated to the sequencer; `note`
+/// is an already-latched DAC value, independent of slide in this binding API.
+/// VERIFY: ideal IC12 switches (O7 supply unprinted) and IC11b buffer omit
+/// finite Ron, settling, D30/D31 junction drops and logic transistor transients.
 pub struct PitchCv {
     c: Components,
     voltage: f64,
@@ -198,7 +218,7 @@ impl PitchCv {
     pub fn reset(&mut self) {
         self.voltage = 0.0;
     }
-    /// Ideal DAC voltage for a sequencer semitone index (lowest C = zero).
+    /// DAC voltage for a sequencer semitone index (lowest C = 1 V).
     pub fn cv_for_note(note: u8) -> f64 {
         cv_for_note(note)
     }
@@ -215,153 +235,98 @@ impl PitchCv {
     }
 }
 
-/// Iteration bound for the shaper's safeguarded collector solve.
-const MAX_SHAPER_ITERATIONS: usize = 40;
-const SHAPER_TOLERANCE_VOLTS: f64 = 1.0e-9;
-
-/// Static PNP Ebers–Moll collector solution, with input/output coupling capacitors.
-/// VERIFY: stiff emitter/base drive approximation omits base-current loading,
-/// emitter impedance and buffer loading; RC networks are reduced equivalents.
-///
-/// The collector satisfies Vc/Rc = alpha*Is*(exp(Veb/Vt)-1)
-/// minus Is*(exp(Vcb/Vt)-1). Warm-started Newton with a bisection safeguard
-/// covers cutoff and saturation, including the reverse base-collector junction.
-/// Work is bounded by 40 iterations; no comparator is used.
+/// Q8 PNP shaper with the printed R35 || (C10 + R34) base network,
+/// R45/C11 emitter network and R36 return to 5.333 V.
+/// Stores C10 voltage and C11 emitter voltage; collector is DC-coupled.
+/// VERIFY: piecewise-linear Q8 model omits junction curvature and parasitics.
 pub struct SquareShaper {
     c: Components,
     input_cap: f64,
-    collector: f64,
-    /// Previous static collector solution (Newton warm start).
-    solution: f64,
-    output_cap: f64,
-    input_retention: f64,
-    collector_retention: f64,
-    output_retention: f64,
-    thermal_voltage: f64,
-    collector_conductance: f64,
-    forward_scale: f64,
-    exp_bounds: [f64; 2],
-    forward_bounds: [f64; 2],
+    emitter: f64,
+    dt_over_input_cap: f64,
+    base_dc_g: f64,
+    base_ac_g: f64,
+    emitter_g: f64,
+    emitter_cap_g: f64,
+    collector_g: f64,
     diagnostics: OscDiagnostics,
 }
 
 impl SquareShaper {
-    /// Construct at 48 kHz with zero capacitor voltages.
+    /// Construct at 48 kHz, C10 discharged and C11 at its unloaded 12 V rail.
     pub fn new(c: Components) -> Self {
         let c = c.valid();
         let mut s = Self {
             c,
             input_cap: 0.0,
-            collector: 0.0,
-            solution: 0.0,
-            output_cap: 0.0,
-            input_retention: 0.0,
-            collector_retention: 0.0,
-            output_retention: 0.0,
-            thermal_voltage: BOLTZMANN_OVER_Q * c.temperature_kelvin,
-            collector_conductance: 1.0 / c.square_collector_resistance,
-            forward_scale: c.transistor_alpha * c.transistor_is,
-            exp_bounds: [libm::exp(-80.0), libm::exp(40.0)],
-            forward_bounds: [libm::expm1(-80.0), libm::expm1(40.0)],
+            emitter: c.square_supply,
+            dt_over_input_cap: 0.0,
+            base_dc_g: 1.0 / c.square_dc_resistance,
+            base_ac_g: 0.0,
+            emitter_g: 1.0 / c.square_emitter_resistance,
+            emitter_cap_g: 0.0,
+            collector_g: 1.0 / c.square_collector_resistance,
             diagnostics: OscDiagnostics::default(),
         };
         s.set_rate(48_000.0);
         s
     }
     fn set_rate(&mut self, rate: f64) {
-        self.input_retention = libm::exp(
-            -1.0 / (rate * self.c.square_input_resistance * self.c.square_input_capacitance),
-        );
-        self.collector_retention = libm::exp(
-            -1.0 / (rate
-                * self.c.square_collector_resistance
-                * self.c.square_collector_capacitance),
-        );
-        self.output_retention = libm::exp(
-            -1.0 / (rate * self.c.square_output_resistance * self.c.square_output_capacitance),
-        );
+        self.dt_over_input_cap = 1.0 / (rate * self.c.square_input_capacitance);
+        self.base_ac_g = 1.0 / (self.c.square_input_resistance + self.dt_over_input_cap);
+        self.emitter_cap_g = rate * self.c.square_emitter_capacitance;
     }
-    /// Prepare RC coefficients while preserving capacitor voltages.
+    /// Prepare backward-Euler capacitor companions, preserving node voltages.
     pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError> {
         rate_valid(sample_rate)?;
         self.set_rate(sample_rate);
         Ok(())
     }
-    /// Discharge all capacitor states and clear diagnostics.
+    /// Restore rail equilibrium and clear diagnostics, preserving the rate.
     pub fn reset(&mut self) {
         self.input_cap = 0.0;
-        self.collector = 0.0;
-        self.solution = 0.0;
-        self.output_cap = 0.0;
+        self.emitter = self.c.square_supply;
         self.diagnostics = OscDiagnostics::default();
     }
-    /// Diagnostics since the last reset.
+    /// Diagnostics since reset.
     pub fn diagnostics(&self) -> OscDiagnostics {
         self.diagnostics
     }
-
-    fn static_collector(&self, base: f64, guess: f64) -> f64 {
-        let vt = self.thermal_voltage;
-        let forward_argument = ((self.c.square_supply - base) / vt).clamp(-80.0, 40.0);
-        let forward_exp = if forward_argument == -80.0 {
-            self.forward_bounds[0]
-        } else if forward_argument == 40.0 {
-            self.forward_bounds[1]
-        } else {
-            libm::expm1(forward_argument)
-        };
-        let forward = self.forward_scale * forward_exp;
-        // KCL residual f(vc) is strictly increasing in vc, so Newton steps are
-        // safeguarded by a shrinking [low, high] bracket (bisection fallback).
-        // Warm-started from the previous solution this typically takes 2-3 steps.
-        let mut low = 0.0;
-        let mut high = self.c.square_supply;
-        let mut vc = guess.clamp(low, high);
-        for _ in 0..MAX_SHAPER_ITERATIONS {
-            let x = ((vc - base) / vt).clamp(-80.0, 40.0);
-            let e = if x == -80.0 {
-                self.exp_bounds[0]
-            } else if x == 40.0 {
-                self.exp_bounds[1]
-            } else {
-                libm::exp(x)
-            };
-            let f = vc / self.c.square_collector_resistance - forward
-                + self.c.transistor_is * (e - 1.0);
-            if f > 0.0 {
-                high = vc;
-            } else {
-                low = vc;
-            }
-            let slope = self.collector_conductance + self.c.transistor_is * e / vt;
-            let mut next = vc - f / slope;
-            if !(next > low && next < high) {
-                next = 0.5 * (low + high);
-            }
-            let converged =
-                (next - vc).abs() < SHAPER_TOLERANCE_VOLTS || high - low < SHAPER_TOLERANCE_VOLTS;
-            vc = next;
-            if converged {
-                break;
-            }
-        }
-        vc
-    }
-    /// Process the saw-node voltage into the AC-coupled WAVEFORM square terminal.
+    /// Process Q28 source voltage into Q8 collector voltage (no output capacitor).
+    /// Cutoff, forward-active and saturation branches are solved analytically.
     pub fn tick(&mut self, saw: f64) -> f64 {
         let saw = sanitise(saw, &mut self.diagnostics.non_finite_inputs).clamp(-100.0, 100.0);
-        // Capacitor voltage at the beginning of the sample drives the base.
-        let ac = saw - self.input_cap;
-        self.input_cap = clean_state(saw + (self.input_cap - saw) * self.input_retention);
-        let base = self.c.square_supply - self.c.square_bias + self.c.square_drive * ac;
-        let target = self.static_collector(base, self.solution);
-        self.solution = target;
-        self.collector = clean_state(target + (self.collector - target) * self.collector_retention);
-        let output = self.collector - self.output_cap;
-        self.output_cap = clean_state(
-            self.collector + (self.output_cap - self.collector) * self.output_retention,
+        let gb = self.base_dc_g + self.base_ac_g;
+        let drive = gb * saw - self.base_ac_g * self.input_cap;
+        let ge = self.emitter_g + self.emitter_cap_g;
+        let supply = self.emitter_g * self.c.square_supply + self.emitter_cap_g * self.emitter;
+        let off_emitter = supply / ge;
+        let off_base = drive / gb;
+        let (emitter, base, collector) = if off_emitter - off_base <= self.c.transistor_vbe {
+            (off_emitter, off_base, self.c.square_return)
+        } else {
+            // ib = gb*(Ve - Veb) - drive; ie = (beta+1)*ib.
+            let beta1 = self.c.transistor_beta + 1.0;
+            let offset = gb * self.c.transistor_vbe + drive;
+            let mut ve = (supply + beta1 * offset) / (ge + beta1 * gb);
+            let ib = (gb * ve - offset).max(0.0);
+            let mut vc = self.c.square_return + self.c.transistor_beta * ib / self.collector_g;
+            if vc > ve - self.c.transistor_vce_sat {
+                // Saturation: vc = ve - Vec_sat, ie = ib + ic.
+                ve = (supply
+                    + offset
+                    + self.collector_g * (self.c.square_return + self.c.transistor_vce_sat))
+                    / (ge + gb + self.collector_g);
+                vc = (ve - self.c.transistor_vce_sat).max(self.c.square_return);
+            }
+            (ve, ve - self.c.transistor_vbe, vc)
+        };
+        self.input_cap = clean_state(
+            self.input_cap
+                + self.dt_over_input_cap * self.base_ac_g * (saw - base - self.input_cap),
         );
-        output
+        self.emitter = emitter.clamp(0.0, self.c.square_supply);
+        collector.clamp(self.c.square_return, self.c.square_supply)
     }
 }
 
@@ -370,19 +335,21 @@ impl SquareShaper {
 pub struct VcoOut {
     /// Band-limited saw/source-follower voltage, including DC bias.
     pub saw: f64,
-    /// AC-coupled PNP collector voltage.
+    /// DC-coupled Q8 PNP collector voltage, nominally 5.333–8 V.
     pub square: f64,
 }
 
-/// Exponential matched-pair converter and finite-reset capacitor oscillator.
-/// VERIFY: reset conductance proportional to converter current is a tracking
-/// approximation, not a verified reduction of the transistor reset topology.
-/// VERIFY: source-follower gain/offset are folded into the saw endpoint voltages.
-/// VERIFY: Early-effect charging curvature needs schematic/SPICE confirmation.
-///
-/// Harmonic projection is equivalent to convolving the analytic capacitor
-/// waveform with a band-limited reconstruction kernel. It removes reset/slope
-/// aliases without a sampled discontinuity. Work is bounded by 256 harmonics.
+/// Q26 matched-pair current sink and C33 falling-ramp oscillator.
+/// Q25 senses the low threshold established by diode-connected Q24/R101;
+/// Q27/D25 regeneratively reset C33 toward the 12 V rail.
+/// VERIFY: reset treated as instantaneous (printed waveform); device recovery omitted.
+/// VERIFY: Q25 NPN choice follows O5 topology; Q24/Q25 Vbe and D25 drop
+/// are represented by the annotated low endpoint, not measured device models.
+/// VERIFY: Q26 ideal constant-current sink omits Early effect and pair mismatch.
+/// VERIFY: IC11a/R104/C34 treated as ideal reference regulation; TM4/R102
+/// current is calibrated from A=110 Hz, bypassing the unresolved R102 unit (O1).
+/// VERIFY: Q28/R105 follower transfer folded into printed source-node endpoints.
+/// Analytic cycle projection bounds the reset spectrum to 256 harmonics.
 pub struct Vco {
     c: Components,
     phase: f64,
@@ -427,28 +394,9 @@ fn harmonics_in_band(frequency: f64, rate: f64, edge: f64, inclusive: bool) -> u
     count
 }
 
-// Charge/current time product for the Early-effect charging interval plus reset.
+// C33 loses this charge between the printed endpoints; Q26b is a sink.
 fn cycle_charge(c: Components) -> f64 {
-    c.timing_capacitance
-        * c.early_voltage
-        * libm::log((c.early_voltage + c.saw_high) / (c.early_voltage + c.saw_low))
-        / (1.0 - c.reset_fraction)
-}
-
-// Fourier integral of a + b*exp(k*(phase-start)) on one segment.
-fn segment(a: f64, b: f64, k: f64, start: f64, length: f64, w: f64) -> (f64, f64) {
-    let angle = w * length;
-    let co = libm::cos(angle);
-    let si = libm::sin(angle);
-    let e = libm::exp(k * length);
-    let nr = e * co - 1.0;
-    let ni = -e * si;
-    let denominator = k * k + w * w;
-    let re = a * si / w + b * (nr * k - ni * w) / denominator;
-    let im = a * (co - 1.0) / w + b * (nr * w + ni * k) / denominator;
-    let cs = libm::cos(w * start);
-    let ss = libm::sin(w * start);
-    (re * cs + im * ss, im * cs - re * ss)
+    c.timing_capacitance * (c.saw_high - c.saw_low)
 }
 
 impl Vco {
@@ -483,24 +431,12 @@ impl Vco {
             square: SquareShaper::new(c),
             diagnostics: OscDiagnostics::default(),
         };
-        let d = 1.0 - c.reset_fraction;
-        // dV/dt = I/C * (1 + V/Vearly), i.e. finite transistor output resistance.
-        let k = libm::log((c.early_voltage + c.saw_high) / (c.early_voltage + c.saw_low)) / d;
-        let a = -c.early_voltage;
-        let b = c.early_voltage + c.saw_low;
-        let kr = -c.reset_time_constants / c.reset_fraction;
-        let br = (c.saw_high - c.saw_low) / -libm::expm1(-c.reset_time_constants);
-        let ar = c.saw_high - br;
-        s.dc = a * d
-            + b * libm::expm1(k * d) / k
-            + ar * c.reset_fraction
-            + br * libm::expm1(kr * c.reset_fraction) / kr;
+        // Constant Q26b collector current: V(phi) = high - span*phi.
+        // Instantaneous upward regenerative reset at phi=1 gives sine-only
+        // coefficients span/(pi*h), and no frequency-dependent rebuilding.
+        s.dc = 0.5 * (c.saw_high + c.saw_low);
         for h in 1..=HARMONICS {
-            let w = TAU * h as f64;
-            let charge = segment(a, b, k, 0.0, d, w);
-            let reset = segment(ar, br, kr, d, c.reset_fraction, w);
-            s.cosine[h - 1] = 2.0 * (charge.0 + reset.0);
-            s.sine[h - 1] = -2.0 * (charge.1 + reset.1);
+            s.sine[h - 1] = (c.saw_high - c.saw_low) / (PI * h as f64);
         }
         s
     }
@@ -530,8 +466,8 @@ impl Vco {
     /// The reference current is calibrated using NOMINAL capacitor/endpoints;
     /// changing timing components therefore changes frequency physically.
     ///
-    /// Matched pair: Iout/Iref = exp(delta_Vbe/Vt). The calibrated divider
-    /// produces Vt_nominal*ln(2) per input volt, retaining temperature dependence.
+    /// Matched pair: Iout/Iref = exp(delta_Vbe/Vt). R106/TM5, R118 and
+    /// R100 set the divider; the posistor compensates junction temperature.
     /// CV is limited to ±16 V for bounded numerical behaviour; non-finite CV and
     /// knob values map to zero. This read-only query does not update diagnostics.
     pub fn frequency_hz(&self, cv: f64, tuning: f64) -> f64 {
@@ -545,16 +481,39 @@ impl Vco {
         } else {
             0.0
         };
-        let nominal_vt = BOLTZMANN_OVER_Q * Components::NOMINAL.temperature_kelvin;
+        let n = Components::NOMINAL;
+        let nominal_vt = BOLTZMANN_OVER_Q * n.temperature_kelvin;
         let vt = BOLTZMANN_OVER_Q * self.c.temperature_kelvin;
-        let delta_vbe = nominal_vt * LN_2 * (cv + (tuning - 0.5) * self.c.tuning_octaves);
-        self.reference_frequency * libm::exp(delta_vbe / vt)
+        // Solve nominal TM5 WIDTH position for g_cv/g_total = Vt*ln(2).
+        // Preserve the physical trimmer position under component changes.
+        let target = nominal_vt * LN_2;
+        let nominal_rcv =
+            (1.0 / target - 1.0) / (1.0 / n.posistor_resistance + 1.0 / n.tuning_input_resistance);
+        let width_rotation =
+            ((nominal_rcv - n.cv_input_resistance) / n.width_resistance).clamp(0.0, 1.0);
+        let rcv = self.c.cv_input_resistance + width_rotation * self.c.width_resistance;
+        let ptc = self.c.posistor_resistance
+            * (1.0
+                + self.c.posistor_temperature_coefficient
+                    * (self.c.temperature_kelvin - n.temperature_kelvin));
+        let cv_gain = 1.0 / (1.0 + rcv / ptc + rcv / self.c.tuning_input_resistance);
+        // Loaded linear VR2 wiper. Effective endpoint span is calibrated to the
+        // +/-700 cent specification because the pin-3 rail is unresolved (O3).
+        let load = self.c.tuning_input_resistance;
+        let wiper =
+            (tuning - 0.5) * load / (load + self.c.tuning_resistance * tuning * (1.0 - tuning));
+        let tune_gain = cv_gain * rcv / load;
+        let nominal_tune_gain = target * nominal_rcv / n.tuning_input_resistance;
+        let delta_vbe = cv_gain * (cv - 1.0)
+            + target * wiper * self.c.tuning_octaves * tune_gain / nominal_tune_gain;
+        self.reference_frequency * libm::exp((delta_vbe / vt).clamp(-80.0, 80.0))
     }
-    /// Charging-current solution of the matched-pair law, amperes.
-    /// Finite Early voltage and the calibrated reset fraction set the reference current.
+    /// Q26b collector sink current, amperes, from TM4 calibration and C33 charge.
+    /// At the printed A adjustment this is 7.15 uA (reset time neglected).
     pub fn charging_current_a(&self, cv: f64, tuning: f64) -> f64 {
         self.frequency_hz(cv, tuning) * cycle_charge(self.c)
     }
+
     /// Limit synthesised harmonics to `hz` (passband edge; fade over a further
     /// 20%). When the voice runs oversampled and decimates, harmonics above the
     /// host band are discarded anyway, so this saves work without audible
@@ -687,59 +646,44 @@ mod tests {
     }
 
     #[test]
-    fn ebers_moll_root_satisfies_collector_kcl() {
-        let s = SquareShaper::new(Components::NOMINAL);
-        let vt = BOLTZMANN_OVER_Q * s.c.temperature_kelvin;
-        for veb in [0.1, 0.4, 0.55, 0.6, 0.65, 0.75] {
-            let base = s.c.square_supply - veb;
-            let vc = s.static_collector(base, 0.0);
-            let ic = s.c.transistor_alpha * s.c.transistor_is * libm::expm1(veb / vt)
-                - s.c.transistor_is * libm::expm1((vc - base) / vt);
-            let error = (vc / s.c.square_collector_resistance - ic).abs();
-            assert!(error < 1e-8, "collector KCL residual {error}");
-        }
-        // Finite endpoints remain bounded even at strongly overdriven junctions.
-        for base in [-100.0, 100.0] {
-            let vc = s.static_collector(base, 0.0);
-            assert!(vc >= 0.0 && vc <= s.c.square_supply);
-        }
-    }
-
-    #[test]
     fn timing_capacitor_changes_frequency_not_converter_current() {
         let a = Vco::new(Components::NOMINAL);
         let b = Vco::new(Components {
             timing_capacitance: 20e-9,
             ..Components::NOMINAL
         });
-        assert!((a.frequency_hz(2.0, 0.5) / b.frequency_hz(2.0, 0.5) - 2.0).abs() < 1e-12);
-        assert!((a.charging_current_a(2.0, 0.5) - b.charging_current_a(2.0, 0.5)).abs() < 1e-18);
+        assert!((a.frequency_hz(2.75, 0.5) / b.frequency_hz(2.75, 0.5) - 2.0).abs() < 1e-12);
+        assert!((a.charging_current_a(2.75, 0.5) - b.charging_current_a(2.75, 0.5)).abs() < 1e-18);
     }
 
     #[test]
-    fn tiny_endpoint_span_is_sanitised_and_states_flush() {
-        let c = Components {
-            saw_low: 1.0,
-            saw_high: 1.0 + f64::EPSILON,
-            ..Components::NOMINAL
-        };
-        assert!(Vco::new(c).tick(0.0, 0.5).saw.is_finite());
-        assert_eq!(clean_state(1e-30), 0.0);
-        assert_eq!(clean_state(-1e-30), 0.0);
-    }
-
-    #[test]
-    fn square_input_capacitor_has_rate_independent_rc_solution() {
-        for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
+    fn unloaded_c11_recharges_through_r45() {
+        for rate in [48_000.0, 96_000.0, 192_000.0] {
             let mut s = SquareShaper::new(Components::NOMINAL);
             s.prepare(rate).unwrap();
-            let tau = s.c.square_input_resistance * s.c.square_input_capacitance;
-            let n = (rate * tau) as usize;
+            s.emitter = 6.0;
+            let n = (rate * 0.022) as usize;
             for _ in 0..n {
-                s.tick(1.0);
+                s.tick(12.0);
             }
-            let expected = 1.0 - libm::exp(-(n as f64) / (rate * tau));
-            assert!((s.input_cap - expected).abs() < 1e-11);
+            assert!((s.emitter - (12.0 - 6.0 * libm::exp(-1.0))).abs() < 0.0011);
+        }
+    }
+
+    #[test]
+    fn c10_off_state_time_constant_includes_r35_return() {
+        for rate in [48_000.0, 96_000.0, 192_000.0] {
+            let mut s = SquareShaper::new(Components::NOMINAL);
+            s.prepare(rate).unwrap();
+            s.input_cap = 1.0;
+            let tau = (s.c.square_input_resistance + s.c.square_dc_resistance)
+                * s.c.square_input_capacitance;
+            let n = (rate * tau).round() as usize;
+            for _ in 0..n {
+                s.tick(20.0);
+            }
+            let expected = libm::exp(-(n as f64) / (rate * tau));
+            assert!((s.input_cap - expected).abs() < 0.004);
         }
     }
 }

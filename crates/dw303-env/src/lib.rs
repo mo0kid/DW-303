@@ -1,570 +1,589 @@
 #![no_std]
-//! TB-303 envelope, accent, control and output circuit reductions.
-//!
-//! Voltages and currents use SI units. See `docs/circuit/env.md` for the
-//! unverified component estimates and the limits of these reduced models.
+//! Schematic-based TB-303 trigger, envelopes, accent, OTA and line output.
+//! All signals are SI node voltages or currents. See `docs/circuit/env.md`
+//! for reductions, calibration, integration order and unresolved device models.
 
-use core::cell::Cell;
-
-/// Lifecycle failure; preparation accepts finite rates from 44.1 to 384 kHz.
+/// Unsupported circuit clock.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StageError {
-    /// The rate is non-finite or outside the supported circuit rate range.
+    /// Expected a finite sample rate in 44.1–384 kHz.
     InvalidSampleRate,
 }
 
-/// Component values and equivalent network parameters in SI units.
-/// VERIFY: Reference designators and all estimates must be checked against a
-/// legible service schematic; descriptive names deliberately avoid false IDs.
-#[derive(Clone, Copy, Debug)]
-pub struct Components {
-    /// VERIFY: MEG storage capacitance, estimated 1 uF (likely C62).
-    pub meg_capacitance: f64,
-    /// VERIFY: Minimum equivalent discharge resistance, 200 kohm.
-    pub meg_decay_resistance: f64,
-    /// VERIFY: DECAY rheostat effective span, 2.3 Mohm, linear taper.
-    pub decay_pot_resistance: f64,
-    /// VERIFY: MEG charging switch/source resistance, 1 kohm.
-    pub meg_attack_resistance: f64,
-    /// VERIFY: Differentiated trigger charging pulse, 4 ms.
-    pub meg_charge_pulse: f64,
-    /// VERIFY: Charged MEG source voltage, 5 V.
-    pub meg_source_voltage: f64,
-    /// VERIFY: VEG storage capacitance, 1 uF.
-    pub veg_capacitance: f64,
-    /// VERIFY: VEG charge resistance, 330 ohm.
-    pub veg_attack_resistance: f64,
-    /// VERIFY: VEG fixed discharge resistance, 3.3 Mohm.
-    pub veg_decay_resistance: f64,
-    /// VERIFY: Gate-off discharge equivalent resistance, 10 kohm.
-    pub veg_release_resistance: f64,
-    /// VERIFY: VEG charging pulse, 1.5 ms.
-    pub veg_charge_pulse: f64,
-    /// VERIFY: VEG charging source, 5 V.
-    pub veg_source_voltage: f64,
-    /// VERIFY: Accent smoothing storage capacitance, 1 uF.
-    pub accent_capacitance: f64,
-    /// VERIFY: Accent diode charging path resistance, 100 kohm.
-    pub accent_charge_resistance: f64,
-    /// VERIFY: Accent discharge/load resistance, 1 Mohm.
-    pub accent_discharge_resistance: f64,
-    /// VERIFY: Accent diode forward voltage reduction, 0.6 V.
-    pub accent_diode_voltage: f64,
-    /// VERIFY: Second RESONANCE gang scales sweep from 0.25 to 1, linear.
-    pub resonance_sweep_floor: f64,
-    /// VERIFY: Expo reference current at centre cutoff and zero modulation, 1 uA.
-    pub filter_reference_current: f64,
-    /// VERIFY: Full CUTOFF rotation spans eight octaves.
-    pub cutoff_octaves: f64,
-    /// VERIFY: Maximum ENV MOD converter sensitivity, 1 octave/V.
-    pub envelope_octaves_per_volt: f64,
-    /// VERIFY: ENV MOD moves both endpoints around this 2.5 V reference.
-    pub envelope_reference_voltage: f64,
-    /// VERIFY: Accent sweep sensitivity, 1 octave/V.
-    pub accent_octaves_per_volt: f64,
-    /// VERIFY: Effective VCA control transistor junction threshold, 0.6 V.
-    pub vca_threshold_voltage: f64,
-    /// VERIFY: Effective junction thermal voltage, 26 mV (room temperature).
-    pub thermal_voltage: f64,
-    /// VERIFY: VEG voltage giving unity small-signal VCA gain, 5 V.
-    pub vca_unity_voltage: f64,
-    /// VERIFY: Accent control injection at full rotation, 1.5 V.
-    pub vca_accent_voltage: f64,
-    /// VERIFY: Effective BA662 input differential-pair scale, 1 V.
-    pub vca_signal_scale: f64,
-    /// VERIFY: VCA off-state signal leakage gain, 1e-5.
-    pub vca_leakage: f64,
-    /// VERIFY: Control-to-output voltage feedthrough ratio, 0.001.
-    pub vca_feedthrough: f64,
-    /// VERIFY: Output coupling capacitor, 1 uF.
-    pub output_capacitance: f64,
-    /// VERIFY: Effective coupling load resistance, 50 kohm.
-    pub output_load_resistance: f64,
-    /// VERIFY: Output buffer small-signal gain, unity.
-    pub output_buffer_gain: f64,
-}
-
-impl Components {
-    /// Nominal estimates; uncertainties are enumerated in the stage document.
-    pub const NOMINAL: Self = Self {
-        meg_capacitance: 1e-6,
-        meg_decay_resistance: 200e3,
-        decay_pot_resistance: 2.3e6,
-        meg_attack_resistance: 1e3,
-        meg_charge_pulse: 0.004,
-        meg_source_voltage: 5.0,
-        veg_capacitance: 1e-6,
-        veg_attack_resistance: 330.0,
-        veg_decay_resistance: 3.3e6,
-        veg_release_resistance: 10e3,
-        veg_charge_pulse: 0.0015,
-        veg_source_voltage: 5.0,
-        accent_capacitance: 1e-6,
-        accent_charge_resistance: 100e3,
-        accent_discharge_resistance: 1e6,
-        accent_diode_voltage: 0.6,
-        resonance_sweep_floor: 0.25,
-        filter_reference_current: 1e-6,
-        cutoff_octaves: 8.0,
-        envelope_octaves_per_volt: 1.0,
-        envelope_reference_voltage: 2.5,
-        accent_octaves_per_volt: 1.0,
-        vca_threshold_voltage: 0.6,
-        thermal_voltage: 0.026,
-        vca_unity_voltage: 5.0,
-        vca_accent_voltage: 1.5,
-        vca_signal_scale: 1.0,
-        vca_leakage: 1e-5,
-        vca_feedthrough: 0.001,
-        output_capacitance: 1e-6,
-        output_load_resistance: 50e3,
-        output_buffer_gain: 1.0,
+macro_rules! components {
+    ($( $(#[$doc:meta])* $name:ident = $value:expr; )*) => {
+        /// Schematic components in ohms, farads and volts, plus device estimates.
+        #[derive(Clone, Copy, Debug)]
+        pub struct Components { $( $(#[$doc])* pub $name: f64, )* }
+        impl Components {
+            /// Reconciled service-note values; device assumptions remain flagged.
+            pub const NOMINAL: Self = Self { $( $name: $value, )* };
+            fn guarded(mut self) -> Self {
+                let zero_trim = self.tm3 == 0.0;
+                $( self.$name = if self.$name.is_finite() && self.$name > 0.0 {
+                    self.$name.clamp(1e-15, 1e9)
+                } else { Self::NOMINAL.$name }; )*
+                self.tm3 = self.tm3.min(470e3);
+                if zero_trim { self.tm3 = 0.0; }
+                self
+            }
+        }
     };
 }
+components! {
+    /// IC16 pin 1, labelled +12 V rail.
+    supply = 12.0;
+    /// IC16 pin 7, labelled +5.333 V rail.
+    reference = 5.333;
+    /// R148, Q38 base pulse drive.
+    r148 = 10e3;
+    /// R149, Q38 base return to +12 V.
+    r149 = 10e3;
+    /// C54, differentiator from N_GATE to R148.
+    c54 = 47e-9;
+    /// R152, D37 to C62 charge resistance.
+    r152 = 100.0;
+    /// C62, MEG storage to ground.
+    c62 = 1e-6;
+    /// R138, fixed MEG discharge resistance.
+    r138 = 68e3;
+    /// VR6, 1 MΩ A DECAY rheostat, wiper strapped to terminal 3.
+    vr6 = 1e6;
+    /// VR7, 50 kΩ B ACCENT divider.
+    vr7 = 50e3;
+    /// R46, D24 to resonance gang B terminal 1.
+    r46 = 47e3;
+    /// VR4B, 50 kΩ B RESONANCE second gang.
+    vr4b = 50e3;
+    /// C13, resonance gang B terminal 3 to ground.
+    c13 = 1e-6;
+    /// R72, gang B wiper to EXP_B.
+    r72 = 100e3;
+    /// R71, EXP_B to VQ9.
+    r71 = 2.2e3;
+    /// R64 and R65, equal Q9 bias divider arms.
+    q9_divider = 10e3;
+    /// VR3, 50 kΩ A CUTOFF track.
+    vr3 = 50e3;
+    /// R47, VR3 terminal 1 to VQ9.
+    r47 = 10e3;
+    /// R73, cutoff wiper to Q10 emitter through TM3.
+    r73 = 100e3;
+    /// TM3, 470 kΩ FREQ rheostat setting (not its full track value).
+    /// VERIFY: 62.918 kΩ gives 500 Hz loop phase using the documented ladder
+    /// current; final nonlinear VCF ring calibration awaits voice integration.
+    tm3 = 62_917.604_900_680_02;
+    /// VR5, 50 kΩ A ENV MOD divider.
+    vr5 = 50e3;
+    /// R61, VR5 terminal 1 to VQ9.
+    r61 = 10e3;
+    /// R63, VR5 wiper to EXP_B.
+    r63 = 220e3;
+    /// R69, Q12 emitters to Q11 collector; limits Q11 compliance.
+    r69 = 2.2e3;
+    /// R123, C42 recharge from +12 V.
+    r123 = 1.5e6;
+    /// C42, Q31 base storage to ground, positive at the base.
+    c42 = 1e-6;
+    /// R130, Q32 emitter degeneration.
+    r130 = 100.0;
+    /// R132, C42 to Q32 collector.
+    r132 = 100.0;
+    /// R134, D36 to Q32 base.
+    r134 = 22e3;
+    /// C41, Q32 base pulse stretcher to ground.
+    c41 = 100e-9;
+    /// R131, Q31 emitter supply.
+    r131 = 220e3;
+    /// R133, in series with R131 after D35.
+    r133 = 2.2e3;
+    /// R119, accent wiper to C36.
+    r119 = 47e3;
+    /// R120, C36 to the VCA duplicate D27.
+    r120 = 22e3;
+    /// C36, VCA accent-current smoothing.
+    c36 = 33e-9;
+    /// R121, VCF output to BA662A pin 3 via C21.
+    r121 = 220e3;
+    /// R122, resonance wiper to BA662A pin 3 via VCA C22.
+    r122 = 100e3;
+    /// R124, BA662A pin 3 bias resistance; R125 biases pin 2 equally.
+    r124 = 2.2e3;
+    /// C21, VCF output coupling capacitor.
+    c21 = 10e-9;
+    /// C22 (VCA), resonance wiper coupling capacitor, distinct from VCF C22.
+    c22_vca = 10e-9;
+    /// R127, in series with R129 at the OTA output.
+    r127 = 47e3;
+    /// R129, series OTA load arm, not an additional parallel resistor.
+    r129 = 22e3;
+    /// R128, parallel with R127 + R129.
+    r128 = 220e3;
+    /// C38, BA662A buffer output to VR8 terminal 3.
+    c38 = 1e-6;
+    /// VR8, 50 kΩ A VOLUME track.
+    vr8 = 50e3;
+    /// R153, mixer feedback from Q33 output to Q34 emitter.
+    r153 = 100e3;
+    /// R155, VOLUME wiper to C59 and mixer SUM.
+    r155 = 47e3;
+    /// R156, MIX IN to C58 and mixer SUM.
+    r156 = 100e3;
+    /// C59, VOLUME path coupling to SUM.
+    c59 = 1e-6;
+    /// C58, MIX IN coupling to SUM.
+    c58 = 1e-6;
+    /// C56, mixer output coupling to R161.
+    c56 = 1e-6;
+    /// R161, output series resistance.
+    r161 = 1e3;
+    /// R165, output jack shunt to ground (unloaded jack).
+    r165 = 100e3;
+    /// VERIFY: effective Si forward drop for D24/D26–D28/D35–D37; not printed.
+    diode_drop = 0.6;
+    /// VERIFY: Q9/Q10/Q11/Q31/Q32/Q40/Q41 junction drop, generic Si model.
+    vbe = 0.65;
+    /// VERIFY: Q36/Q38/Q32 saturation voltage, not printed.
+    saturation = 0.2;
+    /// VERIFY: Q32 current gain; type/β not assigned on the schematic.
+    beta = 200.0;
+    /// VERIFY: Q10/Q11 and IC15 junction thermal voltage at about 300 K.
+    thermal_voltage = 0.0259;
+    /// VERIFY: Is(Q11)/Is(Q10) matching ratio, not printed.
+    expo_is_ratio = 1.0;
+    /// VERIFY: BA662A pin 1 bias voltage, absent from service-note transfer data.
+    ota_control_voltage = 0.65;
+    /// VERIFY: BA662A current-mirror factor in Iout = factor*Iabc*tanh(Vdiff/2VT).
+    ota_mirror_ratio = 1.0;
+}
 
-/// Sanitisation telemetry. Reset clears the counter; it saturates at u64::MAX.
+/// Per-stage sanitisation telemetry, cleared by reset.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Diagnostics {
-    /// Count of non-finite floating-point input arguments.
+    /// Non-finite floating-point arguments replaced by zero (saturating count).
     pub non_finite_inputs: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Default)]
+struct Coefficient {
+    key: Option<(u64, u64)>,
+    k: f64,
+    average: f64,
+}
+struct Fixed {
+    accent_threshold: f64,
+    accent_source_weight: f64,
+    accent_threshold_weight: f64,
+    accent_tau_on: f64,
+    accent_tau_off: f64,
+    accent_inverse_r: f64,
+    ota_scale: f64,
+    inverse_two_vt: f64,
+    output_tau: f64,
+    line_tau: f64,
+    line_gain: f64,
+    mix_gain: f64,
+}
+impl Fixed {
+    fn new(c: Components) -> Self {
+        let r = parallel(c.r119, c.r120);
+        Self {
+            accent_threshold: c.diode_drop + c.ota_control_voltage,
+            accent_source_weight: r / c.r119,
+            accent_threshold_weight: r / c.r120,
+            accent_tau_on: r * c.c36,
+            accent_tau_off: c.r119 * c.c36,
+            accent_inverse_r: 1.0 / c.r120,
+            ota_scale: parallel(c.r128, c.r129 + c.r127) * c.ota_mirror_ratio,
+            inverse_two_vt: 1.0 / (2.0 * c.thermal_voltage),
+            output_tau: c.vr8 * c.c38,
+            line_tau: (c.r161 + c.r165) * c.c56,
+            line_gain: c.r165 / (c.r161 + c.r165),
+            mix_gain: -c.r153 / c.r156,
+        }
+    }
+}
 struct Circuit {
     c: Components,
     dt: f64,
-    bad: Cell<u64>,
-    rc_coefficients: [Coefficient; 2],
-    audio_taper: Cell<Option<(u64, f64)>>,
-    vca_unity_drive: f64,
-    meg_attack_tau: f64,
-    veg_attack_tau: f64,
-    veg_decay_tau: f64,
-    veg_release_tau: f64,
-    accent_leak_tau: f64,
-    accent_charge_tau: f64,
-    accent_combined_tau: f64,
-    output_tau: f64,
-    output_k: f64,
+    bad: u64,
+    coefficients: [Coefficient; 8],
+    tapers: [Option<(u64, f64)>; 2],
+    input_g: [f64; 2],
+    input_denominator: f64,
+    input_step: [f64; 2],
+    fixed: Fixed,
 }
 impl Circuit {
     fn new(c: Components) -> Self {
-        Self {
+        let c = c.guarded();
+        let mut s = Self {
             c,
             dt: 1.0 / 48_000.0,
-            bad: Cell::new(0),
-            rc_coefficients: [Coefficient::default(), Coefficient::default()],
-            audio_taper: Cell::new(None),
-            vca_unity_drive: unity_drive(c),
-            meg_attack_tau: tau(c.meg_attack_resistance, c.meg_capacitance),
-            veg_attack_tau: tau(c.veg_attack_resistance, c.veg_capacitance),
-            veg_decay_tau: tau(c.veg_decay_resistance, c.veg_capacitance),
-            veg_release_tau: tau(c.veg_release_resistance, c.veg_capacitance),
-            accent_leak_tau: tau(c.accent_discharge_resistance, c.accent_capacitance),
-            accent_charge_tau: tau(c.accent_charge_resistance, c.accent_capacitance),
-            accent_combined_tau: 1.0
-                / (1.0 / tau(c.accent_discharge_resistance, c.accent_capacitance)
-                    + 1.0 / tau(c.accent_charge_resistance, c.accent_capacitance)),
-            output_tau: tau(c.output_load_resistance, c.output_capacitance),
-            output_k: -libm::expm1(
-                -(1.0 / 48_000.0) / tau(c.output_load_resistance, c.output_capacitance),
-            ),
-        }
+            bad: 0,
+            coefficients: [Coefficient::default(); 8],
+            tapers: [None; 2],
+            input_g: [0.0; 2],
+            input_denominator: 1.0,
+            input_step: [0.0; 2],
+            fixed: Fixed::new(c),
+        };
+        s.cache_inputs();
+        s
+    }
+    fn cache_inputs(&mut self) {
+        self.input_g = [
+            1.0 / (self.c.r121 + self.dt / (2.0 * self.c.c21)),
+            1.0 / (self.c.r122 + self.dt / (2.0 * self.c.c22_vca)),
+        ];
+        self.input_denominator = 1.0 / (1.0 / self.c.r124 + self.input_g[0] + self.input_g[1]);
+        self.input_step = [self.dt / self.c.c21, self.dt / self.c.c22_vca];
     }
     fn prepare(&mut self, rate: f64) -> Result<(), StageError> {
         if !rate.is_finite() || !(44_100.0..=384_000.0).contains(&rate) {
             return Err(StageError::InvalidSampleRate);
         }
         self.dt = 1.0 / rate;
-        self.output_k = -libm::expm1(-self.dt / self.output_tau);
+        self.cache_inputs();
         Ok(())
     }
-    fn rc(&self, slot: usize, v: f64, target: f64, time: f64, t: f64) -> f64 {
-        let coefficient = self.rc_coefficients[slot].get(time, t);
-        flush(target + (v - target) * coefficient)
-    }
-    fn audio(&self, x: f64) -> f64 {
-        let key = x.to_bits();
-        if let Some((old, result)) = self.audio_taper.get()
-            && key == old
-        {
-            return result;
-        }
-        let result = audio(x);
-        self.audio_taper.set(Some((key, result)));
-        result
-    }
-    fn input(&self, x: f64) -> f64 {
+    fn input(&mut self, x: f64) -> f64 {
         if x.is_finite() {
             x
         } else {
-            self.bad.set(self.bad.get().saturating_add(1));
+            self.bad = self.bad.saturating_add(1);
             0.0
         }
     }
-    fn knob(&self, x: f64) -> f64 {
+    fn knob(&mut self, x: f64) -> f64 {
         self.input(x).clamp(0.0, 1.0)
     }
-    fn diagnostics(&self) -> Diagnostics {
-        Diagnostics {
-            non_finite_inputs: self.bad.get(),
-        }
-    }
-}
-// Cache the exact exponential, including split pulse/crossing durations. Both
-// arguments are compared bitwise; rate changes are naturally part of the key.
-#[derive(Clone, Default)]
-struct Coefficient {
-    cached: Cell<Option<(u64, u64, f64)>>,
-}
-impl Coefficient {
-    fn get(&self, time: f64, t: f64) -> f64 {
-        let key = (time.to_bits(), t.to_bits());
-        if let Some((old_time, old_tau, result)) = self.cached.get()
-            && key == (old_time, old_tau)
+    /// VERIFY: A-pot marking is printed, but its exact track law is unavailable;
+    /// use the estimated 10%-at-half-rotation taper until hardware calibration.
+    fn audio(&mut self, slot: usize, x: f64) -> f64 {
+        if let Some((key, y)) = self.tapers[slot]
+            && key == x.to_bits()
         {
-            return result;
+            return y;
         }
-        let result = libm::exp(-time / t);
-        self.cached.set(Some((key.0, key.1, result)));
-        result
+        let y = libm::expm1(4.394_449_154_672_439 * x) / 80.0;
+        self.tapers[slot] = Some((x.to_bits(), y));
+        y
     }
-}
-fn drive(x: f64, threshold: f64, vt: f64) -> f64 {
-    let z = (x - threshold) / vt;
-    if z > 40.0 {
-        x - threshold
-    } else {
-        vt * libm::log1p(libm::exp(z))
+    fn k(&mut self, slot: usize, time: f64, tau: f64) -> f64 {
+        let tau = tau.clamp(1e-12, 1e12);
+        let key = (time.to_bits(), tau.to_bits());
+        if self.coefficients[slot].key != Some(key) {
+            let k = -libm::expm1(-time / tau);
+            self.coefficients[slot] = Coefficient {
+                key: Some(key),
+                k,
+                average: if time > 0.0 { k * tau / time } else { 1.0 },
+            };
+        }
+        self.coefficients[slot].k
     }
-}
-fn unity_drive(c: Components) -> f64 {
-    let threshold = value(c.vca_threshold_voltage, 0.6).min(12.0);
-    let vt = value(c.thermal_voltage, 0.026).clamp(1e-6, 1.0);
-    drive(
-        value(c.vca_unity_voltage, 5.0).clamp(threshold + vt, 24.0),
-        threshold,
-        vt,
-    )
-    .max(1e-9)
-}
-// Component bounds protect against invalid user tolerance configurations as well
-// as absurd finite signal inputs, without adding a second lifecycle error type.
-fn value(x: f64, nominal: f64) -> f64 {
-    if x.is_finite() && x >= 0.0 {
-        x.min(1e9)
-    } else {
-        nominal
+    fn rc(&mut self, slot: usize, old: f64, target: f64, time: f64, tau: f64) -> f64 {
+        flush(old + (target - old) * self.k(slot, time, tau))
     }
-}
-fn tau(r: f64, c: f64) -> f64 {
-    (value(r, 1e3) * value(c, 1e-6)).clamp(1e-9, 1e9)
+    fn high_pass(&mut self, slot: usize, cap: &mut f64, input: f64, tau: f64) -> f64 {
+        let delta = input - *cap;
+        let k = self.k(slot, self.dt, tau);
+        *cap = flush(*cap + delta * k);
+        flush(delta * self.coefficients[slot].average)
+    }
+    fn reference(&self) -> f64 {
+        self.c.reference * 0.5 + self.c.vbe
+    }
 }
 fn flush(x: f64) -> f64 {
     if x.abs() < 1e-24 { 0.0 } else { x }
 }
-#[cfg(test)]
-fn rc(v: f64, target: f64, time: f64, t: f64) -> f64 {
-    flush(target + (v - target) * libm::exp(-time / t))
-}
-// Estimated 10%-at-midpoint audio taper, exact zero and unity endpoints.
-fn audio(x: f64) -> f64 {
-    (libm::exp(libm::log(81.0) * x) - 1.0) / 80.0
+fn parallel(a: f64, b: f64) -> f64 {
+    a * b / (a + b)
 }
 
 macro_rules! lifecycle {
-    () => {
-        /// Construct a reset circuit; usable at 48 kHz before preparation.
+    ($($field:ident = $init:expr),* $(,)?) => {
+        /// Construct a circuit at 48 kHz with its capacitors at quiescent DC.
         pub fn new(c: Components) -> Self {
-            let mut stage = Self::default_state();
-            stage.circuit = Circuit::new(c);
-            stage
+            let circuit = Circuit::new(c);
+            Self { $($field: $init(&circuit),)* circuit }
         }
-        /// Set the circuit clock, preserving capacitor voltages.
+        /// Change the circuit clock, preserving capacitor charge and diagnostics.
         pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError> {
             self.circuit.prepare(sample_rate)
         }
-        /// Read the non-finite-input counter without clearing it.
+        /// Restore quiescent DC charge and clear diagnostics, retaining the clock.
+        pub fn reset(&mut self) {
+            $(self.$field = $init(&self.circuit);)* self.circuit.bad = 0;
+        }
+        /// Read the sanitisation counter.
         pub fn diagnostics(&self) -> Diagnostics {
-            self.circuit.diagnostics()
+            Diagnostics { non_finite_inputs: self.circuit.bad }
         }
     };
 }
 
-/// Main envelope capacitor and finite-duration trigger charging switch.
-/// VERIFY: Trigger pulse width and charge-path reduction neglect the much
-/// weaker discharge conductance during charging; verify against the schematic.
+/// Q38 edge one-shot, storing the differentiated C54 drive voltage.
+pub struct TriggerPulse {
+    circuit: Circuit,
+    drive: f64,
+    previous: bool,
+}
+impl TriggerPulse {
+    lifecycle!(drive = |_: &Circuit| 0.0, previous = |_: &Circuit| false);
+    /// A rising trigger starts the Q38 pulse; a held trigger does not retrigger.
+    /// Returns TRIG volts (about 11.8 V for about 1.4 ms), not a Boolean gate.
+    pub fn tick(&mut self, trigger: bool) -> f64 {
+        let c = self.circuit.c;
+        if trigger && !self.previous {
+            self.drive = c.supply - c.vbe;
+        }
+        self.previous = trigger;
+        let on = self.drive / c.r148 > c.vbe / c.r149;
+        self.drive = self
+            .circuit
+            .rc(0, self.drive, 0.0, self.circuit.dt, c.r148 * c.c54);
+        if on { c.supply - c.saturation } else { 0.0 }
+    }
+}
+
+/// C62, the D37 charge path, IC12 decay short and Q41/Q40 buffer.
 pub struct Meg {
     circuit: Circuit,
-    voltage: f64,
-    charge_remaining: f64,
+    capacitor: f64,
 }
 impl Meg {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-            voltage: 0.0,
-            charge_remaining: 0.0,
-        }
-    }
-    lifecycle!();
-    /// Discharge the storage node and clear the trigger and diagnostics.
-    pub fn reset(&mut self) {
-        self.voltage = 0.0;
-        self.charge_remaining = 0.0;
-        self.circuit.bad.set(0);
-    }
-    /// Trigger charges the capacitor; accent shorts the DECAY rheostat path.
-    /// Returns the MEG storage-node voltage in volts.
-    pub fn tick(&mut self, trigger: bool, accent: bool, decay: f64) -> f64 {
-        let d = self.circuit.knob(decay);
-        let c = self.circuit.c;
-        if trigger {
-            self.charge_remaining = value(c.meg_charge_pulse, 0.004);
-        }
-        let charge = self.charge_remaining.min(self.circuit.dt);
-        self.charge_remaining -= charge;
-        self.voltage = self.circuit.rc(
-            0,
-            self.voltage,
-            value(c.meg_source_voltage, 5.0).min(12.0),
-            charge,
-            self.circuit.meg_attack_tau,
-        );
-        let resistance = value(c.meg_decay_resistance, 200e3)
-            + if accent {
-                0.0
-            } else {
-                d * value(c.decay_pot_resistance, 2.3e6)
-            };
-        self.voltage = self.circuit.rc(
-            1,
-            self.voltage,
-            0.0,
-            self.circuit.dt - charge,
-            tau(resistance, c.meg_capacitance),
-        );
-        self.voltage
-    }
-}
-
-/// VCA envelope storage node, including the gate-off discharge switch.
-/// VERIFY: Finite trigger pulse and gate-off switch equivalents; simultaneous
-/// discharge during charging is neglected in this reduced topology.
-pub struct Veg {
-    circuit: Circuit,
-    voltage: f64,
-    charge_remaining: f64,
-}
-impl Veg {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-            voltage: 0.0,
-            charge_remaining: 0.0,
-        }
-    }
-    lifecycle!();
-    /// Discharge the storage node and clear diagnostics.
-    pub fn reset(&mut self) {
-        self.voltage = 0.0;
-        self.charge_remaining = 0.0;
-        self.circuit.bad.set(0);
-    }
-    /// Return VEG voltage; gate low overrides trigger and truncates the decay.
-    pub fn tick(&mut self, gate: bool, trigger: bool) -> f64 {
-        let c = self.circuit.c;
-        if !gate {
-            self.charge_remaining = 0.0;
-        } else if trigger {
-            self.charge_remaining = value(c.veg_charge_pulse, 0.0015);
-        }
-        let charge = self.charge_remaining.min(self.circuit.dt);
-        self.charge_remaining -= charge;
-        self.voltage = self.circuit.rc(
-            0,
-            self.voltage,
-            value(c.veg_source_voltage, 5.0).min(12.0),
-            charge,
-            self.circuit.veg_attack_tau,
-        );
-        let t = if gate {
-            self.circuit.veg_decay_tau
-        } else {
-            self.circuit.veg_release_tau
-        };
-        self.voltage = self
+    lifecycle!(capacitor = |s: &Circuit| 3.0 * s.c.diode_drop);
+    /// Buffered ENV_OUT voltage; DECAY is the VR6 rotation and accent shorts VR6.
+    /// D26–D28 are a fixed-drop clamp in this device reduction.
+    pub fn tick(&mut self, pulse: f64, accent: bool, decay: f64) -> f64 {
+        let pulse = self
             .circuit
-            .rc(1, self.voltage, 0.0, self.circuit.dt - charge, t);
-        self.voltage
+            .input(pulse)
+            .max(0.0)
+            .min(self.circuit.c.supply);
+        let decay = self.circuit.knob(decay);
+        let track = self.circuit.audio(0, decay);
+        let c = self.circuit.c;
+        let r = c.r138 + if accent { 0.0 } else { track * c.vr6 };
+        let floor = 3.0 * c.diode_drop;
+        let source = pulse - c.diode_drop;
+        let (target, tau, slot) = if source > self.capacitor {
+            let rth = parallel(r, c.r152);
+            ((source / c.r152 + floor / r) * rth, rth * c.c62, 0)
+        } else {
+            (floor, r * c.c62, 1)
+        };
+        self.capacitor = self
+            .circuit
+            .rc(slot, self.capacitor, target, self.circuit.dt, tau);
+        (self.capacitor - 2.0 * c.vbe).max(0.0)
+    }
+    /// C62 voltage before the two emitter-follower junction drops.
+    pub fn capacitor_voltage(&self) -> f64 {
+        self.capacitor
     }
 }
 
-/// Diode-isolated accent capacitor with a persistent discharge/load path.
+/// IC12 1/2 accent gate and linear VR7 divider.
+pub struct Accent {
+    circuit: Circuit,
+}
+impl Accent {
+    lifecycle!();
+    /// Return the VR7 wiper voltage, zero when IC12 is open.
+    /// The block boundary treats the wiper as a voltage source; see loading limits.
+    pub fn tick(&mut self, accent: bool, meg: f64, accent_knob: f64) -> f64 {
+        let meg = self.circuit.input(meg).max(0.0).min(self.circuit.c.supply);
+        let k = self.circuit.knob(accent_knob);
+        if accent { meg * k } else { 0.0 }
+    }
+}
+
+/// D24/R46/VR4B/C13 with the R72 load into the expo reference.
 pub struct AccentSweep {
     circuit: Circuit,
-    voltage: f64,
+    capacitor: f64,
+    network: Option<(u64, SweepNetwork)>,
+}
+#[derive(Clone, Copy)]
+struct SweepNetwork {
+    rb: f64,
+    off_fraction: f64,
+    off_tau: f64,
+    on_tau: f64,
+    target_source: f64,
+    target_reference: f64,
+    wiper_source: f64,
+    wiper_reference: f64,
+    wiper_capacitor: f64,
 }
 impl AccentSweep {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-            voltage: 0.0,
-        }
-    }
-    lifecycle!();
-    /// Discharge the accent capacitor and clear diagnostics.
-    pub fn reset(&mut self) {
-        self.voltage = 0.0;
-        self.circuit.bad.set(0);
-    }
-    /// Return the second RESONANCE gang's scaled capacitor voltage (V).
-    /// VERIFY: Ideal fixed-drop diode reduction and unloaded linear gang divider.
-    pub fn tick(&mut self, accent_gate: bool, meg: f64, accent: f64, resonance: f64) -> f64 {
-        let m = self.circuit.input(meg).clamp(0.0, 12.0);
-        let a = self.circuit.knob(accent);
-        let r = self.circuit.knob(resonance);
+    #[cold]
+    #[inline(never)]
+    fn update_network(&mut self, k: f64) -> SweepNetwork {
         let c = self.circuit.c;
-        let source = (m * a - value(c.accent_diode_voltage, 0.6)).max(0.0);
-        let leak_tau = self.circuit.accent_leak_tau;
-        let charge_tau = self.circuit.accent_charge_tau;
-        // Charge and leakage conductances act simultaneously while the diode
-        // conducts. Split exactly at diode turn-off within the sample.
-        if accent_gate && source > self.voltage {
-            let t = self.circuit.accent_combined_tau;
-            let target = source * t / charge_tau;
-            self.voltage = self.circuit.rc(0, self.voltage, target, self.circuit.dt, t);
-        } else if accent_gate && source > 0.0 {
-            let crossing = leak_tau * libm::log((self.voltage / source).max(1.0));
-            let off = crossing.min(self.circuit.dt);
-            self.voltage = self.circuit.rc(1, self.voltage, 0.0, off, leak_tau);
-            let t = self.circuit.accent_combined_tau;
-            self.voltage = self.circuit.rc(
-                0,
-                self.voltage,
-                source * t / charge_tau,
-                self.circuit.dt - off,
-                t,
-            );
+        let ra = c.r46 + k * c.vr4b;
+        let rb = (1.0 - k) * c.vr4b;
+        let load = c.r72 + c.r71;
+        let rth = parallel(ra, load);
+        let wiper_denominator = if rb > 0.0 {
+            1.0 / ra + 1.0 / load + 1.0 / rb
         } else {
-            self.voltage = self
+            1.0
+        };
+        let n = SweepNetwork {
+            rb,
+            off_fraction: load / (rb + load),
+            off_tau: (rb + load) * c.c13,
+            on_tau: (rb + rth) * c.c13,
+            target_source: rth / ra,
+            target_reference: rth / load,
+            wiper_source: 1.0 / ra / wiper_denominator,
+            wiper_reference: 1.0 / load / wiper_denominator,
+            wiper_capacitor: if rb > 0.0 {
+                1.0 / rb / wiper_denominator
+            } else {
+                1.0
+            },
+        };
+        self.network = Some((k.to_bits(), n));
+        n
+    }
+    lifecycle!(
+        capacitor = |s: &Circuit| s.reference(),
+        network = |_: &Circuit| None
+    );
+    /// Gang B moves from terminal 1 (direct) toward terminal 3 (C13) as RES rises.
+    /// VERIFY: gang direction correlation is an open item in the transcription.
+    /// The R72 load is reduced against stiff VQ9 through R71.
+    pub fn tick(&mut self, accent_wiper: f64, resonance: f64) -> f64 {
+        let source = self
+            .circuit
+            .input(accent_wiper)
+            .max(0.0)
+            .min(self.circuit.c.supply)
+            - self.circuit.c.diode_drop;
+        let k = self.circuit.knob(resonance);
+        let reference = self.circuit.reference();
+        let n = if let Some((key, n)) = self.network
+            && key == k.to_bits()
+        {
+            n
+        } else {
+            self.update_network(k)
+        };
+        let off_w = reference + (self.capacitor - reference) * n.off_fraction;
+        let on_target = source * n.target_source + reference * n.target_reference;
+        let mut conducting = source > off_w;
+        let mut remaining = self.circuit.dt;
+        if !conducting && source > reference {
+            let cross = reference + (source - reference) / n.off_fraction;
+            let next = self
                 .circuit
-                .rc(1, self.voltage, 0.0, self.circuit.dt, leak_tau);
+                .rc(0, self.capacitor, reference, remaining, n.off_tau);
+            if next < cross && self.capacitor > cross {
+                let time = (n.off_tau
+                    * libm::log((self.capacitor - reference) / (cross - reference)))
+                .clamp(0.0, remaining);
+                self.capacitor = cross;
+                remaining -= time;
+                conducting = true;
+            }
         }
-        let floor = value(c.resonance_sweep_floor, 0.25).min(1.0);
-        self.voltage * (floor + (1.0 - floor) * r)
+        self.capacitor = if conducting {
+            self.circuit
+                .rc(1, self.capacitor, on_target, remaining, n.on_tau)
+        } else {
+            self.circuit
+                .rc(0, self.capacitor, reference, remaining, n.off_tau)
+        };
+        if n.rb == 0.0 {
+            self.capacitor
+        } else if conducting {
+            source * n.wiper_source
+                + reference * n.wiper_reference
+                + self.capacitor * n.wiper_capacitor
+        } else {
+            reference + (self.capacitor - reference) * n.off_fraction
+        }
+    }
+    /// C13 positive-plate voltage, including its VQ9-related rest offset.
+    pub fn capacitor_voltage(&self) -> f64 {
+        self.capacitor
     }
 }
 
-/// Summing-network reduction and exponential converter producing amperes.
+/// Loaded cutoff/ENV MOD dividers and complementary Q10/Q11 expo converter.
 pub struct FilterControl {
     circuit: Circuit,
+    network: Option<(u64, u64, FilterNetwork)>,
+}
+#[derive(Clone, Copy)]
+struct FilterNetwork {
+    cutoff_current: f64,
+    env_exponent: f64,
+    sweep_exponent: f64,
+    compliance: f64,
 }
 impl FilterControl {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-        }
+    #[cold]
+    #[inline(never)]
+    fn update_network(&mut self, cutoff: f64, env: f64) -> FilterNetwork {
+        let c = self.circuit.c;
+        let reference = self.circuit.reference();
+        let kc = self.circuit.audio(0, cutoff);
+        let ke = self.circuit.audio(1, env);
+        let low_c = c.r47 + kc * c.vr3;
+        let high_c = (1.0 - kc) * c.vr3;
+        let vw = reference + (c.supply - reference) * low_c / (low_c + high_c);
+        let rw = parallel(low_c, high_c);
+        let low_e = c.r61 + ke * c.vr5;
+        let high_e = (1.0 - ke) * c.vr5;
+        let fraction = low_e / (low_e + high_e);
+        let re = c.r63 + parallel(low_e, high_e);
+        let denominator = 1.0 / c.r71 + 1.0 / re + 1.0 / c.r72;
+        let n = FilterNetwork {
+            cutoff_current: c.expo_is_ratio
+                * ((vw - reference - c.vbe) / (c.r73 + c.tm3 + rw)).max(0.0),
+            env_exponent: fraction / re / denominator / c.thermal_voltage,
+            sweep_exponent: 1.0 / c.r72 / denominator / c.thermal_voltage,
+            compliance: ((c.reference - c.vbe - reference - c.saturation) / c.r69).max(0.0),
+        };
+        self.network = Some((cutoff.to_bits(), env.to_bits(), n));
+        n
     }
-    lifecycle!();
-    /// Clear converter diagnostics; this stage has no capacitor state.
-    pub fn reset(&mut self) {
-        self.circuit.bad.set(0);
-    }
-    /// Ladder bias: `Iref * 2^((cutoff-.5)*span + env*(MEG-Vref) + sweep*k)`.
-    /// ENV MOD uses an estimated audio taper; result is bounded to 1 pA..1 mA.
-    /// VERIFY: Summing gains, polarity, reference and limits need SPICE calibration.
-    pub fn bias_current(&self, cutoff: f64, env_mod: f64, meg: f64, accent_sweep: f64) -> f64 {
+    lifecycle!(network = |_: &Circuit| None);
+    /// Return Q11 collector (total ladder tail) current in amperes.
+    /// References are VQ9, not ground; R61 gives a residual ENV MOD feed at CCW.
+    /// Q11 compliance is limited by R69 and the estimated Q12/Q11 junction drops.
+    pub fn ladder_current(&mut self, cutoff: f64, env_mod: f64, meg: f64, sweep_wiper: f64) -> f64 {
         let cutoff = self.circuit.knob(cutoff);
-        let env = self.circuit.audio(self.circuit.knob(env_mod));
-        let meg = self.circuit.input(meg).clamp(0.0, 12.0);
-        let sweep = self.circuit.input(accent_sweep).clamp(0.0, 12.0);
-        let c = self.circuit.c;
-        let octaves = (cutoff - 0.5) * value(c.cutoff_octaves, 8.0)
-            + env
-                * value(c.envelope_octaves_per_volt, 1.0)
-                * (meg - value(c.envelope_reference_voltage, 2.5))
-            + sweep * value(c.accent_octaves_per_volt, 1.0);
-        (value(c.filter_reference_current, 1e-6) * libm::exp2(octaves.clamp(-40.0, 40.0)))
-            .clamp(1e-12, 1e-3)
+        let env = self.circuit.knob(env_mod);
+        let meg = self.circuit.input(meg).max(0.0).min(self.circuit.c.supply);
+        let sweep = self
+            .circuit
+            .input(sweep_wiper)
+            .max(0.0)
+            .min(self.circuit.c.supply);
+        let reference = self.circuit.reference();
+        let n = if let Some((kc, ke, n)) = self.network
+            && kc == cutoff.to_bits()
+            && ke == env.to_bits()
+        {
+            n
+        } else {
+            self.update_network(cutoff, env)
+        };
+        let exponent = n.env_exponent * (meg - reference) + n.sweep_exponent * (sweep - reference);
+        (n.cutoff_current * libm::exp2(exponent.clamp(-80.0, 40.0) * core::f64::consts::LOG2_E))
+            .min(n.compliance)
     }
-}
-
-/// BA662 transconductance VCA with transistor control injection and bleed.
-/// VERIFY: Reduced differential pair and soft diode driver, not a full BA662 model.
-pub struct Vca {
-    circuit: Circuit,
-}
-impl Vca {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-        }
-    }
-    lifecycle!();
-    /// Clear diagnostics; the reduced VCA has no dynamic storage.
-    pub fn reset(&mut self) {
-        self.circuit.bad.set(0);
-    }
-    /// Voltage gain for a control-node voltage, before signal saturation/bleed.
-    /// The driver is exponential below its knee and linear above it. BA662
-    /// transconductance is proportional to injected control current.
-    pub fn gain(&self, control_voltage: f64) -> f64 {
-        let v = self.circuit.input(control_voltage).clamp(0.0, 12.0);
-        let c = self.circuit.c;
-        let threshold = value(c.vca_threshold_voltage, 0.6).min(12.0);
-        let vt = value(c.thermal_voltage, 0.026).clamp(1e-6, 1.0);
-        value(c.vca_leakage, 1e-5).min(1.0) + drive(v, threshold, vt) / self.circuit.vca_unity_drive
-    }
-    /// Process VCF node voltage using VEG and accent control; return output V.
-    pub fn tick(&mut self, input: f64, veg: f64, accent_gate: bool, accent: f64) -> f64 {
-        let input = self.circuit.input(input).clamp(-24.0, 24.0);
-        let veg = self.circuit.input(veg).clamp(0.0, 12.0);
-        let accent = self.circuit.knob(accent);
-        let c = self.circuit.c;
-        let control = veg
-            + if accent_gate {
-                accent * value(c.vca_accent_voltage, 1.5).min(12.0)
-            } else {
-                0.0
-            };
-        let scale = value(c.vca_signal_scale, 1.0).clamp(1e-6, 24.0);
-        scale * libm::tanh(input / scale) * self.gain(control)
-            + value(c.vca_feedthrough, 0.001).min(1.0) * control
-    }
-}
-
-/// Series coupling capacitor, audio-taper VOLUME divider and output buffer.
-/// VERIFY: Effective fixed load ignores volume-dependent impedance and extra caps.
-pub struct OutputStage {
-    circuit: Circuit,
-    capacitor_voltage: f64,
-}
-impl OutputStage {
-    fn default_state() -> Self {
-        Self {
-            circuit: Circuit::new(Components::NOMINAL),
-            capacitor_voltage: 0.0,
-        }
-    }
-    lifecycle!();
-    /// Remove stored capacitor charge and clear diagnostics.
-    pub fn reset(&mut self) {
-        self.capacitor_voltage = 0.0;
-        self.circuit.bad.set(0);
-    }
-    /// Return AC-coupled output voltage. Piecewise-constant input is integrated
-    /// exactly; output is the interval-average resistor voltage.
-    /// VERIFY: VOLUME/ENV MOD audio taper is estimated at 10% at half rotation.
-    pub fn tick(&mut self, input: f64, volume: f64) -> f64 {
-        let input = self.circuit.input(input).clamp(-24.0, 24.0);
-        let volume = self.circuit.audio(self.circuit.knob(volume));
-        let c = self.circuit.c;
-        let t = self.circuit.output_tau;
-        let k = self.circuit.output_k;
-        let delta = input - self.capacitor_voltage;
-        self.capacitor_voltage = flush(self.capacitor_voltage + delta * k);
-        flush(delta * k * t / self.circuit.dt * volume * value(c.output_buffer_gain, 1.0).min(24.0))
+    /// Q9 emitter reference, from the equal R64/R65 divider plus a PNP Vbe.
+    pub fn reference_voltage(&self) -> f64 {
+        self.circuit.reference()
     }
 }
 
@@ -573,23 +592,259 @@ mod tests {
     use super::*;
 
     #[test]
-    fn rc_integrator_composes_exactly_and_flushes_tails() {
-        let one = rc(4.0, 1.0, 0.1, 0.2);
-        let two = rc(rc(4.0, 1.0, 0.05, 0.2), 1.0, 0.05, 0.2);
-        assert!((one - two).abs() < 1e-14);
-        assert_eq!(rc(1.0, 0.0, 100.0, 0.2), 0.0);
+    fn cached_rc_composes_and_rate_changes_preserve_charge() {
+        let mut s = Circuit::new(Components::NOMINAL);
+        let a = s.rc(0, 4.0, 1.0, 0.1, 0.2);
+        let b = s.rc(1, 4.0, 1.0, 0.05, 0.2);
+        let b = s.rc(1, b, 1.0, 0.05, 0.2);
+        assert!((a - b).abs() < 1e-14);
+        let mut m = Meg::new(Components::NOMINAL);
+        m.tick(11.8, false, 1.0);
+        let voltage = m.capacitor_voltage();
+        assert!(m.prepare(f64::NAN).is_err());
+        m.prepare(192_000.0).unwrap();
+        assert_eq!(m.capacitor_voltage(), voltage);
+        m.reset();
+        assert_eq!(m.circuit.dt, 1.0 / 192_000.0);
+        assert_eq!(flush(1e-25), 0.0);
     }
+}
 
-    #[test]
-    fn component_guards_and_diode_crossing_are_bounded() {
-        assert_eq!(value(f64::NAN, 1.0), 1.0);
-        assert_eq!(value(-1.0, 1.0), 1.0);
-        assert!(tau(0.0, 0.0) > 0.0);
-        let mut sweep = AccentSweep::new(Components::NOMINAL);
-        sweep.voltage = 1.0;
-        let dt = sweep.circuit.dt;
-        let source = libm::exp(-dt / 2.0);
-        let result = sweep.tick(true, source + 0.6, 1.0, 1.0);
-        assert!(result < source && result > 0.0);
+/// C41/Q32 discharge of C42 and D35/R131/R133/Q31 control current source.
+pub struct Veg {
+    circuit: Circuit,
+    capacitor: f64,
+    base: f64,
+    gate: bool,
+}
+impl Veg {
+    lifecycle!(
+        capacitor = |s: &Circuit| s.c.supply,
+        base = |_: &Circuit| 0.0,
+        gate = |_: &Circuit| true
+    );
+    /// Set Q36's gate supply state before `tick`; low removes Q31 current.
+    /// Default/reset is high so the contracted pulse-only interface exposes decay.
+    pub fn set_gate(&mut self, gate: bool) {
+        self.gate = gate;
+    }
+    /// Discharge C42 on a positive TRIG pulse; return Q31 collector amperes.
+    /// C42 otherwise recharges through R123, irrespective of the gate state.
+    pub fn tick(&mut self, pulse: f64) -> f64 {
+        let pulse = self
+            .circuit
+            .input(pulse)
+            .max(0.0)
+            .min(self.circuit.c.supply);
+        let c = self.circuit.c;
+        let source = (pulse - c.diode_drop).max(0.0);
+        let base_r = c.r130 * (c.beta + 1.0);
+        if source > self.base {
+            let r = parallel(c.r134, base_r);
+            let target = (source / c.r134 + c.vbe / base_r) * r;
+            self.base = self
+                .circuit
+                .rc(0, self.base, target, self.circuit.dt, r * c.c41);
+        } else if self.base > c.vbe {
+            self.base = self
+                .circuit
+                .rc(1, self.base, c.vbe, self.circuit.dt, base_r * c.c41);
+        }
+        let available = c.beta * ((self.base - c.vbe) / base_r).max(0.0);
+        let rdis = c.r130 + c.r132;
+        let target = c.saturation.max(self.capacitor - available * rdis);
+        if available > 1e-12 && self.capacitor > c.saturation {
+            let r = parallel(c.r123, rdis);
+            let v = (target / rdis + c.supply / c.r123) * r;
+            self.capacitor = self
+                .circuit
+                .rc(2, self.capacitor, v, self.circuit.dt, r * c.c42);
+        } else {
+            self.capacitor =
+                self.circuit
+                    .rc(3, self.capacitor, c.supply, self.circuit.dt, c.r123 * c.c42);
+        }
+        if self.gate {
+            ((c.supply - c.saturation - c.diode_drop - c.vbe - self.capacitor) / (c.r131 + c.r133))
+                .max(0.0)
+        } else {
+            0.0
+        }
+    }
+    /// C42 voltage at the Q31 base, rising toward +12 V during decay.
+    pub fn capacitor_voltage(&self) -> f64 {
+        self.capacitor
+    }
+}
+
+/// AC node voltages supplied by the VCF; no dependency on its crate is needed.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct VcfSignals {
+    /// C14 output, resonance gang A terminal 3.
+    pub output: f64,
+    /// Resonance gang A wiper, also feeding C22 (VCA).
+    pub resonance_tap: f64,
+}
+
+/// BA662A OTA, summed coupled inputs, accent-current network and C38 output.
+pub struct Vca {
+    circuit: Circuit,
+    input_caps: [f64; 2],
+    accent_cap: f64,
+    output_cap: f64,
+    current: f64,
+}
+impl Vca {
+    lifecycle!(
+        input_caps = |_: &Circuit| [0.0; 2],
+        accent_cap = |_: &Circuit| 0.0,
+        output_cap = |s: &Circuit| s.c.reference,
+        current = |_: &Circuit| 0.0
+    );
+    /// Return the C38 negative-plate node in AC volts.
+    /// OTA law: `Iout = Iabc * mirror_ratio * tanh(Vdiff/(2*VT))`;
+    /// small-signal gm is therefore `Iabc * mirror_ratio/(2*VT)`.
+    pub fn tick(&mut self, vcf: VcfSignals, veg_current: f64, accent_wiper: f64) -> f64 {
+        let u = [
+            self.circuit.input(vcf.output).clamp(-24.0, 24.0),
+            self.circuit.input(vcf.resonance_tap).clamp(-24.0, 24.0),
+        ];
+        let veg = self.circuit.input(veg_current).clamp(0.0, 1e-3);
+        let accent = self
+            .circuit
+            .input(accent_wiper)
+            .max(0.0)
+            .min(self.circuit.c.supply);
+        let c = self.circuit.c;
+        let fixed = &self.circuit.fixed;
+        let threshold = fixed.accent_threshold;
+        let target_on =
+            accent * fixed.accent_source_weight + threshold * fixed.accent_threshold_weight;
+        let tau_on = fixed.accent_tau_on;
+        let tau_off = fixed.accent_tau_off;
+        let mut remaining = self.circuit.dt;
+        let mut on = self.accent_cap > threshold;
+        let target = if on { target_on } else { accent };
+        let tau = if on { tau_on } else { tau_off };
+        let next = self.circuit.rc(
+            if on { 0 } else { 1 },
+            self.accent_cap,
+            target,
+            remaining,
+            tau,
+        );
+        if (self.accent_cap - threshold) * (next - threshold) < 0.0 {
+            let time = (tau * libm::log((self.accent_cap - target) / (threshold - target)))
+                .clamp(0.0, remaining);
+            remaining -= time;
+            self.accent_cap = threshold;
+            on = !on;
+            self.accent_cap = self.circuit.rc(
+                if on { 0 } else { 1 },
+                self.accent_cap,
+                if on { target_on } else { accent },
+                remaining,
+                if on { tau_on } else { tau_off },
+            );
+        } else {
+            self.accent_cap = next;
+        }
+        self.current =
+            veg + ((self.accent_cap - threshold) * self.circuit.fixed.accent_inverse_r).max(0.0);
+        // Trapezoidal capacitor companions solve the shared R124 input node,
+        // including loading between the R121 and R122 paths.
+        let g = self.circuit.input_g;
+        let vdiff = (g[0] * (u[0] - self.input_caps[0]) + g[1] * (u[1] - self.input_caps[1]))
+            * self.circuit.input_denominator;
+        let i0 = g[0] * (u[0] - self.input_caps[0] - vdiff);
+        let i1 = g[1] * (u[1] - self.input_caps[1] - vdiff);
+        self.input_caps[0] = flush(self.input_caps[0] + self.circuit.input_step[0] * i0);
+        self.input_caps[1] = flush(self.input_caps[1] + self.circuit.input_step[1] * i1);
+        let z = vdiff * self.circuit.fixed.inverse_two_vt;
+        // Cubic tanh is accurate to <1.4e-21 absolute in this tiny-signal
+        // interval; avoid a library call for settled coupling-capacitor tails.
+        let pair = if z.abs() < 1e-4 {
+            z - z * z * z / 3.0
+        } else {
+            libm::tanh(z)
+        };
+        let swing = self.circuit.fixed.ota_scale * self.current * pair;
+        let buffer = (c.reference + swing)
+            .max(c.saturation)
+            .min(c.supply - c.saturation);
+        self.circuit.high_pass(
+            2,
+            &mut self.output_cap,
+            buffer,
+            self.circuit.fixed.output_tau,
+        )
+    }
+    /// Last total BA662A Iabc, Q31 current plus the conducting accent path.
+    pub fn control_current(&self) -> f64 {
+        self.current
+    }
+}
+
+/// VR8 divider, Q34/Q33 inverting mixer, coupling capacitors and J6 line output.
+pub struct OutputStage {
+    circuit: Circuit,
+    volume_cap: f64,
+    mix_cap: f64,
+    line_cap: f64,
+    network: Option<(u64, VolumeNetwork)>,
+}
+#[derive(Clone, Copy)]
+struct VolumeNetwork {
+    fraction: f64,
+    gain: f64,
+    tau: f64,
+}
+impl OutputStage {
+    #[cold]
+    #[inline(never)]
+    fn update_network(&mut self, volume: f64) -> VolumeNetwork {
+        let k = self.circuit.audio(0, volume);
+        let c = self.circuit.c;
+        let r = c.r155 + c.vr8 * k * (1.0 - k);
+        let n = VolumeNetwork {
+            fraction: k,
+            gain: -c.r153 / r,
+            tau: r * c.c59,
+        };
+        self.network = Some((volume.to_bits(), n));
+        n
+    }
+    lifecycle!(
+        volume_cap = |_: &Circuit| 0.0,
+        mix_cap = |_: &Circuit| 0.0,
+        line_cap = |_: &Circuit| 0.0,
+        network = |_: &Circuit| None
+    );
+    /// Return J6 volts; MIX IN joins after VOLUME with the independent −1 gain.
+    /// Includes VOLUME wiper loading by R155, C59/C58 and C56/R161/R165.
+    pub fn tick(&mut self, vca: f64, volume: f64, mix_in: f64) -> f64 {
+        let vca = self.circuit.input(vca).clamp(-24.0, 24.0);
+        let volume = self.circuit.knob(volume);
+        let mix = self.circuit.input(mix_in).clamp(-24.0, 24.0);
+        let c = self.circuit.c;
+        let n = if let Some((key, n)) = self.network
+            && key == volume.to_bits()
+        {
+            n
+        } else {
+            self.update_network(volume)
+        };
+        let a = self
+            .circuit
+            .high_pass(0, &mut self.volume_cap, vca * n.fraction, n.tau);
+        let b = self
+            .circuit
+            .high_pass(1, &mut self.mix_cap, mix, c.r156 * c.c58);
+        let sum = (n.gain * a + self.circuit.fixed.mix_gain * b)
+            .max(-c.reference)
+            .min(c.supply - c.reference);
+        self.circuit
+            .high_pass(2, &mut self.line_cap, sum, self.circuit.fixed.line_tau)
+            * self.circuit.fixed.line_gain
     }
 }

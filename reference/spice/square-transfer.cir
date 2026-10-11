@@ -1,0 +1,21 @@
+DW303 static Q8 transfer
+.include models.inc
+V12 rail 0 12
+Vref ref 0 5.333
+Vsaw saw 0 8
+R35 saw q8b 100k
+C10 saw c10 10n
+R34 c10 q8b 10k
+Q8 square q8b q8e P303
+R45 rail q8e 22k
+C11 q8e 0 1u
+R36 square ref 10k
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=12
+dc Vsaw 5 13 .02
+wrdata data.txt v(saw) v(square) v(q8e)
+quit
+.endc
+.end

@@ -1,0 +1,54 @@
+DW303 VCO exact core / square shaper with Thevenin DAC slide input
+.include models.inc
+.param CV=2.75 CVNEXT=2.75 TM4=0.5 TM5=3600 TUNE=2.6665
+V12 rail 0 12
+Vref ref 0 5.333
+* DAC equivalent preserves 100k source impedance; contract slide-on mode.
+Vdac dac 0 PWL(0 {CV} .1 {CV} .100001 {CVNEXT})
+Rdac dac slew 100k
+C35 slew 0 .22u IC={CV}
+Xcv slew cv cv OP303
+R103 rail expref 220k
+* VERIFY: R102 interpreted as 100k rather than printed bare 100 (vco O1).
+* VERIFY: inferred TM4=47k and topology-inferred Q25=NPN (vco O5).
+Rtm4hi rail trim {max(1,47000*(1-TM4))}
+Rtm4lo trim ref {max(1,47000*TM4)}
+R102 trim expref 100k
+Xservo ref expref drv OP303
+C34 drv expref 1n
+R104 drv emit 2.2k
+Q26a expref ref emit N303
+Q26b cap expin emit N303
+R106 cv expin {27000+TM5}
+Vtune tune 0 {TUNE}
+* VERIFY: tuning terminal assumed 5.333V; centre source treated stiff.
+R118 tune expin 100k
+R100 expin ref 560
+C33 cap 0 10n IC=11.9
+* VERIFY: 10pF reset-node wiring parasitics for regenerative switching convergence.
+Crst rst 0 10p
+Cq27b q27b rail 10p
+Q25 q27b rst cap N303
+Q27 rail q27b d25a P303
+D25 d25a rst D303
+Q24 rst rst q24e N303
+R101 q24e ref 10k
+J28 rail cap saw JO
+R105 saw 0 10k
+C10 saw c10 10n
+R34 c10 q8b 10k
+R35 saw q8b 100k
+Q8 square q8b q8e P303
+R45 rail q8e 22k
+C11 q8e 0 1u
+R36 square ref 10k
+.options method=gear maxord=2 reltol=1e-4 abstol=1e-10
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=12
+tran 10u .3 0 2u
+wrdata data.txt v(cv) v(cap) v(saw) v(square)
+quit
+.endc
+.end

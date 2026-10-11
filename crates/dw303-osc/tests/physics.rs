@@ -8,7 +8,7 @@ fn cents(ratio: f64) -> f64 {
 #[test]
 fn dac_and_slide_are_interval_and_rate_independent() {
     for note in 0..=255 {
-        assert_eq!(cv_for_note(note), f64::from(note) / 12.0);
+        assert_eq!(cv_for_note(note), f64::from(note.min(52) + 12) / 12.0);
     }
     let c = Components::NOMINAL;
     let tau = c.slide_resistance * c.slide_capacitance;
@@ -27,9 +27,35 @@ fn dac_and_slide_are_interval_and_rate_independent() {
             assert!((remaining - expected).abs() < 1e-11);
             assert_eq!(cv.tick(to, false), cv_for_note(to));
             cv.reset();
-            assert_eq!(cv.tick(0, true), 0.0);
+            assert!(cv.tick(0, true) > 0.0);
         }
     }
+}
+
+#[test]
+fn schematic_component_changes_affect_expo_divider() {
+    let nominal = Vco::new(Components::NOMINAL);
+    let less_cv_gain = Vco::new(Components {
+        cv_input_resistance: 30_000.0,
+        ..Components::NOMINAL
+    });
+    assert!(less_cv_gain.frequency_hz(2.0, 0.5) / less_cv_gain.frequency_hz(1.0, 0.5) < 2.0);
+    let less_tune_gain = Vco::new(Components {
+        tuning_input_resistance: 200_000.0,
+        ..Components::NOMINAL
+    });
+    assert!(
+        cents(less_tune_gain.frequency_hz(1.0, 1.0) / less_tune_gain.frequency_hz(1.0, 0.5))
+            < 400.0
+    );
+    assert!(
+        (cents(nominal.frequency_hz(1.0, 1.0) / nominal.frequency_hz(1.0, 0.5)) - 700.0).abs()
+            < 1e-9
+    );
+    assert_eq!(cv_for_note(0), 1.0);
+    assert_eq!(cv_for_note(21), 2.75);
+    assert_eq!(cv_for_note(36), 4.0);
+    assert_eq!(cv_for_note(255), 64.0 / 12.0);
 }
 
 fn measured_frequency(vco: &mut Vco, rate: f64, cv: f64, tuning: f64) -> f64 {
@@ -40,7 +66,7 @@ fn measured_frequency(vco: &mut Vco, rate: f64, cv: f64, tuning: f64) -> f64 {
     let mut last = 0.0;
     let mut periods = 0;
     // Crossing away from the reset/kernel ringing.
-    let threshold = 2.5;
+    let threshold = 8.75;
     for n in 1..samples {
         let x = vco.tick(cv, tuning).saw;
         if previous < threshold && x >= threshold {
@@ -62,7 +88,7 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
     for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
         let mut vco = Vco::new(Components::NOMINAL);
         vco.prepare(rate).unwrap();
-        for note in (0..=60).step_by(12) {
+        for note in (0..=48).step_by(12) {
             vco.reset();
             let cv = cv_for_note(note);
             let f = measured_frequency(&mut vco, rate, cv, 0.5);
@@ -81,75 +107,77 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
             assert!(cents(f / vco.frequency_hz(2.0, tuning)).abs() < 1.0);
         }
         assert!(
-            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1200.0).abs() < 1e-9
+            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1400.0).abs() < 1e-9
         );
     }
     let nominal = Vco::new(Components::NOMINAL);
-    let hot = Vco::new(Components {
-        temperature_kelvin: 320.0,
-        ..Components::NOMINAL
-    });
-    let expected = (2.0_f64).powf(298.15 / 320.0);
-    assert!((hot.frequency_hz(1.0, 0.5) / hot.frequency_hz(0.0, 0.5) - expected).abs() < 1e-12);
-    assert!(nominal.charging_current_a(0.0, 0.5) > 0.0);
-    assert!(
-        (nominal.charging_current_a(1.0, 0.5) / nominal.charging_current_a(0.0, 0.5) - 2.0).abs()
-            < 1e-12
-    );
+    assert!((nominal.frequency_hz(1.0, 0.5) - 32.70).abs() < 0.004);
+    assert!((nominal.frequency_hz(2.75, 0.5) - 110.0).abs() < 1e-10);
+    assert!((nominal.charging_current_a(2.75, 0.5) - 7.15e-6).abs() < 1e-16);
+    for temp in [280.0, 300.0, 320.0] {
+        let v = Vco::new(Components {
+            temperature_kelvin: temp,
+            ..Components::NOMINAL
+        });
+        assert!((v.frequency_hz(4.0, 0.5) / v.frequency_hz(2.0, 0.5) / 4.0 - 1.0).abs() < 0.005);
+    }
 }
 
 #[test]
-fn saw_and_pnp_have_asymmetric_curved_shapes() {
-    let rate = 192_000.0;
-    let mut vco = Vco::new(Components::NOMINAL);
-    vco.prepare(rate).unwrap();
-    let frequency = 200.0;
-    let cv = (frequency / Components::NOMINAL.reference_hz).log2();
-    for _ in 0..96_000 {
-        vco.tick(cv, 0.5);
+fn printed_a_waveforms_and_dc_levels() {
+    for rate in [48_000.0, 96_000.0, 192_000.0] {
+        let mut vco = Vco::new(Components::NOMINAL);
+        vco.prepare(rate).unwrap();
+        for _ in 0..(rate / 2.0) as usize {
+            vco.tick(2.75, 0.5);
+        }
+        let mut lo = [f64::INFINITY; 2];
+        let mut hi = [f64::NEG_INFINITY; 2];
+        let mut falling = 0;
+        let mut previous = 0.0;
+        let count = (rate / 110.0).round() as usize;
+        let mut saw_sum = 0.0;
+        let mut duty = 0;
+        let mut plateau_sum = 0.0;
+        for n in 0..count {
+            let out = vco.tick(2.75, 0.5);
+            for (i, x) in [out.saw, out.square].into_iter().enumerate() {
+                lo[i] = lo[i].min(x);
+                hi[i] = hi[i].max(x);
+            }
+            saw_sum += out.saw;
+            duty += usize::from(out.square > 6.5);
+            if out.square > 6.5 {
+                plateau_sum += out.square;
+            }
+            falling += usize::from(n > 0 && out.saw < previous);
+            previous = out.saw;
+        }
+        println!(
+            "rate {rate} saw {}..{}, square {}..{}, duty {}",
+            lo[0],
+            hi[0],
+            lo[1],
+            hi[1],
+            duty as f64 / count as f64
+        );
+        // Kernel overshoot is allowed near the instantaneous reset only.
+        assert!(lo[0] < 5.6 && lo[0] > 4.8 && hi[0] > 11.9 && hi[0] < 12.7);
+        assert!((saw_sum / count as f64 - 8.75).abs() < 0.025);
+        assert!(falling as f64 / count as f64 > 0.8);
+        assert!((lo[1] - 64.0 / 12.0).abs() < 1e-12);
+        println!("plateau average {}", plateau_sum / duty as f64);
+        assert!((hi[1] - 8.0).abs() < 1.0);
+        assert!((plateau_sum / duty as f64 - 8.0).abs() < 0.5);
+        assert!((0.2..0.7).contains(&(duty as f64 / count as f64)));
+        // Hold a high saw: Q8 cuts off, collector stays on the reference rail.
+        let mut shaper = SquareShaper::new(Components::NOMINAL);
+        shaper.prepare(rate).unwrap();
+        for _ in 0..(rate / 4.0) as usize {
+            shaper.tick(12.0);
+        }
+        assert_eq!(shaper.tick(12.0), 64.0 / 12.0);
     }
-    let period = (rate / frequency) as usize;
-    let mut saw = Vec::new();
-    let mut square = Vec::new();
-    for _ in 0..period {
-        let out = vco.tick(cv, 0.5);
-        saw.push(out.saw);
-        square.push(out.square);
-    }
-    let minimum = saw.iter().copied().fold(f64::INFINITY, f64::min);
-    let maximum = saw.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    assert!(minimum < 0.8 && maximum > 4.7);
-    let rising = saw.windows(2).filter(|w| w[1] > w[0]).count();
-    assert!(rising as f64 / period as f64 > 0.85);
-    // Find a ramp stretch away from the reset; finite Early voltage increases slope.
-    let low_slopes: Vec<_> = saw
-        .windows(2)
-        .filter(|w| w[0] > 1.0 && w[0] < 1.5)
-        .map(|w| w[1] - w[0])
-        .collect();
-    let high_slopes: Vec<_> = saw
-        .windows(2)
-        .filter(|w| w[0] > 4.0 && w[0] < 4.5)
-        .map(|w| w[1] - w[0])
-        .collect();
-    let avg = |xs: &[f64]| xs.iter().sum::<f64>() / xs.len() as f64;
-    assert!(avg(&high_slopes) > avg(&low_slopes));
-    let duty = square.iter().filter(|&&x| x > 0.0).count() as f64 / period as f64;
-    assert!((0.25..0.75).contains(&duty));
-    assert!((duty - 0.5).abs() > 0.015, "duty {duty}");
-    let positive: Vec<_> = square.iter().copied().filter(|&x| x > 1.0).collect();
-    assert!(positive.len() > period / 5);
-    let spread = positive.iter().copied().fold(f64::NEG_INFINITY, f64::max)
-        - positive.iter().copied().fold(f64::INFINITY, f64::min);
-    assert!(spread > 0.1);
-    let mut shaper = SquareShaper::new(Components::NOMINAL);
-    shaper.prepare(rate).unwrap();
-    let first = shaper.tick(2.0);
-    for _ in 0..96_000 {
-        shaper.tick(2.0);
-    }
-    assert!(shaper.tick(2.0).abs() < 1e-6);
-    assert!(first.is_finite());
 }
 
 #[test]
@@ -233,7 +261,7 @@ fn saw_alias_energy_after_ideal_fourfold_decimation_below_minus_80_db() {
     let bin = 341;
     let frequency = rate * bin as f64 / n as f64; // 999.0234375 Hz, coherent ~1 kHz.
     let c = Components::NOMINAL;
-    let cv = (frequency / c.reference_hz).log2();
+    let cv = 1.0 + (frequency / c.reference_hz).log2();
     let mut vco = Vco::new(c);
     vco.prepare(rate).unwrap();
     let mut spectrum: Vec<_> = (0..n).map(|_| (vco.tick(cv, 0.5).saw, 0.0)).collect();

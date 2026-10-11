@@ -1,0 +1,22 @@
+DW303 VCF ladder output and feedback
+.include models.inc
+.include vcf-stage.inc
+.param CURRENT=10u RES=1
+* 1V AC test; 1ms tiny transient excitation seeds physical ringing.
+Vin input 0 DC 0 AC 1 PULSE(0 .001 .01 1u 1u 1m 10)
+Vi tailcontrol 0 {CURRENT}
+Xfilter input out tap tailcontrol VCF RES={RES}
+.options reltol=1e-5 abstol=1e-11
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=12
+ac dec 80 .1 100000
+let magnitude_db=db(v(out))
+let phase_rad=ph(v(out))
+wrdata ac.txt magnitude_db phase_rad
+tran 20u .6 0 5u
+wrdata data.txt v(input) v(out) v(tap) v(xfilter.e19)
+quit
+.endc
+.end

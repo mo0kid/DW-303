@@ -1,0 +1,69 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: dw303 vcf ladder output and feedback
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 481
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+Initial Transient Solution
+--------------------------
+
+Node                                   Voltage
+----                                   -------
+input                                        0
+tailcontrol                              2e-06
+xfilter.rail                                12
+xfilter.vr                             11.8433
+xfilter.ref                              5.333
+xfilter.b22                            11.8432
+xfilter.l1                              11.367
+xfilter.r1                              11.367
+xfilter.l2                             10.8908
+xfilter.r2                             10.8908
+xfilter.l3                             10.4146
+xfilter.r3                             10.4146
+xfilter.l4                             9.93845
+xfilter.r4                             9.93845
+xfilter.bl                             5.33297
+xfilter.emit                           4.85781
+xfilter.br                             5.33297
+xfilter.sink                           4.85341
+xfilter.c17                                  0
+xfilter.bi                             5.33298
+xfilter.c23                            5.33297
+xfilter.fbe                            4.30015
+xfilter.b21r                           3.41471
+xfilter.b21l                           3.41471
+xfilter.bd                             3.53141
+xfilter.b20                            1.75315
+xfilter.tail                           2.79722
+xfilter.e20                            1.11586
+xfilter.cl                             11.2907
+xfilter.cr                             11.2791
+xfilter.e19                            10.6224
+out                                          0
+tap                                          0
+xfilter.c15                            4.93165
+xfilter.b18                            4.93165
+xfilter.bf                             5.13233
+xfilter.n121                                 0
+xfilter.vca_in                               0
+xfilter.n122                                 0
+v.xfilter.vref#branch             -0.000182176
+v.xfilter.v12#branch               -0.00199461
+vi#branch                                    0
+vin#branch                                   0
+
+ Reference value :  1.84086e-01
+ Reference value :  3.81006e-01
+ Reference value :  5.70201e-01
+No. of Data Rows : 120025
+ngspice-47 done

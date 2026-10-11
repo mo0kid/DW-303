@@ -18,40 +18,59 @@ pub enum StageError {
     InvalidSampleRate,
 }
 
-/// Circuit values, in SI units. Unverified estimates are explicitly identified.
+/// Schematic component values in SI units (reconciled service-notes page 5).
 #[derive(Clone, Copy, Debug)]
 pub struct Components {
-    /// VERIFY: bottom-to-top service-note designators and values; estimated
-    /// 18 nF, 33 nF, 33 nF, 33 nF (not the x0xb0x's tenfold larger values).
+    /// C18, C19, C24, C26, bottom to top.
     pub ladder_capacitance: [f64; 4],
-    /// VERIFY: junction temperature assumed 300 K, V_T = kT/q.
+    /// C17 input coupling.
+    pub c17: f64,
+    /// C25 (L1 to Q21R), C27 (R1 to Q21L), crossed output coupling.
+    pub output_capacitance: [f64; 2],
+    /// C14 output, C15 Q18 input, C23 Q12 feedback coupling.
+    pub coupling_capacitance: [f64; 3],
+    /// R62 series input, R70 input bias.
+    pub input_resistance: [f64; 2],
+    /// R114 Q21R bias, R113 Q21L bias.
+    pub output_bias_resistance: [f64; 2],
+    /// R67 series, R99 Q18 bias, R97 injection, R98 Q12 bias.
+    pub feedback_resistance: [f64; 4],
+    /// VR4A 50K linear track; terminal 1 ground, terminal 3 C14.
+    pub resonance_resistance: f64,
+    /// R116, R112, R109 Q20 bias divider, R108 emitter, R110 collector load.
+    pub amplifier_resistance: [f64; 5],
+    /// Printed 5.333 V reference feeding the bias dividers.
+    pub bias_supply: f64,
+    /// VERIFY: junction temperature / ideality; VT estimated at 300 K.
     pub thermal_voltage: f64,
-    /// VERIFY: effective two coupling capacitors, not a complete schematic reduction.
-    pub feedback_capacitance: [f64; 2],
-    /// VERIFY: effective coupling resistances; each RC corner is about 10 Hz.
-    pub feedback_resistance: [f64; 2],
-    /// VERIFY: output differential amplifier small-signal voltage gain.
-    pub output_gain: f64,
-    /// VERIFY: amplifier input-referred saturation voltage (output limit gain times this).
-    pub amplifier_headroom: f64,
-    /// VERIFY: maximum input-referred feedback gain and linear pot taper.
-    pub resonance_gain: f64,
-    /// VERIFY: waveform-node to input-pair differential voltage attenuation.
-    pub input_attenuation: f64,
+    /// VERIFY: Q20 Vbe used to derive Q21 tail current; not printed.
+    pub vbe: f64,
 }
-
 impl Components {
-    /// Provisional service-note values and explicitly unverified reductions.
+    /// Printed passives and supplies; estimated semiconductor parameters.
     pub const NOMINAL: Self = Self {
         ladder_capacitance: [18e-9, 33e-9, 33e-9, 33e-9],
+        c17: 1e-6,
+        output_capacitance: [0.1e-6; 2],
+        coupling_capacitance: [1e-6; 3],
+        input_resistance: [220_000.0, 2_200.0],
+        output_bias_resistance: [100_000.0; 2],
+        feedback_resistance: [2_200.0, 100_000.0, 10_000.0, 2_200.0],
+        resonance_resistance: 50_000.0,
+        amplifier_resistance: [10_000.0, 10_000.0, 10_000.0, 2_200.0, 2_200.0],
+        bias_supply: 5.333,
         thermal_voltage: 0.02585,
-        feedback_capacitance: [1e-6, 1e-6],
-        feedback_resistance: [15_000.0, 15_000.0],
-        output_gain: 20.0,
-        amplifier_headroom: 0.2,
-        resonance_gain: 24.0,
-        input_attenuation: 0.02,
+        vbe: 0.65,
     };
+}
+
+/// AC node voltages returned to the VCA.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct VcfOut {
+    /// C14 negative terminal / VR4A terminal 3, volts.
+    pub output: f64,
+    /// Loaded VR4A wiper / RES_FB, volts.
+    pub resonance_tap: f64,
 }
 
 /// Cumulative bounded-solver telemetry; reset clears all counters.
@@ -71,11 +90,11 @@ pub struct VcfDiagnostics {
     pub sanitized_inputs: u64,
 }
 
-const N: usize = 6;
+const N: usize = 10;
 const MAX_ITERATIONS: u8 = 8;
 const TOLERANCE: f64 = 1e-13;
 
-/// Four differential ladder capacitor voltages and two feedback capacitor voltages.
+/// Four ladder voltages plus C17, C25, C27, C14, C15 and C23 charges / capacitances.
 /// Constructed instances run at 192 kHz until prepared.
 pub struct Vcf {
     c: Components,
@@ -83,9 +102,17 @@ pub struct Vcf {
     half_step: f64,
     x: [f64; N],
     history: [f64; N],
+    previous: [[f64; N]; 3],
+    previous_controls: [f64; 2],
     diagnostics: VcfDiagnostics,
     inverse_capacitance: [f64; 4],
-    feedback_rate: [f64; 2],
+    input_rate: f64,
+    input_gain: f64,
+    output_rate: [f64; 2],
+    output_conductance: [f64; 2],
+    feedback_rate: f64,
+    feedback_gain: f64,
+    amplifier_swing: f64,
     inverse_scale: f64,
 }
 
@@ -98,34 +125,52 @@ impl Vcf {
                 Components::NOMINAL.ladder_capacitance[i],
             );
         }
-        for i in 0..2 {
-            c.feedback_capacitance[i] = positive(
-                c.feedback_capacitance[i],
-                Components::NOMINAL.feedback_capacitance[i],
-            );
-            c.feedback_resistance[i] = positive(
-                c.feedback_resistance[i],
-                Components::NOMINAL.feedback_resistance[i],
-            );
+        macro_rules! sanitize_array {
+            ($field:ident) => {
+                for (value, nominal) in c.$field.iter_mut().zip(Components::NOMINAL.$field) {
+                    *value = positive(*value, nominal);
+                }
+            };
         }
+        sanitize_array!(output_capacitance);
+        sanitize_array!(coupling_capacitance);
+        sanitize_array!(input_resistance);
+        sanitize_array!(output_bias_resistance);
+        sanitize_array!(feedback_resistance);
+        sanitize_array!(amplifier_resistance);
+        c.c17 = positive(c.c17, Components::NOMINAL.c17);
+        c.resonance_resistance = positive(
+            c.resonance_resistance,
+            Components::NOMINAL.resonance_resistance,
+        );
+        c.bias_supply = positive(c.bias_supply, Components::NOMINAL.bias_supply);
         c.thermal_voltage = positive(c.thermal_voltage, Components::NOMINAL.thermal_voltage);
-        c.output_gain = positive(c.output_gain, Components::NOMINAL.output_gain);
-        c.amplifier_headroom =
-            positive(c.amplifier_headroom, Components::NOMINAL.amplifier_headroom);
-        c.resonance_gain = positive(c.resonance_gain, Components::NOMINAL.resonance_gain);
-        c.input_attenuation = positive(c.input_attenuation, Components::NOMINAL.input_attenuation);
+        c.vbe = positive(c.vbe, Components::NOMINAL.vbe);
+        let ar = c.amplifier_resistance;
+        let tail = ((c.bias_supply * ar[2] / (ar[0] + ar[1] + ar[2]) - c.vbe) / ar[3]).max(0.0);
         Self {
             c,
             quality: Quality::Full,
             half_step: 0.5 / 192_000.0,
             x: [0.0; N],
             history: [0.0; N],
+            previous: [[0.0; N]; 3],
+            previous_controls: [0.0; 2],
             diagnostics: VcfDiagnostics::default(),
             inverse_scale: 1.0 / (2.0 * c.thermal_voltage),
             inverse_capacitance: c.ladder_capacitance.map(|c| 1.0 / c),
-            feedback_rate: core::array::from_fn(|i| {
-                1.0 / (c.feedback_resistance[i] * c.feedback_capacitance[i])
+            input_rate: 1.0 / ((c.input_resistance[0] + c.input_resistance[1]) * c.c17),
+            input_gain: c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]),
+            output_rate: core::array::from_fn(|i| {
+                1.0 / (c.output_bias_resistance[i] * c.output_capacitance[i])
             }),
+            output_conductance: c.output_bias_resistance.map(|r| 1.0 / r),
+            feedback_rate: 1.0
+                / ((c.feedback_resistance[2] + c.feedback_resistance[3])
+                    * c.coupling_capacitance[2]),
+            feedback_gain: c.feedback_resistance[3]
+                / (c.feedback_resistance[2] + c.feedback_resistance[3]),
+            amplifier_swing: 0.5 * tail * ar[4],
         }
     }
 
@@ -143,6 +188,8 @@ impl Vcf {
     pub fn reset(&mut self) {
         self.x = [0.0; N];
         self.history = [0.0; N];
+        self.previous = [[0.0; N]; 3];
+        self.previous_controls = [0.0; 2];
         self.diagnostics = VcfDiagnostics::default();
     }
 
@@ -159,15 +206,26 @@ impl Vcf {
     /// Process waveform-node volts, total ladder tail current in amperes, and
     /// RESONANCE panel rotation. Finite current is limited to 0..1 mA and input
     /// to ±12 V for numerical protection outside the instrument's operating range.
-    pub fn tick(&mut self, input: f64, bias_current: f64, resonance: f64) -> f64 {
-        let input = self.sanitize(input).clamp(-12.0, 12.0) * self.c.input_attenuation;
-        let current = self.sanitize(bias_current).clamp(0.0, 1e-3);
-        let feedback = self.sanitize(resonance).clamp(0.0, 1.0) * self.c.resonance_gain;
-        // Euler predictor from the previous trapezoidal endpoint derivative.
+    pub fn tick(&mut self, input: f64, ladder_current: f64, resonance: f64) -> VcfOut {
+        let input = self.sanitize(input).clamp(-12.0, 12.0);
+        let current = self.sanitize(ladder_current).clamp(0.0, 1e-3);
+        let feedback = self.sanitize(resonance).clamp(0.0, 1.0);
+        // Cubic extrapolation for smooth controls; endpoint Euler predictor otherwise.
         // Only the initial guess changes; the residual and tolerance do not.
-        let prediction = core::array::from_fn(|i| 2.0 * self.history[i] - self.x[i]);
+        let prediction = if self.diagnostics.samples >= 4
+            && (current - self.previous_controls[0]).abs()
+                <= 0.05 * current.max(self.previous_controls[0])
+            && (feedback - self.previous_controls[1]).abs() <= 0.02
+        {
+            core::array::from_fn(|i| {
+                4.0 * self.x[i] - 6.0 * self.previous[0][i] + 4.0 * self.previous[1][i]
+                    - self.previous[2][i]
+            })
+        } else {
+            core::array::from_fn(|i| 2.0 * self.history[i] - self.x[i])
+        };
         let step = core::array::from_fn(|i| prediction[i] - self.x[i]);
-        let mut x = if max_abs(step) <= 0.001 {
+        let mut x = if max_abs(step) <= 0.01 {
             prediction
         } else {
             self.x
@@ -205,6 +263,9 @@ impl Vcf {
             converged = max_abs(evaluation.0) <= TOLERANCE;
         }
         if converged {
+            self.previous[2] = self.previous[1];
+            self.previous[1] = self.previous[0];
+            self.previous[0] = self.x;
             self.x = x.map(flush);
             let f = if self.x == x {
                 evaluation.2
@@ -216,16 +277,108 @@ impl Vcf {
             // Hold the previous physical solution rather than accept an unstable step.
             self.diagnostics.non_convergence = self.diagnostics.non_convergence.saturating_add(1);
         }
+        self.previous_controls = [current, feedback];
         self.diagnostics.samples = self.diagnostics.samples.saturating_add(1);
         self.diagnostics.iterations = self.diagnostics.iterations.saturating_add(u64::from(used));
         self.diagnostics.last_iterations = used;
         self.diagnostics.max_iterations = self.diagnostics.max_iterations.max(used);
-        let out = if converged && self.x == x {
-            evaluation.3
-        } else {
-            self.amplifier(self.x[3]).0
-        };
-        self.c.output_gain * out
+        let (output, resonance_tap, _) = self.nodes(self.x, feedback);
+        VcfOut {
+            output,
+            resonance_tap,
+        }
+    }
+
+    /// Q21 single-ended small-signal gain, derived from Q20 divider and R108/R110.
+    pub fn output_gain(&self) -> f64 {
+        self.amplifier_swing * self.inverse_scale
+    }
+
+    /// Find Q11 collector current for the page-7 damped ring frequency at RES max.
+    /// Call on the control thread to calibrate TM3, then pass the returned amperes
+    /// to `tick`. Uses continuous small-signal poles, independent of sample rate.
+    /// Returns `None` for invalid targets or failure of the bounded pole search.
+    /// This is a model calibration, not a claim of measured transistor accuracy.
+    pub fn calibration_current(&self, ring_hz: f64) -> Option<f64> {
+        if !ring_hz.is_finite() || !(20.0..=20_000.0).contains(&ring_hz) {
+            return None;
+        }
+        let w = core::f64::consts::TAU * ring_hz;
+        let scale = 4.0 * self.c.thermal_voltage * self.c.ladder_capacitance[3] * w;
+        for seed in [0.3, 0.7, 1.5, 3.0] {
+            let mut damping = -0.5 * w;
+            let mut current = scale * seed;
+            for _ in 0..32 {
+                let r = self.characteristic(Complex(damping, w), current);
+                if r.norm() < 1e-8 && damping < 0.0 && (0.0..=1e-3).contains(&current) {
+                    return Some(current);
+                }
+                let ds = w * 1e-5;
+                let di = current * 1e-5;
+                let a = self
+                    .characteristic(Complex(damping + ds, w), current)
+                    .sub(self.characteristic(Complex(damping - ds, w), current))
+                    .scale(0.5 / ds);
+                let b = self
+                    .characteristic(Complex(damping, w), current + di)
+                    .sub(self.characteristic(Complex(damping, w), current - di))
+                    .scale(0.5 / di);
+                let det = a.0 * b.1 - a.1 * b.0;
+                if !det.is_finite() || det.abs() < 1e-20 {
+                    break;
+                }
+                let dd = (r.0 * b.1 - r.1 * b.0) / det;
+                let dc = (a.0 * r.1 - a.1 * r.0) / det;
+                let mut fraction = 1.0;
+                for _ in 0..8 {
+                    let next_i = current - fraction * dc;
+                    let next_d = damping - fraction * dd;
+                    if next_i > 0.0
+                        && next_i <= 1e-3
+                        && next_d < 0.0
+                        && self.characteristic(Complex(next_d, w), next_i).norm() < r.norm()
+                    {
+                        damping = next_d;
+                        current = next_i;
+                        break;
+                    }
+                    fraction *= 0.5;
+                }
+            }
+        }
+        None
+    }
+
+    // Determinant of the continuous matched-bias linearisation, normalised by g^4.
+    fn characteristic(&self, s: Complex, current: f64) -> Complex {
+        let c = self.c;
+        let g = current / (4.0 * c.thermal_voltage);
+        let h25 = s.highpass(c.output_capacitance[0] * c.output_bias_resistance[0]);
+        let h27 = s.highpass(c.output_capacitance[1] * c.output_bias_resistance[1]);
+        let load = h25
+            .scale(0.25 / c.output_bias_resistance[0])
+            .add(h27.scale(0.25 / c.output_bias_resistance[1]));
+        let rf = c.feedback_resistance[0] + c.feedback_resistance[1];
+        let y15 = s.highpass(rf * c.coupling_capacitance[1]).scale(1.0 / rf);
+        let y14 = Complex(1.0 / c.resonance_resistance, 0.0).add(y15);
+        let sc14 = s.scale(c.coupling_capacitance[0]);
+        let h14 = sc14.div(sc14.add(y14));
+        let feedback = y15
+            .scale(c.feedback_resistance[1] * self.feedback_gain)
+            .mul(s.highpass(1.0 / self.feedback_rate));
+        let forward = h25.add(h27).scale(0.5 * self.output_gain()).mul(h14);
+        let mut previous = Complex(1.0, 0.0);
+        let mut determinant = Complex(1.0, 0.0).add(s.scale(c.ladder_capacitance[0] / g));
+        for i in 1..4 {
+            let mut diagonal = Complex(2.0, 0.0).add(s.scale(c.ladder_capacitance[i] / g));
+            if i == 3 {
+                diagonal = diagonal.add(load.scale(1.0 / g));
+            }
+            let next = diagonal.mul(determinant).sub(previous);
+            previous = determinant;
+            determinant = next;
+        }
+        determinant.add(forward.mul(feedback))
     }
 
     fn sanitize(&mut self, value: f64) -> f64 {
@@ -238,8 +391,22 @@ impl Vcf {
     }
 
     fn amplifier(&self, voltage: f64) -> (f64, f64) {
-        let t = libm::tanh(voltage / self.c.amplifier_headroom);
-        (self.c.amplifier_headroom * t, 1.0 - t * t)
+        let t = libm::tanh(voltage * self.inverse_scale);
+        (
+            self.amplifier_swing * t,
+            self.amplifier_swing * self.inverse_scale * (1.0 - t * t),
+        )
+    }
+
+    // Resistively loaded VR4A and C15 network, with ideal Q19/Q18 followers.
+    /// VERIFY: Q18/Q19 are ideal unity followers, with fixed bias, infinite beta
+    /// and no Early effect or parasitics; Q20/Q21 neglect base-current loading.
+    fn nodes(&self, x: [f64; N], p: f64) -> (f64, f64, f64) {
+        let out = self.amplifier(x[3] + x[5] - x[6]).0 - x[7];
+        let rt = self.c.resonance_resistance * p * (1.0 - p);
+        let i =
+            (p * out - x[8]) / (rt + self.c.feedback_resistance[0] + self.c.feedback_resistance[1]);
+        (out, p * out - rt * i, i)
     }
 
     fn residual(
@@ -260,6 +427,8 @@ impl Vcf {
         (r, j, f, out)
     }
 
+    /// Q12 fixed-tail input; Q13/Q15, Q14/Q17, Q16/Q23 diode-connected
+    /// rungs; Q22 common-base top termination at AC-grounded BIAS_Q22.
     /// VERIFY: fixed arm common-mode reduction omits common-mode redistribution,
     /// transistor beta, Early effect and junction capacitance.
     fn flow(
@@ -272,11 +441,25 @@ impl Vcf {
         let inverse_scale = self.inverse_scale;
         let half_current = 0.5 * current;
         let current_over_scale = half_current * inverse_scale;
-        let (out, out_d) = self.amplifier(x[3]);
-        let hp = out - x[4] - x[5];
-        let t = libm::tanh((input - feedback * hp) * inverse_scale);
+        let (amp, amp_d) = self.amplifier(x[3] + x[5] - x[6]);
+        let out = amp - x[7];
+        let rt = self.c.resonance_resistance * feedback * (1.0 - feedback);
+        let conductance =
+            1.0 / (rt + self.c.feedback_resistance[0] + self.c.feedback_resistance[1]);
+        let fb_i = (feedback * out - x[8]) * conductance;
+        let follower = self.c.feedback_resistance[1] * fb_i;
+        let u = self.input_gain * (input - x[4]) - self.feedback_gain * (follower - x[9]);
+        let t = libm::tanh(u * inverse_scale);
         let injection = half_current * t;
         let injection_d = current_over_scale * (1.0 - t * t);
+        let mut out_d = [0.0; N];
+        out_d[3] = amp_d;
+        out_d[5] = amp_d;
+        out_d[6] = -amp_d;
+        out_d[7] = -1.0;
+        let fi_d: [f64; N] = core::array::from_fn(|i| {
+            conductance * (feedback * out_d[i] - if i == 8 { 1.0 } else { 0.0 })
+        });
         let mut edge = [0.0; 4];
         let mut edge_d = [0.0; 4];
         for i in 0..4 {
@@ -303,21 +486,74 @@ impl Vcf {
                 j[i][i + 1] = edge_d[i] * inv_c;
             }
         }
-        let drive_d = injection_d * feedback * self.inverse_capacitance[0];
-        j[0][3] -= drive_d * out_d;
-        j[0][4] += drive_d;
-        j[0][5] += drive_d;
-        for i in 0..2 {
-            let rate = self.feedback_rate[i];
-            let row = i + 4;
-            f[row] = (out - if i == 0 { 0.0 } else { x[4] } - x[row]) * rate;
-            j[row][3] = out_d * rate;
-            j[row][row] = -rate;
-            if i == 1 {
-                j[row][4] = -rate;
-            }
+        for col in 0..N {
+            let du = -self.feedback_gain * self.c.feedback_resistance[1] * fi_d[col]
+                - if col == 4 { self.input_gain } else { 0.0 }
+                + if col == 9 { self.feedback_gain } else { 0.0 };
+            j[0][col] += injection_d * self.inverse_capacitance[0] * du;
+        }
+        // C25/C27 also draw current from Q22 emitter nodes, loading C26.
+        let br = -0.5 * x[3] - x[5];
+        let bl = 0.5 * x[3] - x[6];
+        let gr = self.output_conductance[0];
+        let gl = self.output_conductance[1];
+        let ic = self.inverse_capacitance[3];
+        f[3] -= 0.5 * (gl * bl - gr * br) * ic;
+        j[3][3] -= 0.25 * (gl + gr) * ic;
+        j[3][5] -= 0.5 * gr * ic;
+        j[3][6] += 0.5 * gl * ic;
+        f[4] = (input - x[4]) * self.input_rate;
+        j[4][4] = -self.input_rate;
+        f[5] = br * self.output_rate[0];
+        j[5][3] = -0.5 * self.output_rate[0];
+        j[5][5] = -self.output_rate[0];
+        f[6] = bl * self.output_rate[1];
+        j[6][3] = 0.5 * self.output_rate[1];
+        j[6][6] = -self.output_rate[1];
+        f[7] =
+            (out / self.c.resonance_resistance + feedback * fb_i) / self.c.coupling_capacitance[0];
+        f[8] = fb_i / self.c.coupling_capacitance[1];
+        f[9] = (follower - x[9]) * self.feedback_rate;
+        for col in 0..N {
+            j[7][col] = (out_d[col] / self.c.resonance_resistance + feedback * fi_d[col])
+                / self.c.coupling_capacitance[0];
+            j[8][col] = fi_d[col] / self.c.coupling_capacitance[1];
+            j[9][col] = (self.c.feedback_resistance[1] * fi_d[col]
+                - if col == 9 { 1.0 } else { 0.0 })
+                * self.feedback_rate;
         }
         (f, j, out)
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Complex(f64, f64);
+impl Complex {
+    fn add(self, b: Self) -> Self {
+        Self(self.0 + b.0, self.1 + b.1)
+    }
+    fn sub(self, b: Self) -> Self {
+        Self(self.0 - b.0, self.1 - b.1)
+    }
+    fn scale(self, k: f64) -> Self {
+        Self(self.0 * k, self.1 * k)
+    }
+    fn mul(self, b: Self) -> Self {
+        Self(self.0 * b.0 - self.1 * b.1, self.0 * b.1 + self.1 * b.0)
+    }
+    fn div(self, b: Self) -> Self {
+        let d = b.0 * b.0 + b.1 * b.1;
+        Self(
+            (self.0 * b.0 + self.1 * b.1) / d,
+            (self.1 * b.0 - self.0 * b.1) / d,
+        )
+    }
+    fn norm(self) -> f64 {
+        self.0 * self.0 + self.1 * self.1
+    }
+    fn highpass(self, tau: f64) -> Self {
+        let z = self.scale(tau);
+        z.div(Complex(1.0, 0.0).add(z))
     }
 }
 
@@ -350,44 +586,70 @@ fn junction(x: f64) -> (f64, f64) {
     let d = 0.5 * (e + inverse);
     ((s + d * (x.abs() - a)).copysign(x), d)
 }
-// Eliminate the two RC rows, then the tridiagonal ladder with its single
-// feedback corner. This is the same six-equation linear system as `solve`;
-// exploit its known zeros rather than eliminate a dense 6x6 matrix.
+// Schur reduction: all coupling states are affine in the top rung correction.
+// C14/C15 form a 2x2 block because VR4A is loaded by the feedback branch.
 fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
-    let inv4 = 1.0 / a[4][4];
-    let inv5 = 1.0 / a[5][5];
-    let rc4 = b[4] * inv4;
-    let gain4 = a[4][3] * inv4;
-    let rc5 = (b[5] - a[5][4] * rc4) * inv5;
-    let gain5 = (a[5][3] - a[5][4] * gain4) * inv5;
-    let corner0 = a[0][3] - a[0][4] * gain4 - a[0][5] * gain5;
-    let rhs0 = b[0] - a[0][4] * rc4 - a[0][5] * rc5;
+    let mut rhs = [0.0; N];
+    let mut gain = [0.0; N];
+    rhs[4] = b[4] / a[4][4];
+    for i in [5, 6] {
+        rhs[i] = b[i] / a[i][i];
+        gain[i] = a[i][3] / a[i][i];
+    }
+    let r7 = b[7] - a[7][5] * rhs[5] - a[7][6] * rhs[6];
+    let r8 = b[8] - a[8][5] * rhs[5] - a[8][6] * rhs[6];
+    let g7 = a[7][3] - a[7][5] * gain[5] - a[7][6] * gain[6];
+    let g8 = a[8][3] - a[8][5] * gain[5] - a[8][6] * gain[6];
+    let det = a[7][7] * a[8][8] - a[7][8] * a[8][7];
+    rhs[7] = (r7 * a[8][8] - a[7][8] * r8) / det;
+    rhs[8] = (a[7][7] * r8 - r7 * a[8][7]) / det;
+    gain[7] = (g7 * a[8][8] - a[7][8] * g8) / det;
+    gain[8] = (a[7][7] * g8 - g7 * a[8][7]) / det;
+    rhs[9] = b[9];
+    gain[9] = a[9][3];
+    for i in 5..9 {
+        rhs[9] -= a[9][i] * rhs[i];
+        gain[9] -= a[9][i] * gain[i];
+    }
+    rhs[9] /= a[9][9];
+    gain[9] /= a[9][9];
+    let mut r0 = b[0];
+    let mut corner = a[0][3];
+    let mut r3 = b[3];
+    let mut d3 = a[3][3];
+    for i in 4..N {
+        r0 -= a[0][i] * rhs[i];
+        corner -= a[0][i] * gain[i];
+        r3 -= a[3][i] * rhs[i];
+        d3 -= a[3][i] * gain[i];
+    }
     let inv0 = 1.0 / a[0][0];
-    let ratio1 = a[1][0] * inv0;
-    let pivot1 = a[1][1] - ratio1 * a[0][1];
-    let corner1 = a[1][3] - ratio1 * corner0;
-    let rhs1 = b[1] - ratio1 * rhs0;
-    let inv1 = 1.0 / pivot1;
-    let ratio2 = a[2][1] * inv1;
-    let pivot2 = a[2][2] - ratio2 * a[1][2];
-    let corner2 = a[2][3] - ratio2 * corner1;
-    let rhs2 = b[2] - ratio2 * rhs1;
-    let inv2 = 1.0 / pivot2;
-    let ratio3 = a[3][2] * inv2;
-    let pivot3 = a[3][3] - ratio3 * corner2;
-    let rhs3 = b[3] - ratio3 * rhs2;
-    // Rare ill-conditioned/custom-component cases retain the pivoted solver.
-    if [a[0][0], pivot1, pivot2, pivot3, a[4][4], a[5][5]]
+    let t1 = a[1][0] * inv0;
+    let d1 = a[1][1] - t1 * a[0][1];
+    let c1 = a[1][3] - t1 * corner;
+    let r1 = b[1] - t1 * r0;
+    let inv1 = 1.0 / d1;
+    let t2 = a[2][1] * inv1;
+    let d2 = a[2][2] - t2 * a[1][2];
+    let c2 = a[2][3] - t2 * c1;
+    let r2 = b[2] - t2 * r1;
+    let inv2 = 1.0 / d2;
+    let t3 = a[3][2] * inv2;
+    let d3 = d3 - t3 * c2;
+    if [a[0][0], d1, d2, d3, det, a[9][9]]
         .iter()
-        .any(|p| !p.is_finite() || p.abs() < 1e-20)
+        .any(|v| !v.is_finite() || v.abs() < 1e-20)
     {
         return solve(a, b);
     }
-    let x3 = rhs3 / pivot3;
-    let x2 = (rhs2 - corner2 * x3) * inv2;
-    let x1 = (rhs1 - a[1][2] * x2 - corner1 * x3) * inv1;
-    let x0 = (rhs0 - a[0][1] * x1 - corner0 * x3) * inv0;
-    let x = [x0, x1, x2, x3, rc4 - gain4 * x3, rc5 - gain5 * x3];
+    let mut x = [0.0; N];
+    x[3] = (r3 - t3 * r2) / d3;
+    x[2] = (r2 - c2 * x[3]) * inv2;
+    x[1] = (r1 - a[1][2] * x[2] - c1 * x[3]) * inv1;
+    x[0] = (r0 - a[0][1] * x[1] - corner * x[3]) * inv0;
+    for i in 4..N {
+        x[i] = rhs[i] - gain[i] * x[3];
+    }
     if x.iter().all(|v| v.is_finite()) {
         Some(x)
     } else {
@@ -442,8 +704,10 @@ mod tests {
                 v.prepare(rate).unwrap();
                 v.set_quality(quality);
                 for current in [0.0, 1e-9, 10e-6, 1e-3] {
-                    for resonance in [0.0, 12.0, 24.0] {
-                        let x = [0.02, -0.008, 0.004, 0.003, 0.001, -0.001];
+                    for resonance in [0.0, 0.5, 1.0] {
+                        let x = [
+                            0.02, -0.008, 0.004, 0.003, 0.001, -0.001, 0.002, 0.003, 0.004, 0.005,
+                        ];
                         let (r, j, _, _) = v.residual(x, 0.04, current, resonance);
                         let sparse = solve_ladder(j, r).unwrap();
                         let dense = solve(j, r).unwrap();
@@ -474,15 +738,17 @@ mod tests {
         for quality in [Quality::Full, Quality::Economy] {
             let mut v = Vcf::new(Components::NOMINAL);
             v.set_quality(quality);
-            let x = [0.02, -0.008, 0.004, 0.003, 0.001, -0.001];
-            let j = v.flow(x, 0.04, 10e-6, 18.0).1;
+            let x = [
+                0.02, -0.008, 0.004, 0.003, 0.001, -0.001, 0.002, 0.003, 0.004, 0.005,
+            ];
+            let j = v.flow(x, 0.04, 10e-6, 0.75).1;
             for col in 0..N {
                 let mut hi = x;
                 let mut lo = x;
                 hi[col] += 1e-7;
                 lo[col] -= 1e-7;
-                let f_hi = v.flow(hi, 0.04, 10e-6, 18.0).0;
-                let f_lo = v.flow(lo, 0.04, 10e-6, 18.0).0;
+                let f_hi = v.flow(hi, 0.04, 10e-6, 0.75).0;
+                let f_lo = v.flow(lo, 0.04, 10e-6, 0.75).0;
                 for row in 0..N {
                     let numeric = (f_hi[row] - f_lo[row]) / 2e-7;
                     assert!((numeric - j[row][col]).abs() < 1e-5 * (1.0 + numeric.abs()));

@@ -1,336 +1,199 @@
-# VCF: differential diode ladder
+# VCF revision 2: schematic ladder and coupling network
 
-`dw303-vcf` implements the contract's `Vcf`, `Quality`, `VcfDiagnostics`,
-`Components` and `StageError`. It is `no_std`, uses only existing `libm`, has no
-unsafe code, and stores six capacitor voltages in fixed arrays. Inputs and
-outputs are AC voltages relative to the circuit's quiescent bias, in volts;
-`bias_current` is the total tail current, in amperes. DC rail offsets are
-removed by the differential reduction, not represented as signal voltages.
+Authority: [reconciled netlist](../../reference/schematic/netlist.md) and the
+[complete VCF transcription](../../reference/schematic/transcription/vcf.md).
+The Revision 2 contract is implemented by `tick(input, ladder_current,
+resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
+is Q11 collector current in amperes; outputs are AC volts at C14 negative
+terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
+printed designators. No provisional gain, attenuation or effective feedback
+RC parameters remain.
 
-This is a reduced nonlinear circuit model, with a physically loaded four-pole
-core. It is not yet a verified component-for-component service-note netlist.
-The core linearisation has an independent published-polynomial cross-check;
-absolute gains, large-signal behaviour and the full coupling network need
-schematic/SPICE/hardware verification. All such estimates are listed below.
+## Circuit reduction
 
-## Reduced netlist and equations
-
-Number the differential voltages across ladder capacitors bottom to top
-`v0..v3`. Nominal capacitances are provisionally `[18, 33, 33, 33] nF`.
-The input differential pair injects a current into the bottom node. Three
-junction pairs connect adjacent nodes; the fourth terminates the top node
-against the AC reference. Thus each capacitor loads the stage below it.
-This is **not** a cascade of buffered Moog ladder stages.
-
-Let `I` be total ladder bias current and `S = 2 V_T`. A matched input pair
-obeying the exponential junction law and sharing a fixed tail current gives
+The four differential rung voltages are ordered bottom to top: C18 18 nF,
+C19/C24/C26 33 nF. Define `v = R - L`. Q12 is the fixed-tail input pair;
+Q13/Q15, Q14/Q17 and Q16/Q23 are diode-connected rungs; Q22 has fixed bases
+at BIAS_Q22 and acts as the common-base top termination. With `S = 2 VT`,
+`I = Q11 collector current`, and differential capacitor current equal to
+half the arm-current difference:
 
 ```
-I_left / I_right = exp(u / V_T)
-I_left + I_right = I
-(I_left - I_right) / 2 = (I/2) tanh(u / S) = j_in
+j_input = (I/2) tanh((base_left - base_right)/S)
+j_edge[i] = (I/2) sinh((v[i] - v[i+1])/S)
+j_top = (I/2) sinh(v[3]/S)
+C[i] dv[i]/dt = j_previous - j_edge[i]
 ```
 
-For interior diode-connected junctions, under the fixed geometric-mean
-arm-current/common-mode approximation, the arm currents are
-`(I/2) exp(+delta/(2 V_T))` and `(I/2) exp(-delta/(2 V_T))`. Their half-difference,
-the current charging a cross-ladder capacitor, is
+This retains the loaded, tridiagonal ladder, rather than four buffered poles.
+R69 2.2K is in the common tail path and does not change an externally specified
+ideal Q11 collector current. Its headroom limit belongs to FilterControl;
+finite-beta corrections and common-mode redistribution remain approximations.
+BIAS_Q22, BIAS_IN, BIAS_DIFF and BIAS_FB are treated as stiff, settled AC
+references. R95/C28 and the bias decouplers are not dynamic audio states.
+
+Six additional capacitor states represent C17, C25, C27, C14, C15 and C23,
+with voltages measured relative to the quiescent biases. No envelope state
+or arbitrary cutoff law is used. For C17 state `h17`:
 
 ```
-j_k = (I/2) sinh((v_k - v_(k+1)) / S), k = 0,1,2
-j_3 = (I/2) sinh(v3 / S)
-C0 dv0/dt = j_in - j_0
-Ck dvk/dt = j_(k-1) - j_k, k = 1,2,3
+dh17/dt = (input - h17) / ((R62 + R70) C17)
+base_left = R70/(R62 + R70) * (input - h17)
 ```
 
-These exponential currents preserve loading between neighbouring stages.
-The factor one-half converts differential arm current into cross-capacitor
-current. Constant common-mode bias is a reduction, not an exact elimination
-of all large-signal common-mode dynamics. The interior `sinh` law should not
-be replaced by four independent `tanh` one-poles: the input pair's fixed-tail
-constraint is different from the interior diode connections.
+R62=220K, R70=2.2K give 0.009901 attenuation (−40.09 dB),
+C17=1µF gives 222.2 ms / 0.7163 Hz. The input DC is rejected after settling;
+reset followed by a nonzero waveform DC naturally produces a startup transient.
 
-The output differential amplifier is represented by an input-referred
-voltage `a = H tanh(v3/H)` and node output `G a`. Nominally `H = 0.2 V` and
-`G = 20`. The instantaneous differential amplifier approximation omits its
-transistor currents and parasitic poles.
-
-Two effective series coupling sections are explicitly in the feedback loop:
+Crossed C25/C27 (each 0.1µF) feed Q21R/Q21L respectively:
 
 ```
-dh1/dt = (a - h1) / (R1 C1)
-dh2/dt = (a - h1 - h2) / (R2 C2)
-p = a - h1 - h2
-u = attenuation * waveform_input - k * p
-k = resonance_rotation * maximum_feedback_gain
+b_right = -v[3]/2 - h25
+b_left  = +v[3]/2 - h27
+dh25/dt = b_right / (R114 C25)
+dh27/dt = b_left  / (R113 C27)
+C26 dv[3]/dt additionally subtracts (b_left/R113 - b_right/R114)/2
 ```
 
-`h1,h2` are effective coupling-capacitor voltages referred to the amplifier
-input; output gain and feedback attenuation are absorbed into `k`. Each RC
-is provisionally 15 kohm × 1 uF (10.61 Hz). The loop transfer includes
-`P(s) = product[s/(s + 1/(R_i C_i))]`, so feedback vanishes at DC and is
-attenuated at low ladder current/cutoff. These two sections are an estimate
-of the full loop, not a claim that the original contains only two coupling
-capacitors. There is no additional cutoff-dependent heuristic multiplying
-resonance. Pot rotation is currently a provisional linear law; the accent
-gang belongs to the envelope crate.
-
-## Bias current, cutoff and independent linear transfer
-
-The input transconductance before differential-to-capacitor conversion is
-`I/(2 V_T)`. With the cross-ladder capacitors used here the conductance is
-`g = I/(4 V_T)` and each local integration rate is `g/C`. The difference is
-solely the definition of differential current/capacitance. There is no
-arbitrary Hz-per-knob mapping or prewarping tied to a reference sample rate.
-All ladder pole frequencies scale with `I`, except for the fixed coupling
-network and digital frequency warping. The lowest unresonant pole is much
-lower than `g/C`; calling each local rate the overall -3 dB cutoff would be
-incorrect.
-
-The linear admittance matrix is tridiagonal. Its diagonal entries are
-`[s C0 + g, s C1 + 2g, s C2 + 2g, s C3 + 2g]`; off-diagonals are `-g`.
-The forcing vector is `[g u, 0, 0, 0]`. Writing its determinant as `D(s)`,
+R113/R114=100K yield the printed-netlist 10 ms / 15.915 Hz corners.
+Their currents also load the ladder top; they are not post-filter effects.
+Q20 tail current is derived from R116/R112/R109's three-resistor divider,
+R108=2.2K and the estimated Vbe:
 
 ```
-L(s) = v3/u = g^4 / D(s)
-output/input = attenuation * G * L(s) / (1 + k P(s) L(s))
+I20 = max(0, (5.333 R109/(R116+R112+R109) - Vbe)/R108)
+Q19_E_AC = (I20 R110/2) tanh((b_left-b_right)/(2 VT))
 ```
 
-Tests evaluate `D(s)` independently with the determinant recurrence, not
-with the time-domain solver. For `C0=C/2`, `C1=C2=C3=C` and `z=s C/g`,
+R110=2.2K, nominal I20≈0.5126 mA, single-ended gain≈10.907 and
+maximum collector swing≈0.564 V. Q19 is an ideal emitter follower of Q21R's
+collector; Q21 input polarity gives an in-phase input/output and subtractive
+feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
+
+VR4A is a 50K **linear** track, terminal 1 grounded. For rotation `p`,
+C14 voltage `h14`, C15 voltage `h15` and Q18's input branch current `ifb`:
 
 ```
-L(s) = 1 / (0.5 z^4 + 4 z^3 + 10 z^2 + 8 z + 1)
+out = Q19_E_AC - h14
+Rth = 50K p (1-p)
+ifb = (p out - h15)/(Rth + R67 + R99)
+tap = p out - Rth ifb
+dh14/dt = (out/50K + p ifb)/C14
+dh15/dt = ifb/C15
+Q18_E_AC = R99 ifb
+base_right = R98/(R97+R98) * (Q18_E_AC - h23)
+dh23/dt = (Q18_E_AC - h23)/((R97+R98) C23)
 ```
 
-This agrees with the TB-303 core polynomial derived in
-[Stinchcombe's original diode-ladder analysis](https://www.timstinchcombe.co.uk/index.php?pge=diode).
-An explicit polynomial test checks that agreement. The nominal 18/33 ratio
-is close to, but not exactly, one-half; the general determinant retains it.
-At high frequency the core tends to 24 dB/octave, with a broad intermediate
-slope due to the spread of loaded poles and unequal capacitors. Four equal,
-buffered poles would produce a different curve.
+C14/C15/C23=1µF; R67=2.2K, R99=100K, R97=10K, R98=2.2K.
+C15's corner is approximately 1.56 Hz at either pot endpoint, decreasing
+with wiper source resistance. C23 gives 0.180328 injection and a 12.2 ms /
+13.045 Hz corner. C14 drives the track and feedback branch together in the
+implicit solve. At maximum resonance the tap equals output exactly; at
+intermediate rotation it differs from an unloaded `p * output`.
 
-[Stinchcombe's coupling-network study](https://www.timstinchcombe.co.uk/index.php?pge=diode2)
-shows why the real loop needs further refinement: additional coupling
-sections produce more poles and zeros, including a low-frequency peak.
-The service notes are the authority, available as the
-[Roland service-note scan](https://manuals.plus/m/768b42aace12df30692361da70ad22654ad53f99f7e61ed4d0ef534122027eb7).
-The readable web text was inspected; the circuit image values were not
-successfully resolved in this implementation session. No component value
-is promoted to schematic-verified on the basis of that text.
+The receiving VCA's C21/R121 and C22/R122 loading is not fed back into this
+crate by the binding interface. C14's unloaded track corner is 3.18 Hz;
+the transcription's approximate 3.9 Hz includes the external VCA load.
 
-## Discretisation and Newton solver
+## Solver and economy mode
 
-For six-state `x` and continuous derivatives `f(x,u,I,k)`, the trapezoidal
-companion form is
+All ten capacitor equations use implicit trapezoidal companions,
+`residual = x - history - (T/2) f(x)` and analytic `J = identity - (T/2) Jf`.
+The Newton solve includes the complete resonance loop without a sample delay.
+It uses at most eight iterations and eight backtracking trials per iteration,
+with absolute residual tolerance 1e-13 V and hold-on-failure telemetry.
+The exponential law has a linear tangent continuation beyond argument 20;
+that protects rejected trials from overflow and is inactive in normal use.
 
-```
-r(x_n) = x_n - history - (T/2) f(x_n,u_n,I_n,k_n)
-history_next = x_n + (T/2) f(x_n,u_n,I_n,k_n)
-J_r = identity - (T/2) J_f
-```
+The linear correction eliminates the coupling states with a Schur reduction,
+including C14/C15's loaded-pot 2×2 block, then solves the tridiagonal ladder
+and its feedback corner. Fixed-size partial-pivot elimination is the fallback.
+Static reciprocals, RC rates and transistor scale/gain are cached on construction.
+Warm starts use cubic extrapolation of four accepted endpoints for smoothly
+changing controls (current change ≤5%, resonance change ≤0.02); otherwise
+endpoint Euler prediction is used. Predictions exceeding 10 mV on any state
+revert to the previous solution. Prediction changes only the initial guess.
 
-Capacitor integration is trapezoidal even with time-varying controls; the
-history retains the previous endpoint derivative. The ladder, amplifier,
-and coupling sections are solved together without a sample delay in the
-feedback loop. This is a ZDF solve, not delayed explicit feedback.
+Economy linearises the diode arms and Q22 termination, preserving the same
+ladder loading, all six couplings, loaded pot, nonlinear Q12/Q21 pairs and
+implicit feedback. It omits interior-junction distortion. Both modes are
+allocation-free, `no_std`, safe Rust and bounded. Inputs are sanitised and
+counted; protection bounds are ±12 V input, 0–1 mA current and 0–1 rotation.
+State below 1e-30 V is flushed. Supported rates are 44.1–384 kHz.
 
-The analytic derivatives use `cosh(delta/S)/S` for each interior junction,
-`(1 - tanh(u/S)^2)/S` for the input pair, and `1 - tanh(v3/H)^2` for the
-amplifier. The unit test checks every Jacobian entry with central differences
-in both qualities. The linear solve eliminates the two feedback RC states, followed by the
-tridiagonal ladder and its feedback corner, using stack values. A six-by-six
-partial-pivot Gaussian elimination remains the fallback for non-finite or
-near-zero pivots. The initial guess extrapolates the previous endpoint
-derivative only when every predicted voltage step is at most 1 mV; otherwise
-it uses the previous solution. Neither solver changes the residual equations.
+## TM3 calibration and validation
 
-Newton has at most **eight iterations**, with absolute infinity-norm
-residual tolerance **1e-13 V** across all six companion equations. Each step
-has at most eight backtracking trials, halving damping until the residual
-decreases. A final residual check allows the eighth update to converge.
-Accepted backtracking evaluations are reused for the next iteration, history
-and output. Worst case is eight linear solves and 66 flow/Jacobian evaluations
-(one initial evaluation, 64 backtracking evaluations, and one history
-reevaluation if tiny-state flushing changes the solution). There are no data-dependent
-unbounded loops, heap calls or unsafe operations.
+`Vcf::calibration_current(ring_hz)` is a **control-thread** helper, not an
+audio tick operation. It searches the continuous small-signal characteristic
+for a damped complex pole at the requested imaginary frequency, including
+loaded C25/C27, C14, C15 and C23 at RES max. The bounded search returns
+`Option<f64>` amperes. Pass this target to FilterControl's TM3 calibration;
+ENV MOD, DECAY and ACCENT minima and CUTOFF centre are integrator settings.
+The helper does not assume a knob-to-current mapping.
 
-Failed convergence retains the previous physical state/history and counts
-one `non_convergence`. This bounded hold fallback prioritises finite state;
-it is not an accuracy guarantee for settings outside the tested range.
-Junction arguments beyond magnitude 20 use a continuous linear tangent to
-`sinh`, avoiding overflow in rejected trial points. This is inactive at the
-tested operating levels. Stored values below 1e-30 V are flushed to zero.
+Nominal 500 Hz pole calibration gives **23.1996 µA**. A small impulse produces
+first peak-to-peak periods of **1.896 / 1.906 / 1.906 ms** at 48/96/192 kHz,
+inside page 7's 2 ms ±0.5 ms adjustment window. Early peaks contain other
+modes, so their spacing differs slightly from the isolated pole's 2 ms.
+The model rings strongly damped and does **not** sustain the provisional
+model's self-oscillation; no undocumented gain boost is used to force it.
+The 5.2/5.8 V annotations are not calibration targets: the transcription
+explicitly flags their inconsistent node attachment.
 
-Non-finite scalar tick inputs become zero and are individually counted.
-Finite input protection limits waveform input to ±12 V, current to 0..1 mA,
-and knob rotation to 0..1. Limits are numerical guards, not a physical rail
-clipping model. Diagnostics use saturating counters. `prepare` accepts
-44.1–384 kHz, clears state on success, and preserves state on error. `reset`
-clears state and counters. Quality switching preserves capacitor state and
-companion history. Invalid/nonpositive component values are replaced with
-nominals at construction; their accepted finite range is 1e-15..1e9 SI units.
-
-## Economy
-
-Economy replaces each interior `sinh(delta/S)` with `delta/S`; the differential
-input pair and output amplifier remain nonlinear. The same loaded netlist,
-capacitors, feedback RC states and implicit integration are preserved. It
-avoids four interior exponentials per flow/Jacobian evaluation
-and generally uses fewer iterations. It still uses Newton for the input-pair
-feedback closure. This avoids introducing a different phase response or a
-delayed feedback path in the cheaper mode. It loses interior-junction drive
-distortion and is not intended to match Full at large drive. No wall-clock
-speedup claim is made without a benchmark.
-
-## Validation performed
-
-Package-only, offline checks:
-
-- `cargo test --offline -p dw303-vcf -- --nocapture`: **9 passed** (one Jacobian
-  unit test and eight integration tests), zero failures; no doctests.
-- `cargo clippy --offline -p dw303-vcf --all-targets -- -D warnings`: passed.
-- Direct `rustfmt --edition 2024 --check` on both Rust files: passed. The cargo
-  fmt subcommand does not accept `--offline`, so direct rustfmt was used.
-
-Evidence covered by the tests:
-
-- Full sinusoidal magnitude vs the independent analytic reduced netlist:
-  1/10/50 uA, resonance 0/0.3/0.6, seven frequencies spanning local normalised
-  frequency 0.01..0.6, error below 0.5 dB. Measurement includes at least two
-  complete cycles and at least 1.5 s settling (longer for low bias).
-- Four-pole asymptote: about 24 dB/octave at normalised frequencies 12 and 24,
-  including a measured time-domain response; unequal vs equal capacitor
-  shape differs by more than 1 dB at local normalised frequency 1.
-- Economy vs Full below 0.05 dB at low drive, at 100/500/1500 Hz, 10 uA and
-  resonance 0.5. Full magnitude differs by less than 0.15 dB between
-  48/96/192 kHz at those frequencies.
-- Seeded self-oscillation continues with zero input at maximum resonance:
-  at 192 kHz, 10 uA produces 667.965 Hz, 0.037358 Vrms; 20 uA produces
-  1320.771 Hz, 0.039175 Vrms. Frequency ratio is approximately 1.977.
-  Frequency agrees within 2% at 48/96/192 kHz. Exactly silent reset stays
-  silent; the deterministic model does not invent analog noise.
-- Feedback attenuation at low cutoff: analytic resonant enhancement falls
-  with bias, measured 0.1 uA/10 Hz response changes less than 1 dB with
-  resonance, and the 1 nA seeded response does not sustain the high-current
-  oscillation amplitude.
-- 35,840 consecutive samples per sweep run, **both** qualities at
-  44.1/48/96/192/384 kHz: seven currents from 0 to 1 mA, four resonance
-  settings, five input amplitudes from 0 to 12 V, with abrupt transitions.
-  **Zero non-convergence** across all runs. Before the performance pass,
-  Full mean iterations were 2.571..2.945;
-  Economy 2.297..2.657; maximum eight. This is the bounded-CPU iteration
-  statistic smoke test, not a timing benchmark.
-- One million samples **per quality**, maximum resonance, 6 V peak input,
-  abruptly alternating 0.1/50 uA bias: finite bounded output and zero
-  non-convergence. Lifecycle, non-finite input counts and exact silence
-  are also tested.
-
-These validate the implemented equations, not original-unit fidelity.
-No SPICE golden data, TD-03 captures or allocator instrumentation were
-available. CPU timing from the later performance pass appears below.
-Scope restrictions prevent creating `reference/spice` assets.
-
-## VERIFY inventory and remaining weaknesses
-
-Every uncertain field in `Components` carries a `VERIFY:` doc comment. The
-following are estimates pending checks against the actual service schematic:
-
-1. Ladder capacitances **18/33/33/33 nF**, bottom-to-top placement, and service
-   reference designators. Do not confuse them with tenfold larger values in
-   some clone netlists. The exact designators are deliberately not guessed.
-2. Thermal voltage **25.85 mV**, corresponding approximately to 300 K; actual
-   transistor temperature and ideality factors.
-3. Effective feedback capacitors **1 uF each**: identify every original
-   coupling capacitor and replace the two-section approximation as needed.
-4. Effective feedback resistances **15 kohm each**, including frequency- and
-   pot-position-dependent loading.
-5. Output differential amplifier gain **20**, transistor topology/bias,
-   output polarity convention and loading.
-6. Amplifier input-referred headroom **0.2 V** and the symmetric tanh
-   approximation; actual clipping will be asymmetric and bias-dependent.
-7. Maximum input-referred feedback gain **24** and provisional **linear**
-   RESONANCE taper/wiring; verify against the actual feedback gang and trim.
-8. Waveform-to-input-pair attenuation **0.02**, source impedance, original
-   signal amplitude and DC removal. The 6 V peak stability test is an
-   intentionally conservative twice-3 V estimate, not a measured amplitude.
-9. Fixed common-mode diode-arm reduction, documented on `flow`: assess
-   common-mode redistribution, finite beta, Early effect and junction
-   capacitances with a full transistor netlist. The exponential reduction
-   alone does not establish large-signal accuracy.
-
-Other known limitations: input coupling and the full differential amplifier
-are not separate nodal networks; multiple real coupling poles/zeros and the
-associated bass peak may be misrepresented; temperature is fixed; aliasing
-is not independently measured (the voice should oversample); trapezoidal
-frequency warping remains near Nyquist; Economy needs large-signal listening
-and CPU benchmarking. Sample-rate tests establish the stated operating points,
-not accuracy at every current/frequency combination. The fallback can freeze
-state on persistent failure; diagnostics must be monitored in integration.
-
-## Performance pass (2026-10-11)
-
-The original algorithm was frozen in `tests/support/reference.rs` before any
-production changes. Regression tests compare Full and Economy at 48/96/192 kHz
-under sinusoidal drive, rest/gate transitions, accent-like drive changes,
-continuous resonance sweeps, abrupt bias changes from zero through 1 mA,
-overdrive, non-finite signals, quality switching and reset. A separate test
-compares 192,000 consecutive seeded self-oscillation samples at each rate.
-The bound is `1e-6 * max(1, abs(reference))` (1 uV absolute / 1 ppm relative).
-All waveform comparisons and non-convergence comparisons pass.
-
-The implementation retains the original equations, eight Newton iterations,
-eight backtracking trials, **1e-13 V** residual tolerance, junction continuation,
-flush thresholds and hold-on-failure fallback:
-
-- Cache capacitance reciprocals, thermal scaling and feedback RC rates.
-- Reuse the accepted trial's residual/Jacobian for the next Newton iteration;
-  reuse its final flow and amplifier value for history/output unless flushing
-  changes the state.
-- Evaluate sinh/cosh together using one exponential and its reciprocal.
-- Solve the same six linear equations using their sparse ladder/feedback
-  structure; reuse pivot reciprocals. The original pivoted dense solver remains
-  the numerical fallback. A unit test compares both solutions and checks the
-  matrix residual across both qualities, all three rates, zero–1 mA bias and
-  resonance extremes, plus deliberate fallback activation.
-- Predict the next solution from the previous endpoint derivative only for
-  predicted changes <=1 mV per node. An unrestricted predictor failed the
-  extreme-current stability sweep and was rejected. The restricted predictor
-  passes it and reduces typical renderer iterations from three to two.
-
-Final package checks: **12 tests passed**, one manual timing test ignored by
-normal runs; offline clippy `--all-targets -- -D warnings` passed; all assigned
-Rust files pass direct rustfmt checks. Existing analytic response, Jacobian,
-self-oscillation, rate-independence and long-run/extreme-grid tests remain
-passing with zero non-convergence.
-
-Reproducible stage comparison (384,000 samples at 192 kHz, 3 V sinusoidal drive,
-20 uA bias, resonance 0.7):
+Validation commands (package scoped, offline):
 
 ```
-cargo test --offline --release -p dw303-vcf --test regression performance_comparison -- --ignored --nocapture
+cargo test --offline -p dw303-vcf -- --nocapture
+cargo clippy --offline -p dw303-vcf --all-targets -- -D warnings
+rustfmt --edition 2024 --check crates/dw303-vcf/src/lib.rs crates/dw303-vcf/tests/physics.rs
+cargo test --offline --release -p dw303-vcf --test physics stage_timing -- --ignored --nocapture
 ```
 
-Frozen VCF: **281.306 ms**; optimized VCF: **109.159 ms**, **2.58x** faster.
-Construction and WAV I/O are excluded. This benchmark retains the same residual
-tolerance and Full quality.
+Tests replace the deleted frozen provisional regression/reference files:
+analytic Jacobian by central differences; sparse corrections against pivoted
+elimination; independent frequency-domain netlist response (three currents,
+three resonance settings, four frequencies), within 0.15 dB; sample rates
+48/96/192 kHz and Economy comparison within 0.15 dB; printed gains/corners;
+DC rejection and loaded wiper endpoints; page-7 ringing; lifecycle/sanitisation;
+extreme grids at five rates plus one million samples per quality. No
+non-convergence occurs in those runs. These are equation/netlist checks,
+not SPICE or measured-unit golden validation.
 
-The requested eight-second full-voice renderer measured **31.0%** of one core
-before the pass (2.484 s) and **12.6% / 12.5%** on final repeats
-(1.005 / 1.004 s). Final VCF telemetry: 1,536,000 samples, 3,095,581 iterations,
-maximum three, **zero non-convergence**; the baseline used 4,607,970 iterations.
-The **<=10% target remains unmet**. Other crates were under concurrent editing;
-these full-workspace timings do not isolate VCF changes. The frozen-stage
-benchmark does. macOS `sample` was attempted but could not examine the running
-renderer under current execution permissions.
+## Performance evidence
 
-All **nine VERIFY items** in the inventory above remain unchanged, with no new
-schematic-validation claim. Known weaknesses of the reduced circuit remain.
-The sparse solver can fall back to dense elimination for unusual components;
-both paths are bounded. The predictor's 1 mV cutoff is a numerical initial-guess
-safeguard, not a circuit voltage limit or altered model equation. Direct
-exp/reciprocal sinh evaluation loses some relative precision for tiny junction
-arguments; the specified absolute waveform regression and original tight
-Newton/stability tests pass. Economy-specific wall-clock speedup and full
-hardware/SPICE fidelity remain unmeasured.
+The previous optimized crate measured **113.031 ms** before edits for 384,000
+samples at 192 kHz, 3 V sinusoidal input (`sin(n*0.02)`), 20 µA and resonance
+0.7, excluding construction and I/O. The replacement measured **118.428 ms**
+Full and **106.444 ms** Economy for the identical workload. Full is **1.048×**
+the old cost, within the requested approximately 1.3× bound. Final Full used
+768,000 Newton iterations (mean two, max three) and zero non-convergence.
+Wall-clock timing is workload and machine dependent; this is a stage benchmark,
+not a whole-voice or worst-case CPU claim. The old frozen algorithm was deleted
+as required, so the repeatable retained test times only the replacement.
+
+Final checks: **eight tests passed**, one manual timing test ignored in normal
+runs; the manual timing test passed; package-only offline clippy with warnings
+denied passed; direct rustfmt checks passed. No new dependency was added.
+
+## VERIFY register and known weaknesses
+
+1. `Components::thermal_voltage`: estimated VT=25.85 mV at 300 K;
+   transistor temperature and ideality are not printed.
+2. `Components::vbe`: Q20 Vbe=0.65 V is an estimate. It sets tail current,
+   Q21 gain, clipping amplitude and calibration current. The schematic's
+   unspecified individual transistor types, Is/β and matching remain unknown.
+3. `Vcf::flow`: fixed arm common-mode reduction omits large-signal
+   common-mode redistribution, finite β, Early effect and junction capacitance.
+4. `Vcf::nodes`: Q18/Q19 are ideal unity followers with fixed settled bias,
+   infinite β and no Early effect/parasitics. Q20/Q21 base-current loading
+   is neglected. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
+
+Additional transcription open items: TP6's attachment / printed DC levels
+remain unresolved and are excluded from level calibration. Gang-B direction
+and ENV/ACCENT rest levels belong to the ENV integrator, not this signal crate.
+Bias-rail motion, R69/Q11 saturation headroom, finite-beta signal loading,
+external VCA input loading and follower clipping are not dynamic modelled.
+Consequently strong damping, large-signal fidelity and absolute levels need
+SPICE / hardware checks. No claim of original-unit amplitude fidelity is made.
+Aliasing relies on voice oversampling; trapezoidal warping remains near Nyquist.

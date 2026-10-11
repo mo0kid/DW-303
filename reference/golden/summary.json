@@ -1,0 +1,1240 @@
+{
+  "schema_version": 1,
+  "units": "SI; dB amplitude; phase radians",
+  "temperature_c": 27,
+  "reference_status": "generic-model simulation, not hardware truth",
+  "ngspice_version": [
+    "** ngspice-47 : Circuit level simulation program",
+    "** Compiled with KLU Direct Linear Solver",
+    "** The U. C. Berkeley CAD Group"
+  ],
+  "vco": {
+    "tm4_fraction": 0.62835693359375,
+    "c1": {
+      "cv_v": 1,
+      "frequency_hz": 33.12669847910297,
+      "target_hz": 32.70319566257483,
+      "pitch_error_cents": 22.275369585688665,
+      "saw_min_v": 5.288472362895,
+      "saw_max_v": 10.74811960098,
+      "square_min_v": 5.332897756516,
+      "square_max_v": 8.481277551641
+    },
+    "c2": {
+      "cv_v": 2,
+      "frequency_hz": 65.699937864043,
+      "target_hz": 65.40639132514966,
+      "pitch_error_cents": 7.7524649721972505,
+      "saw_min_v": 5.26501976272,
+      "saw_max_v": 10.74804830843,
+      "square_min_v": 5.332888010736,
+      "square_max_v": 8.693573448108
+    },
+    "a2": {
+      "cv_v": 2.75,
+      "frequency_hz": 110.00070013002852,
+      "target_hz": 110,
+      "pitch_error_cents": 0.01101895533471898,
+      "saw_min_v": 5.259105849424,
+      "saw_max_v": 10.74793678281,
+      "square_min_v": 5.332878567806,
+      "square_max_v": 8.619292753349
+    },
+    "c4": {
+      "cv_v": 4,
+      "frequency_hz": 260.0515911121008,
+      "target_hz": 261.6255653005986,
+      "pitch_error_cents": -10.44679048132043,
+      "saw_min_v": 5.261685681597,
+      "saw_max_v": 10.74755309474,
+      "square_min_v": 5.33285617878,
+      "square_max_v": 8.607600859097
+    },
+    "slide_tau_s": 0.02199966192582552
+  },
+  "vcf": {
+    "i2u_res0": {
+      "current_a": 2e-06,
+      "resonance": 0,
+      "peak_hz": 22.38721138568,
+      "peak_db": -38.92292270714,
+      "phase_at_peak_rad": -0.05950659972549,
+      "late_output_rms_v": 1.2393340139114548e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i2u_res0.5": {
+      "current_a": 2e-06,
+      "resonance": 0.5,
+      "peak_hz": 19.95262314969,
+      "peak_db": -39.46210517185,
+      "phase_at_peak_rad": 0.05700511548744,
+      "late_output_rms_v": 1.0511889781258886e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i2u_res1": {
+      "current_a": 2e-06,
+      "resonance": 1,
+      "peak_hz": 17.78279410039,
+      "peak_db": -40.13031569325,
+      "phase_at_peak_rad": 0.1950705373695,
+      "late_output_rms_v": 7.124782055982615e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 93.2317236302101
+    },
+    "i10u_res0": {
+      "current_a": 1e-05,
+      "resonance": 0,
+      "peak_hz": 70.79457843841,
+      "peak_db": -27.97029387744,
+      "phase_at_peak_rad": -0.1442451772224,
+      "late_output_rms_v": 1.199485248858386e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i10u_res0.5": {
+      "current_a": 1e-05,
+      "resonance": 0.5,
+      "peak_hz": 66.83439175686,
+      "peak_db": -30.2326284506,
+      "phase_at_peak_rad": -0.09792791766631,
+      "late_output_rms_v": 9.895746470564767e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i10u_res1": {
+      "current_a": 1e-05,
+      "resonance": 1,
+      "peak_hz": 34.47466065732,
+      "peak_db": -32.27821224114,
+      "phase_at_peak_rad": 0.3370548286826,
+      "late_output_rms_v": 7.248931314768604e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 466.1586181510506
+    },
+    "i40u_res0": {
+      "current_a": 4e-05,
+      "resonance": 0,
+      "peak_hz": 153.992652606,
+      "peak_db": -22.60005561216,
+      "phase_at_peak_rad": -0.102345579537,
+      "late_output_rms_v": 1.1825089951019201e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i40u_res0.5": {
+      "current_a": 4e-05,
+      "resonance": 0.5,
+      "peak_hz": 167.8804018123,
+      "peak_db": -26.36203813062,
+      "phase_at_peak_rad": -0.1348596328749,
+      "late_output_rms_v": 9.979848434003509e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i40u_res1": {
+      "current_a": 4e-05,
+      "resonance": 1,
+      "peak_hz": 51.58221650723,
+      "peak_db": -29.71639706887,
+      "phase_at_peak_rad": 0.3525005455099,
+      "late_output_rms_v": 6.898359029156839e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 1864.6344726042023
+    },
+    "i160u_res0": {
+      "current_a": 0.00016,
+      "resonance": 0,
+      "peak_hz": 307.2557365267,
+      "peak_db": -20.70696955634,
+      "phase_at_peak_rad": -0.04389581584748,
+      "late_output_rms_v": 1.1610041643404431e-10,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "i160u_res0.5": {
+      "current_a": 0.00016,
+      "resonance": 0.5,
+      "peak_hz": 375.8374042885,
+      "peak_db": -25.09080258131,
+      "phase_at_peak_rad": -0.1016348837764,
+      "late_output_rms_v": 8.816409972262983e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "i160u_res1": {
+      "current_a": 0.00016,
+      "resonance": 1,
+      "peak_hz": 68.78599123088,
+      "peak_db": -29.02402259678,
+      "phase_at_peak_rad": 0.3200321912392,
+      "late_output_rms_v": 6.962851881936078e-11,
+      "sustained_oscillation": false,
+      "oscillation_hz": null,
+      "hand_pole_33nf_hz": 7458.537890416809
+    },
+    "tm3_page7": [
+      {
+        "tm3_ohm": 0,
+        "current_a": 1.255584810583e-05,
+        "ac_peak_hz": 37.58374042884,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 117500,
+        "current_a": 6.150415684454e-06,
+        "ac_peak_hz": 29.00681198693,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 235000,
+        "current_a": 4.084530000866e-06,
+        "ac_peak_hz": 24.40619068042,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 352500,
+        "current_a": 3.061740721324e-06,
+        "ac_peak_hz": 21.7520403402,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      },
+      {
+        "tm3_ohm": 470000,
+        "current_a": 2.450577851255e-06,
+        "ac_peak_hz": 19.38652635952,
+        "target_period_s": 0.002,
+        "within_page7_band": false,
+        "transient_ring_frequency_hz": null
+      }
+    ],
+    "observed_self_oscillation_threshold_res": null
+  },
+  "env": {
+    "decay_min_accentFalse": {
+      "peak_meg_v": 11.30790559109,
+      "peak_env_v": 10.09127997984,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06734759023173172,
+      "pulse_above_6v_s": 0.0013429605779700007,
+      "meg_at_4s_v": 0.7371382906412,
+      "env_at_4s_v": 0.02077535034592
+    },
+    "decay_min_accentTrue": {
+      "peak_meg_v": 11.30854356014,
+      "peak_env_v": 10.08611773113,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06734077724473689,
+      "pulse_above_6v_s": 0.001339843521489999,
+      "meg_at_4s_v": 0.7371379691432,
+      "env_at_4s_v": 0.02062116115476
+    },
+    "decay_mid_accentFalse": {
+      "peak_meg_v": 11.33524070916,
+      "peak_env_v": 10.11857140024,
+      "nominal_rc_tau_s": 0.15890909090909092,
+      "fit_tau_floor_1p5v_s": 0.1548929078803106,
+      "pulse_above_6v_s": 0.001341582769009999,
+      "meg_at_4s_v": 0.7577417272731,
+      "env_at_4s_v": 0.02080725703828
+    },
+    "decay_mid_accentTrue": {
+      "peak_meg_v": 11.30867238766,
+      "peak_env_v": 10.08624627935,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.0675372645944021,
+      "pulse_above_6v_s": 0.001339829530100001,
+      "meg_at_4s_v": 0.737181705114,
+      "env_at_4s_v": 0.02062121609716
+    },
+    "decay_max_accentFalse": {
+      "peak_meg_v": 11.35449355518,
+      "peak_env_v": 10.13779312959,
+      "nominal_rc_tau_s": 1.068,
+      "fit_tau_floor_1p5v_s": 0.999399540760207,
+      "pulse_above_6v_s": 0.0013426005914200009,
+      "meg_at_4s_v": 1.237684125224,
+      "env_at_4s_v": 0.1361553287785
+    },
+    "decay_max_accentTrue": {
+      "peak_meg_v": 11.30867269034,
+      "peak_env_v": 10.08624658136,
+      "nominal_rc_tau_s": 0.068,
+      "fit_tau_floor_1p5v_s": 0.06753766003683263,
+      "pulse_above_6v_s": 0.0013398289266399986,
+      "meg_at_4s_v": 0.7371817930991,
+      "env_at_4s_v": 0.02062121620772
+    },
+    "accents1_res0": {
+      "c13_before_last_note_v": 3.255458017868,
+      "c13_end_last_step_v": 3.93447107685997,
+      "sweep_peak_last_step_v": 5.919260362756
+    },
+    "accents2_res0": {
+      "c13_before_last_note_v": 3.934032775041,
+      "c13_end_last_step_v": 4.155574627582816,
+      "sweep_peak_last_step_v": 6.197227690806
+    },
+    "accents3_res0": {
+      "c13_before_last_note_v": 4.154991454498,
+      "c13_end_last_step_v": 4.2267888018783255,
+      "sweep_peak_last_step_v": 6.283122974505
+    },
+    "accents4_res0": {
+      "c13_before_last_note_v": 4.22615896418,
+      "c13_end_last_step_v": 4.249746904325893,
+      "sweep_peak_last_step_v": 6.310552638602
+    },
+    "accents5_res0": {
+      "c13_before_last_note_v": 4.249102005932,
+      "c13_end_last_step_v": 4.257233483755219,
+      "sweep_peak_last_step_v": 6.319665983663
+    },
+    "accents6_res0": {
+      "c13_before_last_note_v": 4.256583699631,
+      "c13_end_last_step_v": 4.259658605727581,
+      "sweep_peak_last_step_v": 6.322566606811
+    },
+    "accents7_res0": {
+      "c13_before_last_note_v": 4.259007218179,
+      "c13_end_last_step_v": 4.260442213225978,
+      "sweep_peak_last_step_v": 6.323498161578
+    },
+    "accents8_res0": {
+      "c13_before_last_note_v": 4.259790309295,
+      "c13_end_last_step_v": 4.260690593379633,
+      "sweep_peak_last_step_v": 6.323779817418
+    },
+    "accents1_res0.5": {
+      "c13_before_last_note_v": 3.255458017855,
+      "c13_end_last_step_v": 3.855451177424694,
+      "sweep_peak_last_step_v": 4.687543164148
+    },
+    "accents2_res0.5": {
+      "c13_before_last_note_v": 3.854988915839,
+      "c13_end_last_step_v": 4.011165755582745,
+      "sweep_peak_last_step_v": 5.059717939525
+    },
+    "accents3_res0.5": {
+      "c13_before_last_note_v": 4.010581494558,
+      "c13_end_last_step_v": 4.050904119170657,
+      "sweep_peak_last_step_v": 5.155863483721
+    },
+    "accents4_res0.5": {
+      "c13_before_last_note_v": 4.050288713086,
+      "c13_end_last_step_v": 4.061144371850626,
+      "sweep_peak_last_step_v": 5.180499742336
+    },
+    "accents5_res0.5": {
+      "c13_before_last_note_v": 4.060520936776,
+      "c13_end_last_step_v": 4.063792190835428,
+      "sweep_peak_last_step_v": 5.186858943385
+    },
+    "accents6_res0.5": {
+      "c13_before_last_note_v": 4.063166692423,
+      "c13_end_last_step_v": 4.064457839733201,
+      "sweep_peak_last_step_v": 5.188469813614
+    },
+    "accents7_res0.5": {
+      "c13_before_last_note_v": 4.063831812648,
+      "c13_end_last_step_v": 4.064628413452646,
+      "sweep_peak_last_step_v": 5.18888037115
+    },
+    "accents8_res0.5": {
+      "c13_before_last_note_v": 4.064002256744,
+      "c13_end_last_step_v": 4.06467212466864,
+      "sweep_peak_last_step_v": 5.188985552944
+    },
+    "accents1_res1": {
+      "c13_before_last_note_v": 3.255458017867,
+      "c13_end_last_step_v": 3.7871268082632517,
+      "sweep_peak_last_step_v": 4.350580917099
+    },
+    "accents2_res1": {
+      "c13_before_last_note_v": 3.786618516639,
+      "c13_end_last_step_v": 3.8813076891221416,
+      "sweep_peak_last_step_v": 4.607592406483
+    },
+    "accents3_res1": {
+      "c13_before_last_note_v": 3.880707636456,
+      "c13_end_last_step_v": 3.897614607117077,
+      "sweep_peak_last_step_v": 4.654892755452
+    },
+    "accents4_res1": {
+      "c13_before_last_note_v": 3.896998640437,
+      "c13_end_last_step_v": 3.9004996259382714,
+      "sweep_peak_last_step_v": 4.663274167182
+    },
+    "accents5_res1": {
+      "c13_before_last_note_v": 3.899880871087,
+      "c13_end_last_step_v": 3.9009994897799025,
+      "sweep_peak_last_step_v": 4.664741700603
+    },
+    "accents6_res1": {
+      "c13_before_last_note_v": 3.900380244427,
+      "c13_end_last_step_v": 3.9010870661092683,
+      "sweep_peak_last_step_v": 4.664997638918
+    },
+    "accents7_res1": {
+      "c13_before_last_note_v": 3.900467735282,
+      "c13_end_last_step_v": 3.9011023879002993,
+      "sweep_peak_last_step_v": 4.665042447337
+    },
+    "accents8_res1": {
+      "c13_before_last_note_v": 3.900483044557,
+      "c13_end_last_step_v": 3.9011050673348566,
+      "sweep_peak_last_step_v": 4.665050285069
+    },
+    "converter_current_range_a": [
+      9.918293772089e-07,
+      0.0003032738045201
+    ]
+  },
+  "vca": {
+    "i1u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -40.17630098306,
+      "line_gain_db": -34.57039299188,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.925827183333696,
+      "ota_voltage_gain": 1.0133329104009228,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i1u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -33.41381559327,
+      "line_gain_db": -27.80790760209,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833329603,
+      "ota_voltage_gain": 1.0133329104010695,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i1u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 1.933114247052001e-05
+    },
+    "i10u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -20.16072542855,
+      "line_gain_db": -14.55481743738,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.925827183331596,
+      "ota_voltage_gain": 10.151516511811929,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i10u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -13.39824003877,
+      "line_gain_db": -7.79233204759,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833334628,
+      "ota_voltage_gain": 10.15151651180171,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i10u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.0001933114247052001
+    },
+    "i47u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -6.717407196537,
+      "line_gain_db": -1.111499205362,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.9258271833321707,
+      "ota_voltage_gain": 47.71960465091756,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i47u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": 0.04507819325213,
+      "line_gain_db": 5.650986184427,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833320635,
+      "ota_voltage_gain": 47.71960465091968,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i47u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.0009085636961144403
+    },
+    "i100u_signal": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -0.1591694081596,
+      "line_gain_db": 5.446738583015,
+      "line_phase_rad": -3.064060009384,
+      "input_attenuation": 0.009670140925541,
+      "mixer_gain_from_vca": 1.9258271833317773,
+      "ota_voltage_gain": 101.53335252585843,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "i100u_tap": {
+      "at_hz": 1000.0,
+      "vca_gain_db": 6.60331598163,
+      "line_gain_db": 12.2092239728,
+      "line_phase_rad": -2.978446166453,
+      "input_attenuation": 0.02106478703209,
+      "mixer_gain_from_vca": 1.9258271833320415,
+      "ota_voltage_gain": 101.53335252586844,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "i100u_mix": {
+      "at_hz": 1000.0,
+      "vca_gain_db": -101.5768470015,
+      "line_gain_db": -0.9517323466478,
+      "line_phase_rad": -3.140623968277,
+      "input_attenuation": 0.0,
+      "mixer_gain_from_vca": null,
+      "ota_voltage_gain": null,
+      "expected_ota_gm_s": 0.001933114247052001
+    },
+    "veg": {
+      "peak_control_current_a": 4.476640779035e-05,
+      "minimum_c42_v": 0.4900895700687,
+      "fit_recharge_tau_s": 1.6018998286584631,
+      "control_current_at_3p1s_a": 3.2005593578709944e-06
+    }
+  },
+  "runs": {
+    "vco/c1": {
+      "parameters": {
+        "CV": 1,
+        "CVNEXT": 1,
+        "TM4": 0.62835693359375
+      },
+      "deck_sha256": "c5942419df13a6faf96d2fbdf106119d8229d955835d0eb199f39bb9a13ab082",
+      "files": [
+        "vco/c1_data.csv"
+      ]
+    },
+    "vco/c2": {
+      "parameters": {
+        "CV": 2,
+        "CVNEXT": 2,
+        "TM4": 0.62835693359375
+      },
+      "deck_sha256": "ee0cef872eb186c8a1bd2aae5a4dc510a255db8b9be4b855dbc6862fa68cf16a",
+      "files": [
+        "vco/c2_data.csv"
+      ]
+    },
+    "vco/a2": {
+      "parameters": {
+        "CV": 2.75,
+        "CVNEXT": 2.75,
+        "TM4": 0.62835693359375
+      },
+      "deck_sha256": "4e615a58147dbd6f8874f9328a854753165a3e3da71553322b33dbdad77dbc57",
+      "files": [
+        "vco/a2_data.csv"
+      ]
+    },
+    "vco/c4": {
+      "parameters": {
+        "CV": 4,
+        "CVNEXT": 4,
+        "TM4": 0.62835693359375
+      },
+      "deck_sha256": "a60c71577ae31339847ba8c7be7854093a25a96d70e56f4d1186812688d97c09",
+      "files": [
+        "vco/c4_data.csv"
+      ]
+    },
+    "vco/slide_c2_c3": {
+      "parameters": {
+        "CV": 2,
+        "CVNEXT": 3,
+        "TM4": 0.62835693359375
+      },
+      "deck_sha256": "57f862a20186a68fd0e541bdeb59bb594e194b623644c7930bdfa34557b2febb",
+      "files": [
+        "vco/slide_c2_c3_data.csv"
+      ]
+    },
+    "square-transfer/transfer": {
+      "parameters": {},
+      "deck_sha256": "91b91ee9eaeed721d0a722ca03cdf93446360765a00d03620e4701d4bf013d33",
+      "files": [
+        "vco/transfer_data.csv"
+      ]
+    },
+    "vcf/i2u_res0": {
+      "parameters": {
+        "CURRENT": 2e-06,
+        "RES": 0
+      },
+      "deck_sha256": "1f79dcebab22003c8f1e7509ecc0842f59baf3dc933038268e88ce3015e5d5ec",
+      "files": [
+        "vcf/i2u_res0_data.csv",
+        "vcf/i2u_res0_ac.csv"
+      ]
+    },
+    "vcf/i2u_res0.5": {
+      "parameters": {
+        "CURRENT": 2e-06,
+        "RES": 0.5
+      },
+      "deck_sha256": "f3f597566ccedb711f55a84c9f335407cab4406e8f73241229ed667d22b487dc",
+      "files": [
+        "vcf/i2u_res0.5_data.csv",
+        "vcf/i2u_res0.5_ac.csv"
+      ]
+    },
+    "vcf/i2u_res1": {
+      "parameters": {
+        "CURRENT": 2e-06,
+        "RES": 1
+      },
+      "deck_sha256": "d077a35ea533f7d9d7fed4b951cb09fadacc8547aa8a9d0fc7733dfa7632ce69",
+      "files": [
+        "vcf/i2u_res1_data.csv",
+        "vcf/i2u_res1_ac.csv"
+      ]
+    },
+    "vcf/i10u_res0": {
+      "parameters": {
+        "CURRENT": 1e-05,
+        "RES": 0
+      },
+      "deck_sha256": "5ce92433e12df247540f738e18a799900a1e0bdd242d21f219b030336db51711",
+      "files": [
+        "vcf/i10u_res0_data.csv",
+        "vcf/i10u_res0_ac.csv"
+      ]
+    },
+    "vcf/i10u_res0.5": {
+      "parameters": {
+        "CURRENT": 1e-05,
+        "RES": 0.5
+      },
+      "deck_sha256": "0d771497e289be944ff517f2cf347a21286bccef393f970457476bef436c56d9",
+      "files": [
+        "vcf/i10u_res0.5_data.csv",
+        "vcf/i10u_res0.5_ac.csv"
+      ]
+    },
+    "vcf/i10u_res1": {
+      "parameters": {
+        "CURRENT": 1e-05,
+        "RES": 1
+      },
+      "deck_sha256": "6005562c03f4f9f8017913d4361c8e2255e371ce2fc509c0cf344ba8324b33b3",
+      "files": [
+        "vcf/i10u_res1_data.csv",
+        "vcf/i10u_res1_ac.csv"
+      ]
+    },
+    "vcf/i40u_res0": {
+      "parameters": {
+        "CURRENT": 4e-05,
+        "RES": 0
+      },
+      "deck_sha256": "482deb4a95e8e814e80f31913a7f7c393e546f804b45fcc671ab10b44264351b",
+      "files": [
+        "vcf/i40u_res0_data.csv",
+        "vcf/i40u_res0_ac.csv"
+      ]
+    },
+    "vcf/i40u_res0.5": {
+      "parameters": {
+        "CURRENT": 4e-05,
+        "RES": 0.5
+      },
+      "deck_sha256": "1ea794e1326182a1b87cb00308b9f07a1977dda826ffe80e6db4049da736ebda",
+      "files": [
+        "vcf/i40u_res0.5_data.csv",
+        "vcf/i40u_res0.5_ac.csv"
+      ]
+    },
+    "vcf/i40u_res1": {
+      "parameters": {
+        "CURRENT": 4e-05,
+        "RES": 1
+      },
+      "deck_sha256": "440fc6c478673a6ac3367abc88fdf9d0155f8f09811dc2660ed7786ad9ac7bb6",
+      "files": [
+        "vcf/i40u_res1_data.csv",
+        "vcf/i40u_res1_ac.csv"
+      ]
+    },
+    "vcf/i160u_res0": {
+      "parameters": {
+        "CURRENT": 0.00016,
+        "RES": 0
+      },
+      "deck_sha256": "a7145586b54b8bb8dc7163cdb7f7037bec06f424a0039a8cf98b7709112b278b",
+      "files": [
+        "vcf/i160u_res0_data.csv",
+        "vcf/i160u_res0_ac.csv"
+      ]
+    },
+    "vcf/i160u_res0.5": {
+      "parameters": {
+        "CURRENT": 0.00016,
+        "RES": 0.5
+      },
+      "deck_sha256": "3ffc3c354fcd945f7a9cb5f28cba051e598d60a6b4af72bc4483701c6dcdfca9",
+      "files": [
+        "vcf/i160u_res0.5_data.csv",
+        "vcf/i160u_res0.5_ac.csv"
+      ]
+    },
+    "vcf/i160u_res1": {
+      "parameters": {
+        "CURRENT": 0.00016,
+        "RES": 1
+      },
+      "deck_sha256": "5447730e73ead65672c6252a5c0358ea5f2d835b574522867cba6e0bd5d63b87",
+      "files": [
+        "vcf/i160u_res1_data.csv",
+        "vcf/i160u_res1_ac.csv"
+      ]
+    },
+    "env/decay_min_accentFalse": {
+      "parameters": {
+        "DECAY": 0,
+        "ACC": 0
+      },
+      "deck_sha256": "0519008b9ca7faa4723ffc21e71dea18dee64931fe2a4ac95768a2cfce922a47",
+      "files": [
+        "env/decay_min_accentFalse_data.csv"
+      ]
+    },
+    "env/decay_min_accentTrue": {
+      "parameters": {
+        "DECAY": 0,
+        "ACC": 12
+      },
+      "deck_sha256": "6d00c9a7cd1d688e4f43e02f116520ab206dc1673744e29cc31a67052eab2e9e",
+      "files": [
+        "env/decay_min_accentTrue_data.csv"
+      ]
+    },
+    "env/decay_mid_accentFalse": {
+      "parameters": {
+        "DECAY": 0.5,
+        "ACC": 0
+      },
+      "deck_sha256": "4ba3d9ab38a16d8d40b75f13c60dd1bc61a75de40079639537bdf8306f8b2354",
+      "files": [
+        "env/decay_mid_accentFalse_data.csv"
+      ]
+    },
+    "env/decay_mid_accentTrue": {
+      "parameters": {
+        "DECAY": 0.5,
+        "ACC": 12
+      },
+      "deck_sha256": "b59ac1c81f25ffac173b49230b929075a502ade570e90451bf9203e18c520a62",
+      "files": [
+        "env/decay_mid_accentTrue_data.csv"
+      ]
+    },
+    "env/decay_max_accentFalse": {
+      "parameters": {
+        "DECAY": 1,
+        "ACC": 0
+      },
+      "deck_sha256": "0f7f4a5469a6f959a0bc3e2955c0077bfef036d0f473b84c17dede1c63853546",
+      "files": [
+        "env/decay_max_accentFalse_data.csv"
+      ]
+    },
+    "env/decay_max_accentTrue": {
+      "parameters": {
+        "DECAY": 1,
+        "ACC": 12
+      },
+      "deck_sha256": "9e773c37b3b8e8eac83e83cbded5766bf8f6b7d5531dcbbd0ff076271dbddeb5",
+      "files": [
+        "env/decay_max_accentTrue_data.csv"
+      ]
+    },
+    "env/accents1_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "081e0567bb5ea18a23b7a78219f893308171c826222b332ff19b6d07d668c69f",
+      "files": [
+        "env/accents1_res0_data.csv"
+      ]
+    },
+    "env/accents2_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "74f98272c429a795851813e38e6ca3b3f0c8563e69b6a9074f9b4b07fd8ed78c",
+      "files": [
+        "env/accents2_res0_data.csv"
+      ]
+    },
+    "env/accents3_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "4fda25452f4f2d5bbb05762d059953a032d875b2812ef9235dbf58de6da1e1a2",
+      "files": [
+        "env/accents3_res0_data.csv"
+      ]
+    },
+    "env/accents4_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "a1c88d23f57c4a36faed7f0e32de1cc5ae30c3bccb20f97b3d151314158b07a5",
+      "files": [
+        "env/accents4_res0_data.csv"
+      ]
+    },
+    "env/accents5_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "869619ab25fa72761d616756faa638a798e4f0f58ce19dd002ae5f9328cb4646",
+      "files": [
+        "env/accents5_res0_data.csv"
+      ]
+    },
+    "env/accents6_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "9b4da2e433b9b93a9deabb5a428e07394bcfaea743cb0586b93d22b8e94ed605",
+      "files": [
+        "env/accents6_res0_data.csv"
+      ]
+    },
+    "env/accents7_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "d130519207b7e47a6efb14f6d5c6fec28c254c377b48b416a474aab351c34071",
+      "files": [
+        "env/accents7_res0_data.csv"
+      ]
+    },
+    "env/accents8_res0": {
+      "parameters": {
+        "RES": 0
+      },
+      "deck_sha256": "73771d69f1bbe1a4686defdc40f10fa15209a1438531bbc7ed5084cac8c72bc8",
+      "files": [
+        "env/accents8_res0_data.csv"
+      ]
+    },
+    "env/accents1_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "e8c8bc13fd9e687fd31ae31629fae6c2f5965d2bdb9d8846851a244100cba995",
+      "files": [
+        "env/accents1_res0.5_data.csv"
+      ]
+    },
+    "env/accents2_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "d58cbd2206edc72ed7456c9201bc9bdc0549f1548ee765a05d441a9b51b8b19f",
+      "files": [
+        "env/accents2_res0.5_data.csv"
+      ]
+    },
+    "env/accents3_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "1900c339be3c2b4e53c5b77e85f74478491c7a0b30ea0dafcfcbfd87a05260dc",
+      "files": [
+        "env/accents3_res0.5_data.csv"
+      ]
+    },
+    "env/accents4_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "23b28252722365fee1e4d59d6f00705cbf886a2c58cdd9a0f9d6cdc7fd1d5ca5",
+      "files": [
+        "env/accents4_res0.5_data.csv"
+      ]
+    },
+    "env/accents5_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "939505445174a8f727d8aef1675fa78e2f1ab334110a49fd133eed5d9d38e954",
+      "files": [
+        "env/accents5_res0.5_data.csv"
+      ]
+    },
+    "env/accents6_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "efbbda63d6139da17886b1342a3f769699f9e03a8db47a25d888be1f7dd2c2c6",
+      "files": [
+        "env/accents6_res0.5_data.csv"
+      ]
+    },
+    "env/accents7_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "9d1fa3bccc78af948de57e145e7b5bd04a7bcaf23af8d5d3a58f13c90267528c",
+      "files": [
+        "env/accents7_res0.5_data.csv"
+      ]
+    },
+    "env/accents8_res0.5": {
+      "parameters": {
+        "RES": 0.5
+      },
+      "deck_sha256": "1b2c807f244566d0ae00249133bf55663dec59c035257f63195190dfd4c63e50",
+      "files": [
+        "env/accents8_res0.5_data.csv"
+      ]
+    },
+    "env/accents1_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "7ebf8b7f8f0248d8cbbe5fb372a81181973c1d5eb3665cf02bd70ec4fa65e169",
+      "files": [
+        "env/accents1_res1_data.csv"
+      ]
+    },
+    "env/accents2_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "77eab444139dac44fc0c8812e7a695035ea533831d8e2bd5f499f9cde323d739",
+      "files": [
+        "env/accents2_res1_data.csv"
+      ]
+    },
+    "env/accents3_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "ea96ea8aee2f70a296605117c4cf9f2511d3752afb181f3f35923b339f39b2dc",
+      "files": [
+        "env/accents3_res1_data.csv"
+      ]
+    },
+    "env/accents4_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "18f7734a767acc2025ec53f7a542a4d0f01a61d86424371f9c1149032ecf7a35",
+      "files": [
+        "env/accents4_res1_data.csv"
+      ]
+    },
+    "env/accents5_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "c56d4d5f020575e672b7998b1f37f5da3bc14d5852ee66362c8586bd74382178",
+      "files": [
+        "env/accents5_res1_data.csv"
+      ]
+    },
+    "env/accents6_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "dc620de2066e38564f77a201bfe6d836f9914b353bd5308b818d3b50ff64e2f1",
+      "files": [
+        "env/accents6_res1_data.csv"
+      ]
+    },
+    "env/accents7_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "533367f5f1ec3aa8628aa2dc6f7e80a8316c7518166da4b1c2cb927cb7f07b3b",
+      "files": [
+        "env/accents7_res1_data.csv"
+      ]
+    },
+    "env/accents8_res1": {
+      "parameters": {
+        "RES": 1
+      },
+      "deck_sha256": "ae7dcec592405de68f9b73adf39c63b4e6c7eded84d476a496c1d3dfa7b5b090",
+      "files": [
+        "env/accents8_res1_data.csv"
+      ]
+    },
+    "vcf/tm3_0": {
+      "parameters": {
+        "CURRENT": 1.255584810583e-05,
+        "RES": 1
+      },
+      "deck_sha256": "719500628ae9fae99443a2ab8f65d2ff11f65e0516c683496ab2395554bb583c",
+      "files": [
+        "vcf/tm3_0_data.csv",
+        "vcf/tm3_0_ac.csv"
+      ]
+    },
+    "vcf/tm3_117500": {
+      "parameters": {
+        "CURRENT": 6.150415684454e-06,
+        "RES": 1
+      },
+      "deck_sha256": "f41efa9639487410d2a38a2533e92ec49f5bae051118f54481c09289db43f4b1",
+      "files": [
+        "vcf/tm3_117500_data.csv",
+        "vcf/tm3_117500_ac.csv"
+      ]
+    },
+    "vcf/tm3_235000": {
+      "parameters": {
+        "CURRENT": 4.084530000866e-06,
+        "RES": 1
+      },
+      "deck_sha256": "bd11a2c2cddfc577a4bc178838c1695d3a5ffbdef742eed92e6956bd4ccb04f7",
+      "files": [
+        "vcf/tm3_235000_data.csv",
+        "vcf/tm3_235000_ac.csv"
+      ]
+    },
+    "vcf/tm3_352500": {
+      "parameters": {
+        "CURRENT": 3.061740721324e-06,
+        "RES": 1
+      },
+      "deck_sha256": "f23dda8799f33b0ae2a887a4552c776f942958a25d1c5f8033fc21f4bebb171b",
+      "files": [
+        "vcf/tm3_352500_data.csv",
+        "vcf/tm3_352500_ac.csv"
+      ]
+    },
+    "vcf/tm3_470000": {
+      "parameters": {
+        "CURRENT": 2.450577851255e-06,
+        "RES": 1
+      },
+      "deck_sha256": "8efe6bbe2cd165986c5e1b829134b933fb43273dcab0661813eb0c850393e166",
+      "files": [
+        "vcf/tm3_470000_data.csv",
+        "vcf/tm3_470000_ac.csv"
+      ]
+    },
+    "vca/i1u_signal": {
+      "parameters": {
+        "IABC": 1e-06,
+        "SIGNAL": 1,
+        "TAP": 0,
+        "MIX": 0
+      },
+      "deck_sha256": "74a0043615e4835f022933ed9389b6f343ebb69a44f8bebe42e680556270401c",
+      "files": [
+        "vca/i1u_signal_data.csv",
+        "vca/i1u_signal_ac.csv"
+      ]
+    },
+    "vca/i1u_tap": {
+      "parameters": {
+        "IABC": 1e-06,
+        "SIGNAL": 0,
+        "TAP": 1,
+        "MIX": 0
+      },
+      "deck_sha256": "9ed0f98f79165f166e8fd8269766d50d458fe2057e220a6bde2f23a99baae1d6",
+      "files": [
+        "vca/i1u_tap_data.csv",
+        "vca/i1u_tap_ac.csv"
+      ]
+    },
+    "vca/i1u_mix": {
+      "parameters": {
+        "IABC": 1e-06,
+        "SIGNAL": 0,
+        "TAP": 0,
+        "MIX": 1
+      },
+      "deck_sha256": "4e9e13a08c7b4274c234211939b870cd28809485476420ec6caeb1b07f04ce31",
+      "files": [
+        "vca/i1u_mix_data.csv",
+        "vca/i1u_mix_ac.csv"
+      ]
+    },
+    "vca/i10u_signal": {
+      "parameters": {
+        "IABC": 1e-05,
+        "SIGNAL": 1,
+        "TAP": 0,
+        "MIX": 0
+      },
+      "deck_sha256": "3034aefb9afa7939d4291073e6752a89d403462cce0352414b4856f755a0f4f4",
+      "files": [
+        "vca/i10u_signal_data.csv",
+        "vca/i10u_signal_ac.csv"
+      ]
+    },
+    "vca/i10u_tap": {
+      "parameters": {
+        "IABC": 1e-05,
+        "SIGNAL": 0,
+        "TAP": 1,
+        "MIX": 0
+      },
+      "deck_sha256": "56bb14668b737419a79e97bad8edde25e8081ff3943b13d0752a4bcb0dc40248",
+      "files": [
+        "vca/i10u_tap_data.csv",
+        "vca/i10u_tap_ac.csv"
+      ]
+    },
+    "vca/i10u_mix": {
+      "parameters": {
+        "IABC": 1e-05,
+        "SIGNAL": 0,
+        "TAP": 0,
+        "MIX": 1
+      },
+      "deck_sha256": "9eb4ca7159dac312c7bb44e48e2c23081f168a58973b926804e6968f981cd5bf",
+      "files": [
+        "vca/i10u_mix_data.csv",
+        "vca/i10u_mix_ac.csv"
+      ]
+    },
+    "vca/i47u_signal": {
+      "parameters": {
+        "IABC": 4.7e-05,
+        "SIGNAL": 1,
+        "TAP": 0,
+        "MIX": 0
+      },
+      "deck_sha256": "70ea1416bade20bbb715d88599b0451d2cb6ee90ba3cd568c0d9928b63e89866",
+      "files": [
+        "vca/i47u_signal_data.csv",
+        "vca/i47u_signal_ac.csv"
+      ]
+    },
+    "vca/i47u_tap": {
+      "parameters": {
+        "IABC": 4.7e-05,
+        "SIGNAL": 0,
+        "TAP": 1,
+        "MIX": 0
+      },
+      "deck_sha256": "ce1ec4e419f7b1344a5b8db8cfad460eedb7322c9c3be557ad8e767f8c6c052e",
+      "files": [
+        "vca/i47u_tap_data.csv",
+        "vca/i47u_tap_ac.csv"
+      ]
+    },
+    "vca/i47u_mix": {
+      "parameters": {
+        "IABC": 4.7e-05,
+        "SIGNAL": 0,
+        "TAP": 0,
+        "MIX": 1
+      },
+      "deck_sha256": "bf0feb61cae8bf107782e0a4dcc5bc6f90fde6b8ca9f23e00952ba0572352682",
+      "files": [
+        "vca/i47u_mix_data.csv",
+        "vca/i47u_mix_ac.csv"
+      ]
+    },
+    "vca/i100u_signal": {
+      "parameters": {
+        "IABC": 0.0001,
+        "SIGNAL": 1,
+        "TAP": 0,
+        "MIX": 0
+      },
+      "deck_sha256": "2ead374f84e176e14d09e6812f16c8bed45203f9f94651540e6c9d8531a58657",
+      "files": [
+        "vca/i100u_signal_data.csv",
+        "vca/i100u_signal_ac.csv"
+      ]
+    },
+    "vca/i100u_tap": {
+      "parameters": {
+        "IABC": 0.0001,
+        "SIGNAL": 0,
+        "TAP": 1,
+        "MIX": 0
+      },
+      "deck_sha256": "d410cb995eb154b1698af66a4ede3b40f911a88e4faffc345412174782a3fb62",
+      "files": [
+        "vca/i100u_tap_data.csv",
+        "vca/i100u_tap_ac.csv"
+      ]
+    },
+    "vca/i100u_mix": {
+      "parameters": {
+        "IABC": 0.0001,
+        "SIGNAL": 0,
+        "TAP": 0,
+        "MIX": 1
+      },
+      "deck_sha256": "0ecd73fc98e6fba9ab279e7e30891bfeff404537c914cda24631d178e1983e2c",
+      "files": [
+        "vca/i100u_mix_data.csv",
+        "vca/i100u_mix_ac.csv"
+      ]
+    },
+    "vca/veg": {
+      "parameters": {
+        "IABC": 0,
+        "SIGNAL": 1
+      },
+      "deck_sha256": "cff46d09226ffedadebc9bcf289dc8871a0354c51e01a75f30448ff0ed9f2b85",
+      "files": [
+        "vca/veg_data.csv",
+        "vca/veg_ac.csv"
+      ]
+    }
+  },
+  "include_sha256": {
+    "vcf-stage.inc": "666c2d10cfdfc845a6c10dd1b6b1cfbfe5647ceb0f747389b95c0ec6bb9f5ac8",
+    "models.inc": "7e3787240148fff513cc2c18e677288619fc9f83c59e75ac310fbd0d5864a4ee",
+    "control-stage.inc": "65503b19d73e2c6f48f872a5cef0f22673b255866120b86d5f5828e88410e6c5",
+    "env-stage.inc": "d04499fc0aaccf0f19e774e73bf66521b284221f555ac62ee2b07c2f48f9cc06"
+  }
+}

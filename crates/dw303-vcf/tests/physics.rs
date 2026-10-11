@@ -1,4 +1,4 @@
-use dw303_vcf::{Components, Quality, StageError, Vcf};
+use dw303_vcf::{Components, Quality, StageError, Vcf, VcfOut};
 use std::f64::consts::TAU;
 
 #[derive(Clone, Copy)]
@@ -20,245 +20,243 @@ impl Complex {
             (self.1 * b.0 - self.0 * b.1) / d,
         )
     }
+    fn scale(self, k: f64) -> Self {
+        Self(self.0 * k, self.1 * k)
+    }
     fn abs(self) -> f64 {
         self.0.hypot(self.1)
     }
 }
-// Independent frequency-domain determinant of the documented loaded netlist.
-fn analytic(c: Components, current: f64, frequency: f64, resonance: f64) -> f64 {
-    let g = current / (4.0 * c.thermal_voltage);
-    let mut previous = Complex(1.0, 0.0);
-    let mut determinant = Complex(g, TAU * frequency * c.ladder_capacitance[0]);
-    for i in 1..4 {
-        let next = Complex(2.0 * g, TAU * frequency * c.ladder_capacitance[i])
-            .mul(determinant)
-            .sub(Complex(g * g, 0.0).mul(previous));
-        previous = determinant;
-        determinant = next;
-    }
-    let h = Complex(g.powi(4), 0.0).div(determinant);
-    let mut hp = Complex(1.0, 0.0);
-    for i in 0..2 {
-        let w = TAU * frequency * c.feedback_resistance[i] * c.feedback_capacitance[i];
-        hp = hp.mul(Complex(0.0, w).div(Complex(1.0, w)));
-    }
-    h.div(Complex(1.0, 0.0).add(h.mul(hp).mul(Complex(resonance * c.resonance_gain, 0.0))))
-        .abs()
-        * c.output_gain
-        * c.input_attenuation
+fn hp(w: f64, t: f64) -> Complex {
+    Complex(0.0, w * t).div(Complex(1.0, w * t))
 }
-fn response(
-    c: Components,
-    rate: f64,
-    current: f64,
-    frequency: f64,
-    resonance: f64,
-    quality: Quality,
-) -> f64 {
-    let mut v = Vcf::new(c);
+// Independent AC analysis: eliminate coupling branches, then ladder determinant.
+fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
+    let w = TAU * f;
+    let g = current / (4.0 * c.thermal_voltage);
+    let gain = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3]
+        * c.amplifier_resistance[4]
+        / (4.0 * c.thermal_voltage);
+    let h25 = hp(w, c.output_capacitance[0] * c.output_bias_resistance[0]);
+    let h27 = hp(w, c.output_capacitance[1] * c.output_bias_resistance[1]);
+    let amp = h25.add(h27).scale(0.5 * gain);
+    let rt = c.resonance_resistance * p * (1.0 - p);
+    let rf = rt + c.feedback_resistance[0] + c.feedback_resistance[1];
+    let y15 = hp(w, rf * c.coupling_capacitance[1]).scale(1.0 / rf);
+    let yload = Complex(1.0 / c.resonance_resistance, 0.0).add(y15.scale(p * p));
+    let h14 = Complex(0.0, w * c.coupling_capacitance[0])
+        .div(Complex(0.0, w * c.coupling_capacitance[0]).add(yload));
+    let feedback = y15
+        .scale(
+            p * c.feedback_resistance[1] * c.feedback_resistance[3]
+                / (c.feedback_resistance[2] + c.feedback_resistance[3]),
+        )
+        .mul(hp(
+            w,
+            (c.feedback_resistance[2] + c.feedback_resistance[3]) * c.coupling_capacitance[2],
+        ));
+    let load = h25
+        .scale(0.25 / c.output_bias_resistance[0])
+        .add(h27.scale(0.25 / c.output_bias_resistance[1]));
+    let mut prev = Complex(1.0, 0.0);
+    let mut det = Complex(g, w * c.ladder_capacitance[0]);
+    for i in 1..4 {
+        let mut diag = Complex(2.0 * g, w * c.ladder_capacitance[i]);
+        if i == 3 {
+            diag = diag.add(load);
+        }
+        let next = diag.mul(det).sub(prev.scale(g * g));
+        prev = det;
+        det = next;
+    }
+    let core = Complex(g.powi(4), 0.0).div(det);
+    let forward = core.mul(amp).mul(h14);
+    let input = hp(w, (c.input_resistance[0] + c.input_resistance[1]) * c.c17)
+        .scale(c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]));
+    forward
+        .mul(input)
+        .div(Complex(1.0, 0.0).add(forward.mul(feedback)))
+        .abs()
+}
+fn response(rate: f64, current: f64, f: f64, p: f64, q: Quality) -> f64 {
+    let mut v = Vcf::new(Components::NOMINAL);
     v.prepare(rate).unwrap();
-    v.set_quality(quality);
-    let g = current / (4.0 * c.thermal_voltage * c.ladder_capacitance[1]);
-    let settle = (rate * (10.0 / (0.12 * g)).max(1.5)).ceil() as usize;
-    let periods = (frequency * 0.2).ceil().max(2.0);
-    let measure = (rate * periods / frequency).ceil() as usize;
-    let amplitude = 1e-4;
+    v.set_quality(q);
+    let settle = (rate * 2.0) as usize;
+    let count = (rate * (f * 0.2).ceil().max(2.0) / f).round() as usize;
     let mut sin = 0.0;
     let mut cos = 0.0;
-    for n in 0..settle + measure {
-        let phase = TAU * frequency * n as f64 / rate;
-        let y = v.tick(amplitude * phase.sin(), current, resonance);
+    for n in 0..settle + count {
+        let phase = TAU * f * n as f64 / rate;
+        let y = v.tick(1e-4 * phase.sin(), current, p).output;
         if n >= settle {
             sin += y * phase.sin();
             cos += y * phase.cos();
         }
     }
     assert_eq!(v.diagnostics().non_convergence, 0);
-    2.0 * sin.hypot(cos) / measure as f64 / amplitude
+    2.0 * sin.hypot(cos) / count as f64 / 1e-4
 }
 #[test]
-fn small_signal_matches_analytic_loaded_ladder_below_peak() {
+fn printed_values_gains_and_corners() {
+    let c = Components::NOMINAL;
+    assert_eq!(c.ladder_capacitance, [18e-9, 33e-9, 33e-9, 33e-9]);
+    let fc = |r: f64, c: f64| 1.0 / (TAU * r * c);
+    assert!((fc(222_200.0, c.c17) - 0.7163).abs() < 0.001);
+    assert!((fc(12_200.0, c.coupling_capacitance[2]) - 13.0455).abs() < 0.001);
+    assert!((fc(100_000.0, c.output_capacitance[0]) - 15.9155).abs() < 0.001);
+    assert!((Vcf::new(c).output_gain() - 10.85).abs() < 0.1);
+}
+#[test]
+fn response_matches_netlist_and_rates() {
     let c = Components::NOMINAL;
     for current in [1e-6, 10e-6, 50e-6] {
-        for resonance in [0.0, 0.3, 0.6] {
-            for ratio in [0.01, 0.03, 0.06, 0.1, 0.2, 0.4, 0.6] {
-                let f = ratio * current / (4.0 * c.thermal_voltage * c.ladder_capacitance[1]) / TAU;
-                let measured = response(c, 192_000.0, current, f, resonance, Quality::Full);
-                let expected = analytic(c, current, f, resonance);
+        for p in [0.0, 0.5, 1.0] {
+            for f in [10.0, 100.0, 500.0, 1500.0] {
+                let expected = analytic(c, current, f, p);
+                let measured = response(192_000.0, current, f, p, Quality::Full);
                 let db = 20.0 * (measured / expected).log10();
-                assert!(
-                    db.abs() < 0.5,
-                    "I={current} r={resonance} f={f}: error {db} dB"
-                );
+                assert!(db.abs() < 0.15, "I={current} p={p} f={f} error={db}");
             }
         }
     }
-}
-#[test]
-fn unequal_capacitors_and_four_pole_asymptote() {
-    let c = Components::NOMINAL;
-    let current = 1e-6;
-    let g = current / (4.0 * c.thermal_voltage * c.ladder_capacitance[1]);
-    let a = analytic(c, current, 12.0 * g / TAU, 0.0);
-    let b = analytic(c, current, 24.0 * g / TAU, 0.0);
-    let slope = 20.0 * (a / b).log10();
-    assert!((slope - 24.08).abs() < 0.6, "{slope}");
-    let mut equal = c;
-    equal.ladder_capacitance[0] = equal.ladder_capacitance[1];
-    let f = g / TAU;
-    assert!(
-        (20.0 * (analytic(c, current, f, 0.0) / analytic(equal, current, f, 0.0)).log10()).abs()
-            > 1.0
-    );
-    // Measure the asymptote too, at a low bias so frequencies remain far below Nyquist.
-    let a = response(c, 192_000.0, current, 12.0 * g / TAU, 0.0, Quality::Full);
-    let b = response(c, 192_000.0, current, 24.0 * g / TAU, 0.0, Quality::Full);
-    assert!((20.0 * (a / b).log10() - 24.08).abs() < 1.0);
-}
-#[test]
-fn economy_close_at_low_drive_and_rate_independence() {
-    let c = Components::NOMINAL;
     for f in [100.0, 500.0, 1500.0] {
-        let full = response(c, 192_000.0, 10e-6, f, 0.5, Quality::Full);
-        let economy = response(c, 192_000.0, 10e-6, f, 0.5, Quality::Economy);
-        assert!((20.0 * (full / economy).log10()).abs() < 0.05);
-        for rate in [48_000.0, 96_000.0] {
-            let measured = response(c, rate, 10e-6, f, 0.5, Quality::Full);
-            assert!((20.0 * (measured / full).log10()).abs() < 0.15);
+        let full = response(192_000.0, 10e-6, f, 0.5, Quality::Full);
+        for (rate, q) in [
+            (48_000.0, Quality::Full),
+            (96_000.0, Quality::Full),
+            (192_000.0, Quality::Economy),
+        ] {
+            let y = response(rate, 10e-6, f, 0.5, q);
+            assert!((20.0 * (y / full).log10()).abs() < 0.15);
         }
     }
 }
-fn oscillation(current: f64, rate: f64) -> (f64, f64) {
+#[test]
+fn coupling_blocks_dc_and_wiper_is_loaded() {
     let mut v = Vcf::new(Components::NOMINAL);
-    v.prepare(rate).unwrap();
-    let mut energy = 0.0;
-    let mut crossings = 0;
-    let mut last = 0.0;
-    let mut first_cross = None;
-    let mut final_cross = 0;
-    for n in 0..(rate * 0.6) as usize {
-        let y = v.tick(if n < 32 { 0.1 } else { 0.0 }, current, 1.0);
-        if n > (rate * 0.3) as usize {
-            energy += y * y;
-            if y > 0.0 && last <= 0.0 {
-                crossings += 1;
-                first_cross.get_or_insert(n);
-                final_cross = n;
-            }
-        }
-        last = y;
+    for _ in 0..1_536_000 {
+        v.tick(8.0, 10e-6, 0.5);
+    }
+    let y = v.tick(8.0, 10e-6, 0.5);
+    assert!(
+        y.output.abs() < 1e-8 && y.resonance_tap.abs() < 1e-8,
+        "{y:?}"
+    );
+    v.reset();
+    let mut loaded = false;
+    for n in 0..10000 {
+        let y = v.tick(3.0 * (n as f64 * 0.02).sin(), 10e-6, 0.5);
+        loaded |= (y.resonance_tap - 0.5 * y.output).abs() > 1e-6;
+    }
+    assert!(loaded);
+    v.reset();
+    for n in 0..10000 {
+        let y = v.tick(3.0 * (n as f64 * 0.02).sin(), 10e-6, 1.0);
+        assert_eq!(y.output, y.resonance_tap);
     }
     assert_eq!(v.diagnostics().non_convergence, 0);
-    let frequency = if crossings > 1 {
-        (crossings - 1) as f64 * rate / (final_cross - first_cross.unwrap()) as f64
-    } else {
-        0.0
-    };
-    ((energy / (rate * 0.3)).sqrt(), frequency)
 }
 #[test]
-fn self_oscillation_tracks_current_and_rate() {
-    let (a, f) = oscillation(10e-6, 192_000.0);
-    let (b, f2) = oscillation(20e-6, 192_000.0);
-    eprintln!("oscillation at 10/20 uA: {a:.6}/{b:.6} Vrms, {f:.3}/{f2:.3} Hz");
-    assert!(a > 0.01 && b > 0.01, "{a} {b}");
-    assert!((f2 / f - 2.0).abs() < 0.15, "{f} {f2}");
-    for rate in [48_000.0, 96_000.0] {
-        let (_, fr) = oscillation(10e-6, rate);
-        assert!((fr / f - 1.0).abs() < 0.02, "{fr} {f}");
-    }
-    let (low, _) = oscillation(1e-9, 192_000.0);
-    assert!(low < a * 0.1, "low {low} high {a}");
-}
-#[test]
-fn low_cutoff_feedback_is_attenuated() {
-    let c = Components::NOMINAL;
-    let peak_ratio = |current| {
-        let mut maximum: f64 = 0.0;
-        for ratio in [0.1, 0.3, 0.5, 0.8, 1.0, 1.2, 1.5, 2.0] {
-            let f = ratio * current / (4.0 * c.thermal_voltage * c.ladder_capacitance[1]) / TAU;
-            maximum = maximum.max(analytic(c, current, f, 0.65) / analytic(c, current, f, 0.0));
-        }
-        maximum
-    };
-    assert!(peak_ratio(1e-8) < peak_ratio(10e-6) * 0.5);
-    let c_low = response(c, 192_000.0, 1e-7, 10.0, 0.65, Quality::Full);
-    let c_zero = response(c, 192_000.0, 1e-7, 10.0, 0.0, Quality::Full);
-    assert!((20.0 * (c_low / c_zero).log10()).abs() < 1.0);
-}
-#[test]
-fn sweep_grid_bounded_iterations_and_long_run_stability() {
-    for quality in [Quality::Full, Quality::Economy] {
+fn extreme_grid_and_long_run() {
+    for q in [Quality::Full, Quality::Economy] {
         for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
             let mut v = Vcf::new(Components::NOMINAL);
             v.prepare(rate).unwrap();
-            v.set_quality(quality);
+            v.set_quality(q);
             for current in [0.0, 1e-9, 1e-7, 1e-6, 10e-6, 100e-6, 1e-3] {
-                for resonance in [0.0, 0.5, 0.8, 1.0] {
-                    for amplitude in [0.0, 0.5, 2.0, 6.0, 12.0] {
+                for p in [0.0, 0.5, 1.0] {
+                    for amp in [0.0, 0.5, 3.0, 12.0] {
                         for n in 0..256 {
-                            let y = v.tick(
-                                amplitude * (TAU * n as f64 / 37.0).sin(),
-                                current,
-                                resonance,
-                            );
-                            assert!(y.is_finite() && y.abs() <= 4.0);
+                            let y = v.tick(amp * (TAU * n as f64 / 37.0).sin(), current, p);
+                            assert!(y.output.is_finite() && y.resonance_tap.is_finite());
+                            assert!(y.output.abs() < 2.0);
                         }
                     }
                 }
             }
-            let d = v.diagnostics();
-            assert_eq!(d.non_convergence, 0, "{quality:?} {rate} {d:?}");
-            eprintln!(
-                "{quality:?} {rate} Hz: max {} iterations, mean {:.3}",
-                d.max_iterations,
-                d.iterations as f64 / d.samples as f64
+            assert_eq!(
+                v.diagnostics().non_convergence,
+                0,
+                "{q:?} {rate} {:?}",
+                v.diagnostics()
             );
-            assert!(d.max_iterations <= 8);
-            assert!(d.iterations <= d.samples * 8);
+            assert!(v.diagnostics().max_iterations <= 8);
         }
         let mut v = Vcf::new(Components::NOMINAL);
-        v.set_quality(quality);
+        v.set_quality(q);
         for n in 0..1_000_000 {
-            let current = if n % 8192 < 4096 { 50e-6 } else { 0.1e-6 };
-            let y = v.tick(6.0 * (TAU * n as f64 / 131.0).sin(), current, 1.0);
-            assert!(y.is_finite() && y.abs() <= 4.0);
+            let y = v.tick(
+                6.0 * (TAU * n as f64 / 131.0).sin(),
+                if n % 8192 < 4096 { 50e-6 } else { 0.1e-6 },
+                1.0,
+            );
+            assert!(y.output.is_finite() && y.resonance_tap.is_finite());
         }
         assert_eq!(v.diagnostics().non_convergence, 0);
     }
 }
 #[test]
-fn lifecycle_nonfinite_and_silent_state() {
+fn lifecycle_and_sanitization() {
     let mut v = Vcf::new(Components::NOMINAL);
     for rate in [0.0, f64::NAN, f64::INFINITY, 44099.0, 384001.0] {
         assert_eq!(v.prepare(rate), Err(StageError::InvalidSampleRate));
     }
-    assert_eq!(v.tick(f64::NAN, f64::INFINITY, f64::NEG_INFINITY), 0.0);
+    assert_eq!(
+        v.tick(f64::NAN, f64::INFINITY, f64::NEG_INFINITY),
+        VcfOut::default()
+    );
     assert_eq!(v.diagnostics().sanitized_inputs, 3);
     v.reset();
-    assert_eq!(v.diagnostics().samples, 0);
     for _ in 0..1000 {
-        assert_eq!(v.tick(0.0, 1e-6, 1.0), 0.0);
+        assert_eq!(v.tick(0.0, 10e-6, 1.0), VcfOut::default());
     }
     assert_eq!(v.diagnostics().max_iterations, 1);
-    let mut invalid = Components::NOMINAL;
-    invalid.thermal_voltage = f64::NAN;
-    assert_eq!(Vcf::new(invalid).tick(0.0, 0.0, 0.0), 0.0);
+}
+#[test]
+#[ignore]
+fn stage_timing() {
+    use std::{hint::black_box, time::Instant};
+    for q in [Quality::Full, Quality::Economy] {
+        let mut v = Vcf::new(Components::NOMINAL);
+        v.set_quality(q);
+        let t = Instant::now();
+        for n in 0..384_000 {
+            black_box(v.tick(black_box(libm::sin(n as f64 * 0.02) * 3.0), 20e-6, 0.7));
+        }
+        eprintln!("{q:?} {:?}, {:?}", t.elapsed(), v.diagnostics());
+    }
 }
 
 #[test]
-fn half_bottom_cap_matches_published_core_polynomial() {
-    let mut c = Components::NOMINAL;
-    c.ladder_capacitance[0] = c.ladder_capacitance[1] * 0.5;
-    let current = 10e-6;
-    let rate = current / (4.0 * c.thermal_voltage * c.ladder_capacitance[1]);
-    for w in [0.01_f64, 0.1, 0.5, 1.0, 2.0, 10.0] {
-        let denominator = Complex(
-            0.5 * w.powi(4) - 10.0 * w * w + 1.0,
-            8.0 * w - 4.0 * w.powi(3),
-        );
-        let expected = c.output_gain * c.input_attenuation / denominator.abs();
-        let actual = analytic(c, current, w * rate / TAU, 0.0);
-        assert!((actual / expected - 1.0).abs() < 1e-12);
+fn page7_ring_calibration() {
+    let current = Vcf::new(Components::NOMINAL)
+        .calibration_current(500.0)
+        .expect("calibration pole");
+    eprintln!("page7 current {current:e} A");
+    for rate in [48_000.0, 96_000.0, 192_000.0] {
+        let mut v = Vcf::new(Components::NOMINAL);
+        v.prepare(rate).unwrap();
+        let mut older = 0.0;
+        let mut old = 0.0;
+        let mut peaks = Vec::new();
+        for n in 0..(rate * 0.02) as usize {
+            let y = v.tick(if n == 0 { 0.01 } else { 0.0 }, current, 1.0).output;
+            if n > 2 && old > older && old > y {
+                peaks.push((n - 1, old));
+            }
+            older = old;
+            old = y;
+        }
+        eprintln!("rate {rate} peaks {peaks:?}");
+        assert!(peaks.len() >= 2);
+        let period = (peaks[1].0 - peaks[0].0) as f64 / rate;
+        assert!((0.0015..=0.0025).contains(&period), "period={period}");
+        assert_eq!(v.diagnostics().non_convergence, 0);
     }
+    assert!(
+        Vcf::new(Components::NOMINAL)
+            .calibration_current(f64::NAN)
+            .is_none()
+    );
 }

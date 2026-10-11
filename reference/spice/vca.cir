@@ -1,0 +1,83 @@
+DW303 VEG BA662A substitute signal paths and discrete output mixer
+.include models.inc
+.param IABC=50u SIGNAL=1 TAP=0 MIX=0 VOLUME=1
+V12 rail 0 12
+Vref ref 0 5.333
+Vgate gate 0 11.8
+Vtrig trig 0 PULSE(0 11.8 .01 1u 1u 1.4m 10)
+D36 trig d36 D303
+R134 d36 b32 22k
+C41 b32 0 .1u
+Q32 c32 b32 e32 N303
+R130 e32 0 100
+R132 veg c32 100
+R123 rail veg 1.5meg
+C42 veg 0 1u
+D35 gate d35 D303
+R133 d35 r131 2.2k
+R131 r131 e31 220k
+Q31 envabc veg e31 P303
+* Sense VEG separately; default OTA control is measured VEG plus constant IABC.
+Venvsense envabc abc 0
+Iextra 0 abc {IABC}
+* Accent RC/current path driven independently (default no accent).
+Vacc acc 0 0
+R119 acc accrc 47k
+C36 accrc 0 33n
+R120 accrc d27a 22k
+D27_vca d27a abc D303
+Vsignal signal 0 DC 0 AC {SIGNAL}
+Vtap tap 0 DC 0 AC {TAP}
+C21 signal c21 10n
+R121 c21 plus 220k
+C22_vca tap c22 10n
+R122 c22 plus 100k
+R124 plus vb 2.2k
+R125 minus vb 2.2k
+R126 ref vb 2.2k
+C37 vb 0 100u
+Xota plus minus abc otaout buffer OTA303
+R162 ref vbout 2.2k
+C40 vbout 0 100u
+R128 vbout otaout 220k
+R129 vbout n127 22k
+R127 n127 otaout 47k
+C38 buffer vcaout 1u
+* VERIFY: VR8 A taper as for VR3/5; runner measures full CW mixer gain.
+Rvolhi vcaout vol {max(1,50000*(1-(pow(100,VOLUME)-1)/99))}
+Rvollo vol 0 {max(1,50000*(pow(100,VOLUME)-1)/99)}
+R155 vol c59 47k
+C59 c59 sum 1u
+Vmix mix 0 DC 0 AC {MIX}
+R156 mix c58 100k
+C58 c58 sum 1u
+R157 ref b34 10k
+C52 b34 0 100u
+Q34 c34 b34 sum N303
+R154 vmix c34 100k
+R158 c34 b33 10k
+Q33 mixout b33 vmix P303
+R136 rail vmix 100
+C53 vmix 0 47u
+R160 mixout 0 10k
+R153 mixout sum 100k
+C56 mixout c56 1u
+R161 c56 line 1k
+R165 line 0 100k
+.options reltol=1e-5 abstol=1e-11
+.control
+set wr_singlescale
+set wr_vecnames
+set numdgt=12
+ac dec 80 .1 100000
+let gain_vca=db(v(vcaout)+1e-30)
+let gain_line=db(v(line)+1e-30)
+let phase_line=ph(v(line))
+let input_diff_mag=mag(v(plus)-v(minus))
+let mixer_mag=mag(v(mixout))
+wrdata ac.txt gain_vca gain_line phase_line input_diff_mag mixer_mag
+tran .5m 4 0 100u
+wrdata data.txt v(veg) i(Venvsense) v(abc) v(vcaout) v(line)
+quit
+.endc
+.end
