@@ -306,6 +306,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dw303-standalone"
+version = "0.1.0"
+dependencies = [
+ "dw303-engine",
+ "ravet-device",
+ "ravet-foundation",
+ "ravet-midi-device",
+ "ravet-native-dsp",
+ "ravet-surface",
+ "ravet-webview",
+]
+
+[[package]]
 name = "dw303-vcf"
 version = "0.1.0"
 dependencies = [
@@ -853,6 +866,13 @@ dependencies = [
  "midir",
  "ravet-foundation",
  "rtrb",
+]
+
+[[package]]
+name = "ravet-native-dsp"
+version = "0.0.1"
+dependencies = [
+ "libm",
 ]
 
 [[package]]

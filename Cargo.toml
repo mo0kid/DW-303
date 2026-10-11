@@ -7,6 +7,7 @@ members = [
     "crates/dw303-voice",
     "crates/dw303-engine",
     "crates/dw303-clap",
+    "crates/dw303-standalone",
     "tools/dw303-render",
     "tools/dw303-capture",
 ]
