@@ -3,6 +3,9 @@
 use std::io::{self, Seek, SeekFrom, Write};
 use toml::Value;
 
+/// Measurement session planning and resume validation.
+pub mod session;
+
 /// Validated MIDI mapping. VERIFY: TD-03 manual, firmware and velocity threshold.
 #[derive(Clone, Debug)]
 pub struct Mapping {

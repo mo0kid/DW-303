@@ -4,7 +4,7 @@
 //! VERIFY: panel clock positions assume 300-degree travel, 7 to 5 o'clock.
 //! VERIFY: onset threshold includes analog attack and must be checked at the
 //! actual interface gain, noise level and filter settings.
-use dw303_capture::{Manifest, WavWriter, json, quote};
+use dw303_capture::{Capture, Manifest, WavWriter, json, quote, session};
 use ravet_device::cpal;
 use std::{
     fs::{self, OpenOptions},
@@ -49,8 +49,18 @@ fn main() -> Result<(), Error> {
         }
         return Ok(());
     }
-    if !matches!(args.first().map(String::as_str), Some("run" | "loopback")) {
-        return Err("usage: dw303-capture list | run MANIFEST --capture ID --audio-device ID --channel N --midi-out NAME --rate 96000 --out DIRECTORY | loopback MANIFEST [same options; capture defaults to loopback]".into());
+    match args.first().map(String::as_str) {
+        Some("session" | "plan") => {
+            return match measurement_session(&args) {
+                Err(e) if e.downcast_ref::<io::Error>().is_some_and(|e| e.kind() == io::ErrorKind::Interrupted) => {
+                    println!("Session stopped before the next capture.");
+                    Ok(())
+                },
+                result => result,
+            };
+        },
+        Some("run" | "loopback") => {},
+        _ => return Err("usage: dw303-capture list | run/loopback MANIFEST --capture ID [device options] | session/plan MANIFEST --select 'PREFIX,GLOB*' [--session-file FILE] [--resume --out DIR] [device options]".into()),
     }
     let manifest = Manifest::parse(&fs::read_to_string(
         args.get(1).ok_or("manifest path required")?,
@@ -65,31 +75,68 @@ fn main() -> Result<(), Error> {
         .iter()
         .find(|c| c.id == id)
         .ok_or("unknown capture ID")?;
-    let rate: u32 = option(&args, "--rate")?.parse()?;
+    println!("Capture {id}: {}", capture.instructions);
+    for line in session::panel_changes(None, capture) {
+        println!("  {line}");
+    }
+    println!("Warm up >=30 min; confirm manifest metadata. Room temperature C (blank = null):");
+    let temperature = temperature(&read_line()?)?;
+    println!("Press Enter when panel and routing match.");
+    read_line()?;
+    record(&args, &manifest, capture, &temperature)
+}
+fn read_line() -> Result<String, Error> {
+    let mut line = String::new();
+    if io::stdin().read_line(&mut line)? == 0 {
+        return Err("operator input closed".into());
+    }
+    Ok(line.trim().to_owned())
+}
+fn temperature(line: &str) -> Result<String, Error> {
+    if line.trim().is_empty() {
+        return Ok("null".into());
+    }
+    let value: f64 = line.trim().parse()?;
+    if !value.is_finite() {
+        return Err("invalid temperature".into());
+    }
+    Ok(value.to_string())
+}
+fn record(
+    args: &[String],
+    manifest: &Manifest,
+    capture: &Capture,
+    temperature: &str,
+) -> Result<(), Error> {
+    let id = capture.id.as_str();
+    let rate: u32 = option(args, "--rate")?.parse()?;
     if rate != 96000 {
         return Err("protocol requires 96000 Hz".into());
     }
-    let channel: usize = option(&args, "--channel")?.parse()?;
-    let latency_ms: f64 = if args.iter().any(|s| s == "--latency-ms") {
-        option(&args, "--latency-ms")?.parse()?
+    let channel: usize = option(args, "--channel")?.parse()?;
+    let mut latency_ms: f64 = if args.iter().any(|s| s == "--latency-ms") {
+        option(args, "--latency-ms")?.parse()?
     } else {
         0.0
     };
     if !latency_ms.is_finite() || latency_ms.abs() > 500.0 {
         return Err("latency compensation must be within +/-500 ms".into());
     }
-    if args[0] == "loopback" && latency_ms != 0.0 {
+    if id == "loopback" && args[0] == "session" {
+        latency_ms = 0.0;
+    }
+    if id == "loopback" && latency_ms != 0.0 {
         return Err("loopback requires uncompensated schedule".into());
     }
     let input_latency_ms: Option<f64> = if args.iter().any(|s| s == "--input-latency-ms") {
-        Some(option(&args, "--input-latency-ms")?.parse()?)
+        Some(option(args, "--input-latency-ms")?.parse()?)
     } else {
         None
     };
     if input_latency_ms.is_some_and(|v| !v.is_finite() || v < 0.0) {
         return Err("invalid input latency estimate".into());
     }
-    let audio_id = option(&args, "--audio-device")?;
+    let audio_id = option(args, "--audio-device")?;
     let info = ravet_device::input_devices()?
         .into_iter()
         .find(|d| d.id == audio_id)
@@ -106,7 +153,7 @@ fn main() -> Result<(), Error> {
         })
         .ok_or("device lacks requested f32 rate/channel")?;
     let channels = usize::from(config.channels());
-    let midi_name = option(&args, "--midi-out")?;
+    let midi_name = option(args, "--midi-out")?;
     let ports: Vec<_> = ravet_midi_device::output_ports()?
         .into_iter()
         .filter(|p| p.name == midi_name)
@@ -114,7 +161,7 @@ fn main() -> Result<(), Error> {
     if ports.len() != 1 {
         return Err("MIDI name absent or ambiguous; choose a unique output name".into());
     }
-    let out = std::path::Path::new(option(&args, "--out")?);
+    let out = std::path::Path::new(option(args, "--out")?);
     fs::create_dir_all(out)?;
     let wav_path = out.join(format!("{id}.wav"));
     let sidecar_path = out.join(format!("{id}.json"));
@@ -127,40 +174,6 @@ fn main() -> Result<(), Error> {
         .write(true)
         .create_new(true)
         .open(sidecar_path)?;
-    println!("Capture {id}: {}", capture.instructions);
-    for (key, v) in capture.settings.as_table().ok_or("settings table")? {
-        if let Some(n) = v.as_float().or_else(|| v.as_integer().map(|n| n as f64)) {
-            let clock = (7.0 + 10.0 * n) % 12.0;
-            let h = clock.floor() as u32;
-            let minute = ((clock - clock.floor()) * 60.0).round() as u32;
-            println!(
-                "  {key}: legend {:.2}/10, approximately {}:{minute:02} (VERIFY knob travel)",
-                n * 10.0,
-                if h == 0 { 12 } else { h }
-            );
-        } else {
-            println!("  {key}: {v:?}");
-        }
-    }
-    println!(
-        "Warm up >=30 min. Neutralise distortion/extra features; confirm session metadata. Enter room temperature in C (blank leaves null):"
-    );
-    let mut temperature = String::new();
-    io::stdin().read_line(&mut temperature)?;
-    let temperature = if temperature.trim().is_empty() {
-        "null".into()
-    } else {
-        let t: f64 = temperature.trim().parse()?;
-        if !t.is_finite() {
-            return Err("invalid temperature".into());
-        }
-        t.to_string()
-    };
-    println!(
-        "Press Enter when panel and routing match. Capture channel {channel}, {} -> {}.",
-        info.name, ports[0].name
-    );
-    io::stdin().read_line(&mut String::new())?;
     let device = ravet_device::input_device(Some(audio_id))?.ok_or("device disappeared")?;
     let (stream, mut consumer) = ravet_device::open_input(
         &device,
@@ -250,6 +263,7 @@ fn main() -> Result<(), Error> {
     };
     // Dedicated timer thread, no cumulative sleeps: every deadline uses epoch.
     let scheduled = schedule.clone();
+    let midi_channel = manifest.mapping.channel;
     let scheduler_stop = stop.clone();
     let scheduler = thread::spawn(move || -> Result<Vec<String>, Error> {
         let result = (|| {
@@ -276,7 +290,7 @@ fn main() -> Result<(), Error> {
             Ok(log)
         })();
         // Always release notes and transport, including failed sends.
-        let _ = midi.send(&[0xb0 | manifest.mapping.channel, 123, 0]);
+        let _ = midi.send(&[0xb0 | midi_channel, 123, 0]);
         let _ = midi.send(&[0xfc]);
         result
     });
@@ -299,7 +313,7 @@ fn main() -> Result<(), Error> {
     use std::io::Write;
     writeln!(
         sidecar,
-        "{{\"capture_id\":{},\"sample_rate\":{rate},\"bits\":24,\"channel\":{channel},\"frames\":{frames},\"settings\":{},\"tempo_bpm\":{},\"clock\":{},\"capture_seconds\":{},\"operator_instructions\":{},\"session\":{},\"room_temperature_c\":{temperature},\"audio_device\":{},\"audio_device_id\":{},\"midi_output\":{},\"midi_output_id\":{},\"midi_mapping\":{},\"first_sample_epoch_method\":\"VERIFY: first ring arrival minus batch duration; no hardware timestamp\",\"latency_compensation_seconds\":{},\"input_latency_estimate_seconds\":{},\"midi_to_audio_latency_estimate_seconds\":{},\"onset_sample\":{},\"clipped_samples\":{clipped},\"dropped_frames\":{},\"backend_errors\":{},\"invalid_buffers\":{},\"valid\":{},\"midi_schedule\":[{}]}}",
+        "{{\"capture_id\":{},\"sample_rate\":{rate},\"bits\":24,\"channel\":{channel},\"frames\":{frames},\"settings\":{},\"tempo_bpm\":{},\"clock\":{},\"capture_seconds\":{},\"operator_instructions\":{},\"session\":{},\"room_temperature_c\":{temperature},\"audio_device\":{},\"audio_device_id\":{},\"midi_output\":{},\"midi_output_id\":{},\"midi_mapping\":{},\"first_sample_epoch_method\":\"VERIFY: first ring arrival minus batch duration; no hardware timestamp\",\"latency_compensation_seconds\":{},\"input_latency_estimate_seconds\":{},\"midi_to_audio_latency_estimate_seconds\":{},\"onset_sample\":{},\"clipped_samples\":{clipped},\"dropped_frames\":{},\"backend_errors\":{},\"invalid_buffers\":{},\"complete\":{},\"valid\":{},\"midi_schedule\":[{}]}}",
         quote(id),
         json(&capture.settings),
         capture.tempo,
@@ -324,6 +338,7 @@ fn main() -> Result<(), Error> {
         stats.dropped_frames,
         stats.backend_errors,
         stats.invalid_buffers,
+        frames == total,
         stats.dropped_frames == 0
             && stats.backend_errors == 0
             && stats.invalid_buffers == 0
@@ -343,5 +358,270 @@ fn main() -> Result<(), Error> {
     {
         return Err("capture invalid; inspect sidecar and repeat at calibrated level".into());
     }
+    Ok(())
+}
+
+// Terminal input without unsafe signal handlers or a new registry dependency.
+// Ctrl-C is read as a byte; it requests exit AFTER the current complete WAV.
+// The guard restores the original terminal mode on normal/error unwinding.
+struct Operator {
+    mode: String,
+    lines: mpsc::Receiver<String>,
+    finish: Arc<AtomicBool>,
+}
+impl Operator {
+    fn new() -> Result<Self, Error> {
+        use std::{
+            io::IsTerminal,
+            process::{Command, Stdio},
+        };
+        if !io::stdin().is_terminal() {
+            return Err("session requires an interactive terminal for clean Ctrl-C handling; use plan for dry runs".into());
+        }
+        let saved = Command::new("stty")
+            .arg("-g")
+            .stdin(Stdio::inherit())
+            .output()?;
+        if !saved.status.success() {
+            return Err("cannot read terminal mode".into());
+        }
+        let mode = String::from_utf8(saved.stdout)?.trim().to_owned();
+        let status = Command::new("stty")
+            .args(["-icanon", "-isig", "min", "1", "time", "0"])
+            .stdin(Stdio::inherit())
+            .status()?;
+        if !status.success() {
+            return Err("cannot set terminal mode".into());
+        }
+        let finish = Arc::new(AtomicBool::new(false));
+        let requested = finish.clone();
+        let (tx, lines) = mpsc::channel();
+        thread::spawn(move || {
+            use std::io::Read;
+            let mut input = io::stdin().lock();
+            let mut byte = [0];
+            let mut line = Vec::new();
+            while input.read_exact(&mut byte).is_ok() {
+                match byte[0] {
+                    3 => {
+                        requested.store(true, Ordering::Relaxed);
+                        println!("\nCtrl-C: finishing the current WAV, then exiting.");
+                        let _ = tx.send(String::new());
+                        break;
+                    }
+                    b'\n' | b'\r' => {
+                        if tx
+                            .send(String::from_utf8_lossy(&line).trim().to_owned())
+                            .is_err()
+                        {
+                            break;
+                        }
+                        line.clear();
+                    }
+                    8 | 127 => {
+                        line.pop();
+                    }
+                    b => line.push(b),
+                }
+            }
+        });
+        Ok(Self {
+            mode,
+            lines,
+            finish,
+        })
+    }
+    fn line(&self) -> Result<String, Error> {
+        let line = self.lines.recv()?;
+        if self.finish.load(Ordering::Relaxed) {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "session stopped before next capture",
+            )
+            .into());
+        }
+        Ok(line)
+    }
+}
+impl Drop for Operator {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("stty")
+            .arg(&self.mode)
+            .stdin(std::process::Stdio::inherit())
+            .status();
+    }
+}
+fn measurement_session(args: &[String]) -> Result<(), Error> {
+    let mut manifest = Manifest::parse(&fs::read_to_string(
+        args.get(1).ok_or("manifest path required")?,
+    )?)?;
+    let curated = if args.iter().any(|a| a == "--session-file") {
+        Some(session::SessionFile::parse(
+            &fs::read_to_string(option(args, "--session-file")?)?,
+            &manifest,
+        )?)
+    } else {
+        None
+    };
+    let mut captures = session::select(&manifest, option(args, "--select")?, curated.as_ref())?;
+    let selected = captures.len();
+    if args.iter().any(|a| a == "--resume") {
+        let rate = if args.iter().any(|a| a == "--rate") {
+            option(args, "--rate")?.parse()?
+        } else {
+            96000
+        };
+        let out = std::path::Path::new(option(args, "--out")?);
+        captures.retain(|c| !session::complete(out, c, rate));
+    }
+    let captures = session::order(captures);
+    if let Some(curated) = &curated {
+        println!("Session: {}", curated.name);
+    }
+    println!(
+        "{} already complete; {} pending.",
+        selected - captures.len(),
+        captures.len()
+    );
+    let report = session::plan(&captures);
+    if args[0] == "plan" {
+        print!("{report}");
+    } else {
+        println!("{}", report.lines().next().unwrap_or("empty plan"));
+    }
+    if args[0] == "plan" || captures.is_empty() {
+        return Ok(());
+    }
+    // Validate required options before asking the operator anything. Device
+    // capabilities are checked by record, after panel confirmation.
+    for key in [
+        "--audio-device",
+        "--channel",
+        "--midi-out",
+        "--rate",
+        "--out",
+    ] {
+        option(args, key)?;
+    }
+    if option(args, "--rate")? != "96000" {
+        return Err("protocol requires 96000 Hz".into());
+    }
+    let out = std::path::Path::new(option(args, "--out")?);
+    if !args.iter().any(|a| a == "--resume") {
+        for capture in &captures {
+            if ["wav", "json"]
+                .iter()
+                .any(|extension| out.join(format!("{}.{}", capture.id, extension)).exists())
+            {
+                return Err(format!(
+                    "{} already exists; use --resume or a new output directory",
+                    capture.id
+                )
+                .into());
+            }
+        }
+    }
+    let ids: Vec<_> = captures.iter().map(|c| c.id.clone()).collect();
+    drop(captures);
+    let operator = Operator::new()?;
+    println!(
+        "Warm up >=30 min. Neutralise extra features. Confirm session metadata once (Enter preserves manifest values):"
+    );
+    for key in [
+        "serial",
+        "firmware",
+        "model",
+        "power_supply",
+        "warmup_minutes",
+        "input_calibration_dbfs_per_volt",
+        "interface_response_calibration",
+        "features",
+        "knob_template",
+    ] {
+        let table = manifest
+            .raw
+            .as_table_mut()
+            .ok_or("manifest table")?
+            .entry("session")
+            .or_insert_with(|| toml::Value::Table(Default::default()))
+            .as_table_mut()
+            .ok_or("session table")?;
+        println!(
+            "{key} [{}]:",
+            table.get(key).map_or_else(|| "unset".into(), json)
+        );
+        let value = operator.line()?;
+        if !value.is_empty() {
+            table.insert(key.into(), toml::Value::String(value));
+        }
+    }
+    println!("Room temperature C (blank = null):");
+    let temperature = temperature(&operator.line()?)?;
+    let manual: Vec<_> = ids
+        .iter()
+        .filter_map(|id| manifest.captures.iter().find(|c| &c.id == id))
+        .filter(|c| c.clock && c.notes.is_empty())
+        .collect();
+    if !manual.is_empty() {
+        let first = &manual[0].instructions;
+        if manual.iter().any(|c| &c.instructions != first) {
+            return Err("session has different stored patterns; split into sessions with one stored pattern each".into());
+        }
+        println!(
+            "Session setup (once): {first}\nPress Enter after programming the stored pattern and enabling MIDI clock reception."
+        );
+        operator.line()?;
+    }
+    let mut previous: Option<&Capture> = None;
+    for (i, id) in ids.iter().enumerate() {
+        if operator.finish.load(Ordering::Relaxed) {
+            break;
+        }
+        let capture = manifest
+            .captures
+            .iter()
+            .find(|c| &c.id == id)
+            .ok_or("capture disappeared")?;
+        let remaining: Vec<_> = ids[i..]
+            .iter()
+            .filter_map(|id| manifest.captures.iter().find(|c| &c.id == id))
+            .collect();
+        let (_, mut seconds) = session::estimate(&remaining);
+        if previous.is_some_and(|p| session::distance(p, capture) == 0) {
+            seconds += session::SETTLE_SECONDS - session::PROMPT_SECONDS;
+        }
+        println!(
+            "{}/{} {id}; estimated remaining {:.1} min",
+            i + 1,
+            ids.len(),
+            seconds / 60.0
+        );
+        let changes = session::panel_changes(previous, capture);
+        if !changes.is_empty() {
+            for line in changes {
+                println!("  {line}");
+            }
+            println!("Press Enter when changed controls match (legend 0–10; VERIFY clock travel).");
+            operator.line()?;
+        }
+        if !capture.instructions.is_empty() {
+            println!("{}", capture.instructions);
+        }
+        if previous.is_some() && session::distance(previous.ok_or("previous panel")?, capture) == 0
+        {
+            thread::sleep(Duration::from_secs_f64(session::SETTLE_SECONDS));
+        }
+        if operator.finish.load(Ordering::Relaxed) {
+            break;
+        }
+        session::prepare_paths(
+            std::path::Path::new(option(args, "--out")?),
+            capture,
+            args.iter().any(|a| a == "--resume"),
+        )?;
+        record(args, &manifest, capture, &temperature)?;
+        previous = Some(capture);
+    }
+    println!("Session finished. Preserve each WAV and JSON sidecar together.");
     Ok(())
 }

@@ -55,16 +55,96 @@ increase the interface's effective resolution. No resampling or device fallback.
    `--input-latency-ms VALUE` records a separately measured input-only estimate;
    absent input-only evidence this field is null. Never call the combined delay
    the interface input latency.
-6. Select one capture ID per run. The terminal prints every setting in 0–10
-   legend units and approximate clock positions plus waveform and instructions.
-   Use a printed template. Enter the room temperature or leave its field null,
-   then press Enter after checking all settings. Stored-pattern captures require
-   the displayed time pattern to be entered manually and MIDI clock sync enabled.
+6. Use `session` for a batch, or `run --capture ID` for a single measurement.
+   A session asks metadata and temperature once and prints only changed controls
+   before each panel confirmation. Use a printed template: legend units are 0–10
+   and clock positions are approximate. Stored-pattern sessions ask for pattern
+   programming and MIDI clock reception once before recording starts.
 7. Preserve WAV/JSON together. Files are created exclusively and never overwritten.
-   A failed run can leave a partial WAV or empty sidecar; choose a new session
-   directory for a retry. `valid=false`, clipping, missing onset, FIFO drops,
+   A failed run can leave a partial WAV or empty sidecar. `session --resume`
+   preserves incomplete/invalid existing pairs under `incomplete/ID-attempt-N/`
+   before retrying; single runs still require a fresh output path. `valid=false`, clipping, missing onset, FIFO drops,
    backend errors or stalled input require investigation/repetition. Dropped
    frames are counted and invalidate timing rather than being concealed.
+
+## Practical measurement sessions
+
+Preview the essentials, then record the same selection:
+
+```sh
+cargo run --offline -p dw303-capture -- plan reference/captures/manifest.toml \
+  --select '*' --session-file reference/captures/sessions/01-essentials.toml
+cargo run --offline -p dw303-capture -- session reference/captures/manifest.toml \
+  --select '*' --session-file reference/captures/sessions/01-essentials.toml \
+  --audio-device AUDIO_ID --channel 1 --midi-out 'EXACT OUTPUT NAME' \
+  --rate 96000 --out reference/captures/2026-10-11-essentials/ --resume
+```
+
+Quote wildcard selectors so the shell does not expand them. `--select` accepts
+`*` and `?` globs or comma-separated ID prefixes, for example
+`'pitch-k24,wave-square,vcf-ring-c??'`. A selector must match the manifest;
+selection is the union of selectors intersected with a session file's exact IDs.
+Unknown/duplicate session IDs and empty intersections are errors. A session file
+has `name = "..."` and `captures = ["manifest-id", ...]`; its list order does not
+replace manifest order. `plan` requires no devices or operator input. With
+`--resume --out DIR` it previews only pending captures; rate defaults to 96000
+for dry runs. The plan lists panel prompts, per-entry control-change counts and
+estimated duration, including each recording's 1 s pre-roll and 0.5 s post-roll,
+1 s between unchanged panels, and 15 s per panel confirmation. Estimates exclude
+warmup, metadata/pattern setup and device startup overhead.
+
+The essentials contain **363 captures, 78 panel prompts, about 59.4 minutes**:
+loopback; all 61 chromatic notes at centre tuning; tuning endpoints on MIDI keys
+24/48/72; saw and square per octave; page-7 calibration; 11 resonance-max ringing
+positions; four notes × six cutoff × three resonance positions at both normal
+and accent velocities; all DECAY/ENV MOD positions; 11 ACCENT positions ×
+1/2/4/8 consecutive accents × resonance min/max; all slides, three scripted gate
+tempos and their stored-pattern companions; and the three behavioural patterns.
+The 30-minute drift capture is excluded. `02-vcf-grid.toml` references all
+**2,772** grid IDs: 231 panel prompts, about 354.2 minutes (5 h 54 min).
+Use the same commands with that file.
+
+Identical panels form one group. Entries within each group keep manifest order.
+The first group contains the first selected manifest entry; subsequent groups
+use a greedy nearest-panel path counting changed controls (waveform counts as
+one), breaking ties by first manifest occurrence. This minimises the number of
+panel confirmations to one per distinct panel, but is not a globally optimal
+knob-travel path. TEMPO comes from scripted MIDI timing and is not a manual knob
+in this matrix. Clock-only captures need the one stored pattern programmed at
+session setup; sessions containing different stored-pattern instructions must
+be split. Instructions still print without an extra per-capture confirmation.
+
+Metadata edits apply to sidecars for this invocation, leaving the manifest and
+curated file unchanged. Enter preserves each manifest field; blank temperature
+is null. Each resumed invocation asks metadata again because conditions can
+change. The initial pending panel always prints all controls. Later panels show
+only `old → new` values; unchanged panels continue after the settle gap.
+`n/N` counts pending captures, and the remaining estimate includes future panel
+confirmations. The loopback entry always runs without latency compensation;
+its result is reported but is not automatically applied to later captures.
+Manifest ordering may put it after pitch captures: run standalone `loopback`
+first when compensation is needed for the whole session.
+
+Resume skips only a valid sidecar and a complete matching PCM24 mono WAV, with
+matching ID, panel settings, rate and expected frame count. RIFF/data lengths,
+format fields and physical file size are checked. Empty/truncated/malformed
+sidecars, invalid captures and incomplete WAVs remain pending. Older sidecars
+without `complete` are supported when valid and structurally complete. Checks
+are conservative for edited sidecars (panel JSON must retain the tool's canonical
+format) and do not checksum sample contents. A plan never moves files. Recording
+with resume archives any pending existing pair; recording without resume refuses
+existing paths. The tool retains exclusive creation for new measurements.
+
+Interactive sessions use the macOS `stty` utility and a terminal input reader,
+without unsafe signal code or additional dependencies. Keyboard Ctrl-C requests
+exit after the **current capture's full duration**, allowing its WAV header and
+sidecar to finish normally and releasing notes/clock; while awaiting input it
+exits immediately. Terminal settings restore on normal/error exit. Piped input
+is rejected for sessions. External SIGINT, forced termination and terminal loss
+are not covered by this keyboard handling; use resume to recover incomplete
+pairs. Very long custom selections may take a long time to finish the current
+capture. Native audio/MIDI streams reopen for each capture; startup overhead and
+hardware interruption behaviour remain unmeasured.
 
 ## Matrix and measurement interpretation
 
@@ -198,6 +278,10 @@ python3 tools/analysis/compare.py reference/captures/manifest.toml SESSION_DIR \
    marked FILL remain operator work; the tool cannot verify a physical knob.
 8. **VERIFY:** onset threshold/delay at measured levels and cutoff settings;
    combined first-note delay includes synth attack and is not pure MIDI transport.
+9. **VERIFY:** 1 s inter-capture settling is an operator estimate, not a measured
+   circuit time constant; validate residual envelopes/accumulated accent between
+   captures on the unit. The 15 s panel adjustment estimate and total session
+   durations require an operator timing check. Warmup/setup/startup are excluded.
 
 Synthetic evidence cannot establish fidelity to hardware, circuit-stage time
 constants inferred from a centroid, analog absolute voltages without calibration,
@@ -205,10 +289,10 @@ OS scheduling deadlines, or comparisons the existing renderer cannot express.
 
 ## Validation
 
-Run offline package tests and Clippy; format only this package's two source files:
+Run offline package tests and Clippy; format only this package's source and test files:
 
 ```sh
-rustfmt --edition 2024 tools/dw303-capture/src/lib.rs tools/dw303-capture/src/main.rs
+rustfmt --edition 2024 tools/dw303-capture/src/*.rs tools/dw303-capture/tests/*.rs
 cargo test --offline -p dw303-capture
 cargo clippy --offline -p dw303-capture --all-targets -- -D warnings
 python3 tools/analysis/selftest.py
@@ -228,3 +312,17 @@ with warnings denied, rustfmt check passed, and **7 Python test groups passed**.
 The Python suite also invoked all five script CLIs on synthetic/missing-capture
 fixtures. No native device was opened, and the real renderer was not executed;
 renderer command construction and comparison math were checked synthetically.
+
+Session validation extends the existing suite with grouping/greedy ordering versus
+naive order, numeric panel equality, delta legend/clock output, selector errors,
+curated-file ID/count/duration checks, dry-run report output, resume rejection of
+invalid/truncated pairs, preservation of incomplete files, and executable plan
+commands with deliberately bogus device IDs. No device is opened by these tests.
+
+Session changes validated 2026-10-11: **13 Rust tests passed** (11 unit and two
+executable dry-run tests); package Clippy passed with warnings denied and
+rustfmt check passed. A pseudo-terminal keyboard Ctrl-C check exited before any
+capture, restored operator terminal flags/control characters (macOS may retain
+its transient PENDIN flag), and created no recording path. In-recording Ctrl-C
+and native stream startup remain untested on hardware. The prior Python analysis
+results above were not rerun for this session-only change.
