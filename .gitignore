@@ -4,3 +4,4 @@ __pycache__/
 *.py[cod]
 /reference/captures/**/*.wav
 /reference/spice/**/*.raw
+/reference/schematic/pages/
