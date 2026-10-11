@@ -104,8 +104,8 @@ impl Voice {
             vca: Vca::new(dw303_env::Components::NOMINAL),
             output: OutputStage::new(dw303_env::Components::NOMINAL),
             decimators: [
-                ConfiguredHalfBand2x::new(design.clone(), design.clone()),
-                ConfiguredHalfBand2x::new(design.clone(), design),
+                ConfiguredHalfBand2x::new(design, design),
+                ConfiguredHalfBand2x::new(design, design),
             ],
             target: Knobs::default(),
             knobs: Knobs::default(),
