@@ -20,19 +20,40 @@ pub const MIN_CIRCUIT_RATE: f64 = 176_400.0;
 pub const MAX_CIRCUIT_RATE: f64 = 384_000.0;
 /// Lowest internal rate the circuit stages accept.
 const STAGE_MIN_RATE: f64 = 44_100.0;
+/// Up to 64x oversampling (hosts down to 1 kHz).
+const MAX_DECIMATION_STAGES: usize = 6;
 
-/// Oversampling factor for a host rate: the smallest of 1/2/4/8 reaching
-/// `MIN_CIRCUIT_RATE`, without exceeding `MAX_CIRCUIT_RATE`.
-/// Returns `None` when no factor gives a rate the stages accept.
-pub fn oversampling_for(host_rate: f64) -> Option<usize> {
-    let valid = |f: usize| {
-        let rate = host_rate * f as f64;
-        (STAGE_MIN_RATE..=MAX_CIRCUIT_RATE).contains(&rate)
-    };
-    [1, 2, 4, 8]
+/// How the circuit rate relates to the host rate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RateRatio {
+    /// Circuit runs n times faster (n = 1..=64, power of two) and is decimated.
+    Over(usize),
+    /// Circuit runs n times slower (hosts above 384 kHz); its output is
+    /// linearly interpolated, so content near the host Nyquist is imaged far
+    /// above the audio band.
+    Under(usize),
+}
+
+/// Circuit/host rate ratio: the smallest oversampling reaching
+/// `MIN_CIRCUIT_RATE` within the stages' accepted range, else the nearest
+/// accepted rate. Returns `None` only for non-finite or non-positive rates.
+pub fn oversampling_for(host_rate: f64) -> Option<RateRatio> {
+    if !(host_rate.is_finite() && host_rate > 0.0) {
+        return None;
+    }
+    let valid = |rate: f64| (STAGE_MIN_RATE..=MAX_CIRCUIT_RATE).contains(&rate);
+    let factors = [1, 2, 4, 8, 16, 32, 64];
+    if let Some(&f) = factors
+        .iter()
+        .find(|&&f| valid(host_rate * f as f64) && host_rate * f as f64 >= MIN_CIRCUIT_RATE)
+        .or_else(|| factors.iter().rev().find(|&&f| valid(host_rate * f as f64)))
+    {
+        return Some(RateRatio::Over(f));
+    }
+    [2, 4, 8, 16]
         .into_iter()
-        .find(|&f| valid(f) && host_rate * f as f64 >= MIN_CIRCUIT_RATE)
-        .or_else(|| [8, 4, 2, 1].into_iter().find(|&f| valid(f)))
+        .find(|&n| valid(host_rate / n as f64))
+        .map(RateRatio::Under)
 }
 
 /// Highest VCO harmonic frequency synthesised (above audibility, below the
@@ -102,8 +123,14 @@ pub struct Voice {
     filter_control: FilterControl,
     vca: Vca,
     output: OutputStage,
-    decimators: [ConfiguredHalfBand2x; 3],
-    oversampling: usize,
+    decimators: [ConfiguredHalfBand2x; MAX_DECIMATION_STAGES],
+    ratio: RateRatio,
+    /// Undersampled mode: host samples since the last circuit sample, the
+    /// last two circuit outputs, and a trigger latched until the next tick.
+    under_phase: usize,
+    under_previous: f64,
+    under_current: f64,
+    under_trigger: bool,
     target: Knobs,
     knobs: Knobs,
     knob_coefficient: f64,
@@ -124,12 +151,12 @@ impl Voice {
             filter_control: FilterControl::new(dw303_env::Components::NOMINAL),
             vca: Vca::new(dw303_env::Components::NOMINAL),
             output: OutputStage::new(dw303_env::Components::NOMINAL),
-            decimators: [
-                ConfiguredHalfBand2x::new(design, design),
-                ConfiguredHalfBand2x::new(design, design),
-                ConfiguredHalfBand2x::new(design, design),
-            ],
-            oversampling: 4,
+            decimators: core::array::from_fn(|_| ConfiguredHalfBand2x::new(design, design)),
+            ratio: RateRatio::Over(4),
+            under_phase: 0,
+            under_previous: 0.0,
+            under_current: 0.0,
+            under_trigger: false,
             target: Knobs::default(),
             knobs: Knobs::default(),
             knob_coefficient: 0.0,
@@ -140,9 +167,11 @@ impl Voice {
         if !host_sample_rate.is_finite() {
             return Err(VoiceError::InvalidSampleRate);
         }
-        let oversampling =
-            oversampling_for(host_sample_rate).ok_or(VoiceError::InvalidSampleRate)?;
-        let rate = host_sample_rate * oversampling as f64;
+        let ratio = oversampling_for(host_sample_rate).ok_or(VoiceError::InvalidSampleRate)?;
+        let rate = match ratio {
+            RateRatio::Over(n) => host_sample_rate * n as f64,
+            RateRatio::Under(n) => host_sample_rate / n as f64,
+        };
         let ok = self.pitch.prepare(rate).is_ok()
             && self.vco.prepare(rate).is_ok()
             && self.vcf.prepare(rate).is_ok()
@@ -154,7 +183,7 @@ impl Voice {
         if !ok {
             return Err(VoiceError::InvalidSampleRate);
         }
-        self.oversampling = oversampling;
+        self.ratio = ratio;
         // Harmonics above the host band are removed by the decimator anyway.
         self.vco
             .set_band_limit(Some((0.45 * host_sample_rate).min(VCO_BAND_LIMIT_HZ)));
@@ -175,6 +204,10 @@ impl Voice {
         for d in &mut self.decimators {
             d.reset();
         }
+        self.under_phase = 0;
+        self.under_previous = 0.0;
+        self.under_current = 0.0;
+        self.under_trigger = false;
         self.knobs = self.target;
     }
 
@@ -232,8 +265,15 @@ impl Voice {
 
     /// Render one host-rate sample (digital full scale = `FULL_SCALE_VOLTS`).
     pub fn tick(&mut self, input: VoiceInput) -> f64 {
-        let mut x = [0.0; 8];
-        let mut count = self.oversampling;
+        match self.ratio {
+            RateRatio::Over(n) => self.tick_over(input, n),
+            RateRatio::Under(n) => self.tick_under(input, n),
+        }
+    }
+
+    fn tick_over(&mut self, input: VoiceInput, factor: usize) -> f64 {
+        let mut x = [0.0; 1 << MAX_DECIMATION_STAGES];
+        let mut count = factor;
         for (i, sample) in x[..count].iter_mut().enumerate() {
             *sample = self.tick_circuit(input, input.trigger && i == 0);
         }
@@ -248,9 +288,21 @@ impl Voice {
         x[0] / FULL_SCALE_VOLTS
     }
 
-    /// Current oversampling factor (1, 2, 4 or 8).
-    pub fn oversampling(&self) -> usize {
-        self.oversampling
+    fn tick_under(&mut self, input: VoiceInput, divisor: usize) -> f64 {
+        self.under_trigger |= input.trigger;
+        if self.under_phase == 0 {
+            let trigger = core::mem::take(&mut self.under_trigger);
+            self.under_previous = self.under_current;
+            self.under_current = self.tick_circuit(input, trigger);
+        }
+        let t = self.under_phase as f64 / divisor as f64;
+        self.under_phase = (self.under_phase + 1) % divisor;
+        (self.under_previous + (self.under_current - self.under_previous) * t) / FULL_SCALE_VOLTS
+    }
+
+    /// Current circuit/host rate ratio.
+    pub fn rate_ratio(&self) -> RateRatio {
+        self.ratio
     }
 }
 
@@ -266,25 +318,30 @@ mod tests {
 
     #[test]
     fn oversampling_covers_common_and_extreme_host_rates() {
-        for (rate, factor) in [
-            (8_000.0, 8),
-            (22_050.0, 8),
-            (44_100.0, 4),
-            (48_000.0, 4),
-            (88_200.0, 2),
-            (96_000.0, 2),
-            (192_000.0, 1),
-            (384_000.0, 1),
+        use RateRatio::{Over, Under};
+        for (rate, ratio) in [
+            (1_000.0, Over(64)),
+            (8_000.0, Over(32)),
+            (22_050.0, Over(8)),
+            (44_100.0, Over(4)),
+            (48_000.0, Over(4)),
+            (88_200.0, Over(2)),
+            (96_000.0, Over(2)),
+            (192_000.0, Over(1)),
+            (384_000.0, Over(1)),
+            (768_000.0, Under(2)),
         ] {
-            assert_eq!(oversampling_for(rate), Some(factor), "{rate}");
+            assert_eq!(oversampling_for(rate), Some(ratio), "{rate}");
         }
-        assert_eq!(oversampling_for(1_000.0), None);
-        assert_eq!(oversampling_for(768_000.0), None);
+        assert_eq!(oversampling_for(0.0), None);
+        assert_eq!(oversampling_for(f64::NAN), None);
     }
 
     #[test]
     fn prepares_and_renders_finite_audio_across_host_rates() {
-        for rate in [8_000.0, 44_100.0, 96_000.0, 192_000.0, 384_000.0] {
+        for rate in [
+            1_000.0, 8_000.0, 44_100.0, 96_000.0, 192_000.0, 384_000.0, 768_000.0,
+        ] {
             let mut voice = Voice::new();
             voice.prepare(rate).expect("supported rate");
             let mut input = VoiceInput {

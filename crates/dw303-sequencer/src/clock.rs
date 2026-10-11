@@ -76,7 +76,7 @@ impl StepClock {
     }
     /// Configure sample rate and reset timing history.
     pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError> {
-        if !sample_rate.is_finite() || !(44_100.0..=384_000.0).contains(&sample_rate) {
+        if !sample_rate.is_finite() || !(1_000.0..=1_536_000.0).contains(&sample_rate) {
             return Err(StageError::InvalidSampleRate);
         }
         self.rate = sample_rate;

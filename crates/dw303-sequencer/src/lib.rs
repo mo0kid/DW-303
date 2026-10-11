@@ -12,6 +12,6 @@ pub use playback::*;
 /// Preparation error shared with the circuit stages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StageError {
-    /// Rate must be finite and in the supported 44.1–384 kHz range.
+    /// Rate must be finite and in the supported 1 kHz–1.536 MHz range.
     InvalidSampleRate,
 }
