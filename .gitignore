@@ -1,0 +1,6 @@
+/target/
+.DS_Store
+__pycache__/
+*.py[cod]
+/reference/captures/**/*.wav
+/reference/spice/**/*.raw

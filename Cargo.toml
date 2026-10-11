@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "crates/dw303-osc",
+    "crates/dw303-vcf",
+    "crates/dw303-env",
+    "crates/dw303-sequencer",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "LicenseRef-DJW-Proprietary"
+publish = false
+
+[workspace.dependencies]
+libm = { version = "=0.2.16", default-features = false }
+ravet-foundation = { path = "../ravet/crates/ravet-foundation" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[profile.test]
+opt-level = 2
