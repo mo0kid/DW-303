@@ -162,3 +162,48 @@ capacitor leakage/tolerance measurements, pot taper measurements, full BA662
 internal model, buffer clipping or multi-capacitor output network. Coupling-load
 interaction with VOLUME and RESONANCE is reduced to fixed impedances. Aliasing
 from the memoryless VCA nonlinearity relies on the voice's oversampling.
+
+## Performance pass (2026-10-11)
+
+The circuit equations, component guards, public interfaces and VERIFY inventory
+above are unchanged. Fixed component RC products and the VCA unity-drive
+normaliser are calculated at construction. Output `expm1` is calculated at
+construction/preparation. MEG/VEG/accent RC exponentials cache the exact result
+using bitwise duration/time-constant keys, including partial pulse and diode
+crossing intervals; a changed clock changes the duration key. FilterControl's
+ENV MOD taper and OutputStage's VOLUME taper cache by bitwise sanitised panel
+rotation. Sanitisation and diagnostic counting still execute for every input.
+Reset retains coefficient caches because only charge/pulses/diagnostics change.
+The signal-dependent filter exponential, VCA driver and signal nonlinearity,
+and accent diode-crossing logarithm still execute as required by the equations.
+
+Before modifying the library, its implementation was frozen in
+`crates/dw303-env/tests/support/reference.rs`. The regression test compares all
+six public stages plus `Vca::gain`, across 48/96/192 kHz with live rate changes,
+reset, gate/trigger/accent changes, knob sweeps, extreme/non-finite signals,
+non-integral trigger pulses and invalid component configurations. Voltage
+comparisons use 1e-6 absolute or relative above 1 V; bias-current comparisons use
+1e-6 relative. Diagnostics are compared exactly. Existing behaviour tests,
+regression tests, rustfmt checks and all-target clippy with `-D warnings` pass.
+There are 12 passing tests and one explicitly ignored manual timing benchmark.
+
+The requested release renderer (8 s, 48 kHz host / 192 kHz circuit) measured
+2.477 s / **31.0% of one core** before, and 1.772 s / **22.1%** after. The two
+WAV files compared byte-identically. These whole-workspace timings can include
+concurrent changes in other crates and do not isolate this crate's contribution.
+The <=10% whole-voice target remains unmet in this measurement.
+
+An isolated same-binary benchmark against the frozen reference, using opaque
+stage references to prevent compile-time loop-invariant hoisting, measured
+0.106744 s (1.33% core) before versus 0.066158 s (0.83% core) cached: **1.61x**
+for six stages over 8 s at 192 kHz. This synthetic control sequence is not a
+whole-voice timing and uses a constant audio input. Reproduce with:
+
+```
+cargo test --offline --release -p dw303-env --test performance_regression benchmark_cached_against_reference -- --ignored --nocapture
+```
+
+macOS `sample` was attempted against a running 24-second render, but could not
+inspect the process under the available permissions; no sampled call-stack
+profile was obtained. Existing schematic/SPICE/hardware validation gaps remain;
+this pass adds no component certainty or new VERIFY items.

@@ -126,6 +126,17 @@ impl Sequencer {
     /// The clock stays in straight mode; pattern-local beat phases determine edges.
     /// Empty/invalid tracks are silent while running. Global and track transpose add.
     pub fn tick_track(&mut self, memory: &Memory, track: usize) -> VoiceCommand {
+        self.tick_track_from(memory, track, 0)
+    }
+    /// Render a repeating track with measure zero of the clock anchored to a
+    /// designated measure. Keep `start_measure` constant throughout a run.
+    /// Invalid starting measures fall back to the first measure.
+    pub fn tick_track_from(
+        &mut self,
+        memory: &Memory,
+        track: usize,
+        start_measure: usize,
+    ) -> VoiceCommand {
         self.clock.set_triplet(false);
         let event = self.clock.tick();
         let live = self.notes.tick();
@@ -150,7 +161,12 @@ impl Sequencer {
             durations[i] = f64::from(p.length.clamp(1, 16)) / if p.triplet { 3.0 } else { 4.0 };
             total += durations[i];
         }
-        let beat = (event.index as f64 + event.phase) / 4.0;
+        let offset = if start_measure < length {
+            durations.iter().take(start_measure).sum::<f64>()
+        } else {
+            0.0
+        };
+        let beat = (event.index as f64 + event.phase) / 4.0 + offset;
         let mut local = beat % total;
         if local < 0.0 {
             local += total;
@@ -197,6 +213,56 @@ impl Sequencer {
         );
         self.previous = result;
         result
+    }
+    /// Render one local sample of a validated arrangement/temporary panel chain.
+    /// Measure and event position are bounded defensively; this does not tick the clock.
+    /// Preserves slide and tie history between the chain's pattern memories.
+    pub fn tick_chain_at(
+        &mut self,
+        memory: &Memory,
+        chain: &Track,
+        measure: usize,
+        event: StepEvent,
+    ) -> VoiceCommand {
+        let live = self.notes.tick();
+        if !event.running {
+            self.previous = live;
+            return live;
+        }
+        let length = usize::from(chain.length).min(64);
+        if length == 0 || measure >= length {
+            return self.silence();
+        }
+        for entry in chain.entries.iter().take(length) {
+            if entry.pattern.index().is_err() {
+                return self.silence();
+            }
+        }
+        let mut event = event;
+        if !event.phase.is_finite() {
+            event.phase = 0.0;
+            self.invalid = self.invalid.saturating_add(1);
+        }
+        event.phase = event.phase.clamp(0.0, 1.0);
+        let result = track_command(
+            memory,
+            chain,
+            length,
+            measure,
+            event.index.max(0) as usize,
+            event,
+            self.transpose,
+            self.timing,
+            self.previous.note,
+        );
+        self.previous = result;
+        result
+    }
+    /// Last rendered track measure and local rhythm position, zero based.
+    /// `None` before playback or for a silent/empty track.
+    pub fn track_cursor(&self) -> Option<(usize, usize)> {
+        self.track_position
+            .map(|(_, measure, step)| (measure, step.max(0) as usize))
     }
     fn silence(&mut self) -> VoiceCommand {
         self.track_position = None;

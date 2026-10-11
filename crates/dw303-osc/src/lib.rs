@@ -215,17 +215,18 @@ impl PitchCv {
     }
 }
 
+/// Iteration bound for the shaper's safeguarded collector solve.
+const MAX_SHAPER_ITERATIONS: usize = 40;
+const SHAPER_TOLERANCE_VOLTS: f64 = 1.0e-9;
+
 /// Static PNP Ebers–Moll collector solution, with input/output coupling capacitors.
 /// VERIFY: stiff emitter/base drive approximation omits base-current loading,
 /// emitter impedance and buffer loading; RC networks are reduced equivalents.
 ///
 /// The collector satisfies Vc/Rc = alpha*Is*(exp(Veb/Vt)-1)
-/// minus Is*(exp(Vcb/Vt)-1). Bounded bisection covers cutoff and saturation,
-/// including the reverse base-collector junction; no comparator is used.
-/// Iteration bound and tolerance for the shaper's collector solve.
-const MAX_SHAPER_ITERATIONS: usize = 40;
-const SHAPER_TOLERANCE_VOLTS: f64 = 1.0e-9;
-
+/// minus Is*(exp(Vcb/Vt)-1). Warm-started Newton with a bisection safeguard
+/// covers cutoff and saturation, including the reverse base-collector junction.
+/// Work is bounded by 40 iterations; no comparator is used.
 pub struct SquareShaper {
     c: Components,
     input_cap: f64,
@@ -236,6 +237,11 @@ pub struct SquareShaper {
     input_retention: f64,
     collector_retention: f64,
     output_retention: f64,
+    thermal_voltage: f64,
+    collector_conductance: f64,
+    forward_scale: f64,
+    exp_bounds: [f64; 2],
+    forward_bounds: [f64; 2],
     diagnostics: OscDiagnostics,
 }
 
@@ -252,6 +258,11 @@ impl SquareShaper {
             input_retention: 0.0,
             collector_retention: 0.0,
             output_retention: 0.0,
+            thermal_voltage: BOLTZMANN_OVER_Q * c.temperature_kelvin,
+            collector_conductance: 1.0 / c.square_collector_resistance,
+            forward_scale: c.transistor_alpha * c.transistor_is,
+            exp_bounds: [libm::exp(-80.0), libm::exp(40.0)],
+            forward_bounds: [libm::expm1(-80.0), libm::expm1(40.0)],
             diagnostics: OscDiagnostics::default(),
         };
         s.set_rate(48_000.0);
@@ -290,10 +301,16 @@ impl SquareShaper {
     }
 
     fn static_collector(&self, base: f64, guess: f64) -> f64 {
-        let vt = BOLTZMANN_OVER_Q * self.c.temperature_kelvin;
-        let forward = self.c.transistor_alpha
-            * self.c.transistor_is
-            * libm::expm1(((self.c.square_supply - base) / vt).clamp(-80.0, 40.0));
+        let vt = self.thermal_voltage;
+        let forward_argument = ((self.c.square_supply - base) / vt).clamp(-80.0, 40.0);
+        let forward_exp = if forward_argument == -80.0 {
+            self.forward_bounds[0]
+        } else if forward_argument == 40.0 {
+            self.forward_bounds[1]
+        } else {
+            libm::expm1(forward_argument)
+        };
+        let forward = self.forward_scale * forward_exp;
         // KCL residual f(vc) is strictly increasing in vc, so Newton steps are
         // safeguarded by a shrinking [low, high] bracket (bisection fallback).
         // Warm-started from the previous solution this typically takes 2-3 steps.
@@ -302,7 +319,13 @@ impl SquareShaper {
         let mut vc = guess.clamp(low, high);
         for _ in 0..MAX_SHAPER_ITERATIONS {
             let x = ((vc - base) / vt).clamp(-80.0, 40.0);
-            let e = libm::exp(x);
+            let e = if x == -80.0 {
+                self.exp_bounds[0]
+            } else if x == 40.0 {
+                self.exp_bounds[1]
+            } else {
+                libm::exp(x)
+            };
             let f = vc / self.c.square_collector_resistance - forward
                 + self.c.transistor_is * (e - 1.0);
             if f > 0.0 {
@@ -310,7 +333,7 @@ impl SquareShaper {
             } else {
                 low = vc;
             }
-            let slope = 1.0 / self.c.square_collector_resistance + self.c.transistor_is * e / vt;
+            let slope = self.collector_conductance + self.c.transistor_is * e / vt;
             let mut next = vc - f / slope;
             if !(next > low && next < high) {
                 next = 0.5 * (low + high);
@@ -369,8 +392,39 @@ pub struct Vco {
     band_limit: Option<f64>,
     cosine: [f64; HARMONICS],
     sine: [f64; HARMONICS],
+    cap_gain: [f64; HARMONICS],
+    gain: [f64; HARMONICS],
+    active_harmonics: usize,
+    pass_harmonics: usize,
+    cached_frequency: f64,
+    cached_cv: f64,
+    cached_tuning: f64,
+    cached_requested: f64,
     square: SquareShaper,
     diagnostics: OscDiagnostics,
+}
+
+// Count harmonics at a band edge, correcting the quotient estimate with the
+// exact operation order used by the original loop. Bounded adjustments handle
+// roundoff at an integer harmonic without dropping/adding a boundary term.
+fn harmonics_in_band(frequency: f64, rate: f64, edge: f64, inclusive: bool) -> usize {
+    let mut count = ((edge * rate / frequency) as usize).min(HARMONICS);
+    let admits = |h: usize| {
+        let ratio = h as f64 * frequency / rate;
+        if inclusive {
+            ratio <= edge
+        } else {
+            ratio < edge
+        }
+    };
+    for _ in 0..2 {
+        if count > 0 && !admits(count) {
+            count -= 1;
+        } else if count < HARMONICS && admits(count + 1) {
+            count += 1;
+        }
+    }
+    count
 }
 
 // Charge/current time product for the Early-effect charging interval plus reset.
@@ -401,6 +455,13 @@ impl Vco {
     /// Construct a calibrated oscillator at 48 kHz, with precomputed reset spectrum.
     pub fn new(c: Components) -> Self {
         let c = c.valid();
+        let cap_gain = core::array::from_fn(|i| {
+            if i < 224 {
+                1.0
+            } else {
+                0.5 + 0.5 * libm::cos(PI * (i + 1 - 224) as f64 / 32.0)
+            }
+        });
         let mut s = Self {
             c,
             phase: 0.0,
@@ -411,6 +472,14 @@ impl Vco {
             band_limit: None,
             cosine: [0.0; HARMONICS],
             sine: [0.0; HARMONICS],
+            cap_gain,
+            gain: cap_gain,
+            active_harmonics: 0,
+            pass_harmonics: 0,
+            cached_frequency: f64::NAN,
+            cached_cv: f64::NAN,
+            cached_tuning: f64::NAN,
+            cached_requested: 0.0,
             square: SquareShaper::new(c),
             diagnostics: OscDiagnostics::default(),
         };
@@ -440,6 +509,7 @@ impl Vco {
         rate_valid(sample_rate)?;
         self.square.prepare(sample_rate)?;
         self.sample_rate = sample_rate;
+        self.cached_frequency = f64::NAN;
         Ok(())
     }
     /// Reset phase, capacitor states and counters.
@@ -490,7 +560,11 @@ impl Vco {
     /// host band are discarded anyway, so this saves work without audible
     /// change. `None` restores the full oversampled band (0.40/0.48 x rate).
     pub fn set_band_limit(&mut self, hz: Option<f64>) {
-        self.band_limit = hz.filter(|hz| hz.is_finite() && *hz > 0.0);
+        let band_limit = hz.filter(|hz| hz.is_finite() && *hz > 0.0);
+        if self.band_limit.map(f64::to_bits) != band_limit.map(f64::to_bits) {
+            self.cached_frequency = f64::NAN;
+            self.band_limit = band_limit;
+        }
     }
     fn band_ratios(&self) -> (f64, f64) {
         match self.band_limit {
@@ -506,38 +580,60 @@ impl Vco {
     pub fn tick(&mut self, cv: f64, tuning: f64) -> VcoOut {
         let cv = sanitise(cv, &mut self.diagnostics.non_finite_inputs);
         let tuning = sanitise(tuning, &mut self.diagnostics.non_finite_inputs);
-        let requested = self.frequency_hz(cv, tuning);
+        if cv.to_bits() != self.cached_cv.to_bits()
+            || tuning.to_bits() != self.cached_tuning.to_bits()
+        {
+            self.cached_requested = self.frequency_hz(cv, tuning);
+            self.cached_cv = cv;
+            self.cached_tuning = tuning;
+        }
+        let requested = self.cached_requested;
         let frequency = requested.min(0.45 * self.sample_rate);
         if requested > frequency {
             self.diagnostics.frequency_limited_samples =
                 self.diagnostics.frequency_limited_samples.saturating_add(1);
         }
         let angle = TAU * self.phase;
-        let co = libm::cos(angle);
-        let si = libm::sin(angle);
+        let (si, co) = libm::sincos(angle);
         let mut hc = co;
         let mut hs = si;
         let mut saw = self.dc;
-        // Flat passband to `pass` (default 0.4*rate); smooth fade to zero at
-        // `stop` (default 0.48*rate). Also taper the fixed work limit to avoid
-        // a hard 256th-harmonic edge.
-        let (pass, stop) = self.band_ratios();
-        for h in 1..=HARMONICS {
-            let ratio = h as f64 * frequency / self.sample_rate;
-            if ratio >= stop {
-                break;
+        // Rebuild only for a bitwise frequency/rate/bandwidth change. Slides
+        // still use their exact instantaneous frequency; no quantisation.
+        if frequency.to_bits() != self.cached_frequency.to_bits() {
+            let (pass, stop) = self.band_ratios();
+            let pass_count = harmonics_in_band(frequency, self.sample_rate, pass, true);
+            let active_count = harmonics_in_band(frequency, self.sample_rate, stop, false);
+            // Restore only harmonics that have moved from the fade into the
+            // flat passband; unchanged flat gains need no per-sample work.
+            if pass_count > self.pass_harmonics {
+                self.gain[self.pass_harmonics..pass_count]
+                    .copy_from_slice(&self.cap_gain[self.pass_harmonics..pass_count]);
             }
-            let rate_gain = if ratio <= pass {
-                1.0
-            } else {
-                0.5 + 0.5 * libm::cos(PI * (ratio - pass) / (stop - pass))
-            };
-            let cap_gain = if h <= 224 {
-                1.0
-            } else {
-                0.5 + 0.5 * libm::cos(PI * (h - 224) as f64 / 32.0)
-            };
-            saw += rate_gain * cap_gain * (self.cosine[h - 1] * hc + self.sine[h - 1] * hs);
+            for i in pass_count..active_count {
+                let ratio = (i + 1) as f64 * frequency / self.sample_rate;
+                let rate_gain = 0.5 + 0.5 * libm::cos(PI * (ratio - pass) / (stop - pass));
+                self.gain[i] = rate_gain * self.cap_gain[i];
+            }
+            self.pass_harmonics = pass_count;
+            self.active_harmonics = active_count;
+            self.cached_frequency = frequency;
+        }
+        let count = self.active_harmonics;
+        let (cosine, cosine_tail) = self.cosine[..count].as_chunks::<4>();
+        let (sine, sine_tail) = self.sine[..count].as_chunks::<4>();
+        let (gain, gain_tail) = self.gain[..count].as_chunks::<4>();
+        for ((cosine, sine), gain) in cosine.iter().zip(sine).zip(gain) {
+            // Unroll without changing either recurrence or summation order.
+            for lane in 0..4 {
+                saw += gain[lane] * (cosine[lane] * hc + sine[lane] * hs);
+                let next = hc * co - hs * si;
+                hs = hs * co + hc * si;
+                hc = next;
+            }
+        }
+        for ((cosine, sine), gain) in cosine_tail.iter().zip(sine_tail).zip(gain_tail) {
+            saw += gain * (cosine * hc + sine * hs);
             let next = hc * co - hs * si;
             hs = hs * co + hc * si;
             hc = next;
@@ -556,6 +652,39 @@ impl Vco {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn harmonic_counts_preserve_exact_band_edge_decisions() {
+        for rate in [48_000.0, 96_000.0, 192_000.0] {
+            for edge in [0.40, 0.48, 20_000.0 / rate, 24_000.0 / rate] {
+                for h in 1..=HARMONICS {
+                    let boundary = edge * rate / h as f64;
+                    for frequency in [
+                        f64::from_bits(boundary.to_bits() - 1),
+                        boundary,
+                        f64::from_bits(boundary.to_bits() + 1),
+                    ] {
+                        for inclusive in [false, true] {
+                            let expected = (1..=HARMONICS)
+                                .take_while(|h| {
+                                    let ratio = *h as f64 * frequency / rate;
+                                    if inclusive {
+                                        ratio <= edge
+                                    } else {
+                                        ratio < edge
+                                    }
+                                })
+                                .count();
+                            assert_eq!(
+                                harmonics_in_band(frequency, rate, edge, inclusive),
+                                expected
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn ebers_moll_root_satisfies_collector_kcl() {

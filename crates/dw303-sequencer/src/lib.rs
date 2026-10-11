@@ -2,6 +2,7 @@
 #![no_std]
 
 mod clock;
+pub mod edit;
 mod model;
 mod playback;
 pub use clock::*;

@@ -171,3 +171,137 @@ engine before optimising. No allocator instrumentation, CPU deadline measurement
 hardware captures, firmware comparisons or analog golden tests were performed.
 The timing VERIFY items, combined-track editing, original group restrictions,
 within-block host automation and missing extended MIDI features remain limits.
+
+## Front-panel editor (`edit.rs`)
+
+`edit::Editor` adds a fixed-storage controller around the existing `Memory`.
+No persisted fields changed: all four codecs remain version 1, with identical
+sizes and no migration needed. Existing engine entry points are preserved.
+The added `Sequencer::tick_chain_at`, `tick_track_from`, and `track_cursor`
+methods supply cross-pattern history and designated-measure playback.
+
+Send `PanelAction` selector changes and **both** button edges. Repeated down
+edges are ignored. `Pitch(0..12)` and `Number(1..8)` share the identity of their
+white keys; an adapter should send one representation per physical switch.
+`Clear` also represents BAR RESET and D.C.; `Tap` represents WRITE/NEXT.
+Semantic `Delete`, `Insert`, `Step`, `Triplet`, and `Time` actions let adapters
+bind the panel's secondary legends explicitly. In Normal mode white keyboard
+keys select patterns; in Pitch mode they enter pitches. DOWN/UP/ACCENT also
+serve as note/sustain/rest in Time mode.
+
+`action(&mut memory, action)` returns `EditOutput`: whether memory changed,
+an optional `VoiceCommand` preview edge, and an optional transport request.
+Publish changed memory through the engine's existing snapshot mechanism.
+Call `apply_transport` once on the audio-side sequencer for each request.
+Then `Editor::tick` can replace the engine's direct pattern/track tick when
+using panel-owned transport. It advances the clock once per sample, supports
+internal/host/MIDI clock, consumes preview triggers after one sample, and
+retains stopped live-MIDI fallback. The preview in `EditOutput` is an alternative
+integration route: do not deliver its trigger again if using `Editor::tick`.
+Control and audio callers must transfer state at a safe boundary; this controller
+is not a synchronisation primitive and must not be concurrently mutated.
+
+The transition table covers stopped Pattern Write's Normal/Pitch/Time modes.
+Procedures supported by the scenario tests:
+
+- Select a pattern, hold its selector, and press CLEAR. Default straight length
+  is sixteen. Hold FUNCTION and press STEP once per required rhythm position.
+  FUNCTION + triplet sets twelve positions; explicit triplet length caps at fifteen.
+- PITCH MODE rewinds the pitch cursor. Pitch keys write and advance, with held
+  DOWN/UP choosing octave. BACK returns one position for correction. FUNCTION
+  returns to Normal. Re-enter PITCH MODE and TAP to recall each pitch; hold TAP
+  to toggle accent, slide or octave on the recalled pitch.
+- TIME MODE rewinds the independent rhythm cursor. Note/sustain/rest advance
+  it without sounding a preview. TAP checks time data without changing it.
+  The last rhythm position automatically returns to Normal.
+- In Pattern Play hold two selector endpoints in the same four-pattern block
+  (1–4 or 5–8). The inclusive ascending range repeats. A cross-block chord
+  selects only the latest key. Queue another selection while running; it takes
+  over when the current **series** ends. With a single pattern this is its bar end.
+  Mixed straight/triplet series preserve beat duration. Slide and tie history
+  crosses pattern boundaries, including the first pattern after a queued switch.
+- Track detents pair groups I/I/II/II/III/III/IV with tracks 1–7; selecting a
+  different pattern group in track mode is rejected. TRACK WRITE, CLEAR, RUN,
+  pattern selection, then TAP commits a measure. Hold PITCH MODE and press a
+  keyboard key to shift it. A selector chain commits its patterns in order.
+  CLEAR while running arms D.C.; TAP writes the last measure and truncates the
+  active track there. CLEAR while stopped rewinds without erasing the track.
+- While stopped hold FUNCTION and enter a measure number using selector digits
+  (DOWN=9, UP=0). FUNCTION + DEL removes it. FUNCTION + INS arms insertion before
+  it; RUN, choose a pattern, TAP, STOP commits the insertion and shifts following
+  measures. Full tracks cannot insert beyond capacity. TRACK PLAY starts from
+  the designated measure and subsequently loops through the stored arrangement.
+
+The original-manual evidence is the Roland PDF linked above, inspected through
+its OCR transcription, principally printed pages 10–16, 40–43, 54–60, and 69–72.
+The supplied SVG's lamp and switch geometry was also inspected. Raster rendering
+was unavailable in this environment, so secondary-symbol placement remains a
+verification item. These tests encode procedures and chosen interpretations;
+they do not establish firmware or hardware equivalence.
+
+### Panel LED output
+
+`leds(&memory)` provides C..C', selector lamps, A/B, Normal/Pitch/Time, RUN,
+BACK/sign, DOWN/UP/ACCENT/SLIDE, and step-mode indications. Shared white-key
+pitch and selector outputs agree, so the adapter does not drive one physical
+lamp with conflicting values. Playing/selected patterns blink; other active
+chain participants stay lit. Queued patterns blink. `Led::lit(phase)` resolves
+Off/On/Blink using the host's common blink phase; blink frequency is not baked
+into sample timing. The sixteen-element `steps` array is an additional logical
+cursor view, **not** a claim that the original has sixteen step LEDs. Battery
+state belongs to the host; RUN/BATTERY here indicates transport only.
+
+### Additional VERIFY register
+
+All new uncertainty annotations are in `edit.rs`:
+
+1. `Leds` / `Editor::leds`: exact firmware LED multiplexing, queued selection,
+   FUNCTION step-count display, recall and last-step indications, BACK/sign
+   indication and blink cadence require an original-unit comparison. The current
+   display is deterministic and accounts for shared white-key emitters.
+2. `PanelAction::Mode`: implicit stop on MODE change implements the manual's
+   instruction to stop first; original live-switch behaviour is unspecified.
+3. `Button::Back`: Time-mode BACK and stopped track BACK browsing are useful
+   deterministic interpretations. The original BACK/D.S. multiplexing is not
+   fully reproduced; there is no persisted D.S. marker in the current model.
+4. `Editor::bar_digit`: FUNCTION-held decimal measure entry and DOWN=9/UP=0
+   secondary legend mapping need confirmation against a clearer panel scan.
+5. `Editor::pitch`: track/pattern shift treats C as zero, C' as +12, and held
+   DOWN as the -12..0 range. Exact original negative-shift procedure is uncertain.
+   Pitch entry saturates at sixteen until BACK or PITCH MODE; behaviour beyond
+   the sixteenth original pitch has not been established.
+6. `Editor::preview_note`: preview gate remains high until key/TAP release;
+   analog VEG supplies decay. Original CPU preview-gate pulse width is unmeasured.
+7. CLEAR uses deterministic Mid-C/default rhythm storage rather than emulating
+   undocumented stale/random pitch data on the original machine.
+8. `Editor::tick`: a discontinuous host seek restarts the current chain at the
+   new beat. Original hardware has no corresponding host-seek history.
+
+The pre-existing VERIFY items above (gate duty, slide-switch timing and signed
+track transpose representation) still apply. No analog component estimates were
+introduced.
+
+### Editor validation and remaining limits
+
+`cargo test --offline -p dw303-sequencer` passes 27 integration tests: the
+16 existing core tests plus 11 panel scenarios. New coverage includes pitch/time
+entry, correction, recall-held flags, octave preview, length/triplet limits,
+clear chords, shared key identity, duplicate downs, exhausted pitch memory,
+series queues, cross-block rejection, mixed timing, inter-pattern slide/tie,
+queued-switch history, eight-pulse MIDI triplets, track shift/D.C./chained write,
+insert/delete, designated playback, LEDs/blink phase, preview trigger consumption,
+invalid inputs, full-track bounds and codec round trips after edits.
+
+Scoped Clippy with `--all-targets -- -D warnings` and rustfmt checks pass.
+The editor allocates nothing and uses fixed-size arrays. Playback uses bounded
+history reconstruction through the existing track renderer; no unbounded loop,
+unsafe code, new dependency or codec change was introduced. CPU deadlines and
+allocator instrumentation have not been measured.
+
+Remaining limitations: shared-memory extended tracks (65–256 measures), persisted
+D.S./sign markers, real-time metronome/TAP rhythm recording, original power-up RAM
+artefacts, full decimal measure/step-count LED encoding and hardware-calibrated
+lamp timing are not implemented. BAR addressing is limited to the model's 64
+measures. Semantic secondary-key inputs are preferable until panel legend mapping
+is verified. Memory edits and editor transients require host-side coherent
+publication; undo/redo and persistent front-panel selection remain host concerns.

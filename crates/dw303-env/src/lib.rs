@@ -134,6 +134,18 @@ struct Circuit {
     c: Components,
     dt: f64,
     bad: Cell<u64>,
+    rc_coefficients: [Coefficient; 2],
+    audio_taper: Cell<Option<(u64, f64)>>,
+    vca_unity_drive: f64,
+    meg_attack_tau: f64,
+    veg_attack_tau: f64,
+    veg_decay_tau: f64,
+    veg_release_tau: f64,
+    accent_leak_tau: f64,
+    accent_charge_tau: f64,
+    accent_combined_tau: f64,
+    output_tau: f64,
+    output_k: f64,
 }
 impl Circuit {
     fn new(c: Components) -> Self {
@@ -141,6 +153,22 @@ impl Circuit {
             c,
             dt: 1.0 / 48_000.0,
             bad: Cell::new(0),
+            rc_coefficients: [Coefficient::default(), Coefficient::default()],
+            audio_taper: Cell::new(None),
+            vca_unity_drive: unity_drive(c),
+            meg_attack_tau: tau(c.meg_attack_resistance, c.meg_capacitance),
+            veg_attack_tau: tau(c.veg_attack_resistance, c.veg_capacitance),
+            veg_decay_tau: tau(c.veg_decay_resistance, c.veg_capacitance),
+            veg_release_tau: tau(c.veg_release_resistance, c.veg_capacitance),
+            accent_leak_tau: tau(c.accent_discharge_resistance, c.accent_capacitance),
+            accent_charge_tau: tau(c.accent_charge_resistance, c.accent_capacitance),
+            accent_combined_tau: 1.0
+                / (1.0 / tau(c.accent_discharge_resistance, c.accent_capacitance)
+                    + 1.0 / tau(c.accent_charge_resistance, c.accent_capacitance)),
+            output_tau: tau(c.output_load_resistance, c.output_capacitance),
+            output_k: -libm::expm1(
+                -(1.0 / 48_000.0) / tau(c.output_load_resistance, c.output_capacitance),
+            ),
         }
     }
     fn prepare(&mut self, rate: f64) -> Result<(), StageError> {
@@ -148,7 +176,23 @@ impl Circuit {
             return Err(StageError::InvalidSampleRate);
         }
         self.dt = 1.0 / rate;
+        self.output_k = -libm::expm1(-self.dt / self.output_tau);
         Ok(())
+    }
+    fn rc(&self, slot: usize, v: f64, target: f64, time: f64, t: f64) -> f64 {
+        let coefficient = self.rc_coefficients[slot].get(time, t);
+        flush(target + (v - target) * coefficient)
+    }
+    fn audio(&self, x: f64) -> f64 {
+        let key = x.to_bits();
+        if let Some((old, result)) = self.audio_taper.get()
+            && key == old
+        {
+            return result;
+        }
+        let result = audio(x);
+        self.audio_taper.set(Some((key, result)));
+        result
     }
     fn input(&self, x: f64) -> f64 {
         if x.is_finite() {
@@ -167,6 +211,43 @@ impl Circuit {
         }
     }
 }
+// Cache the exact exponential, including split pulse/crossing durations. Both
+// arguments are compared bitwise; rate changes are naturally part of the key.
+#[derive(Clone, Default)]
+struct Coefficient {
+    cached: Cell<Option<(u64, u64, f64)>>,
+}
+impl Coefficient {
+    fn get(&self, time: f64, t: f64) -> f64 {
+        let key = (time.to_bits(), t.to_bits());
+        if let Some((old_time, old_tau, result)) = self.cached.get()
+            && key == (old_time, old_tau)
+        {
+            return result;
+        }
+        let result = libm::exp(-time / t);
+        self.cached.set(Some((key.0, key.1, result)));
+        result
+    }
+}
+fn drive(x: f64, threshold: f64, vt: f64) -> f64 {
+    let z = (x - threshold) / vt;
+    if z > 40.0 {
+        x - threshold
+    } else {
+        vt * libm::log1p(libm::exp(z))
+    }
+}
+fn unity_drive(c: Components) -> f64 {
+    let threshold = value(c.vca_threshold_voltage, 0.6).min(12.0);
+    let vt = value(c.thermal_voltage, 0.026).clamp(1e-6, 1.0);
+    drive(
+        value(c.vca_unity_voltage, 5.0).clamp(threshold + vt, 24.0),
+        threshold,
+        vt,
+    )
+    .max(1e-9)
+}
 // Component bounds protect against invalid user tolerance configurations as well
 // as absurd finite signal inputs, without adding a second lifecycle error type.
 fn value(x: f64, nominal: f64) -> f64 {
@@ -182,6 +263,7 @@ fn tau(r: f64, c: f64) -> f64 {
 fn flush(x: f64) -> f64 {
     if x.abs() < 1e-24 { 0.0 } else { x }
 }
+#[cfg(test)]
 fn rc(v: f64, target: f64, time: f64, t: f64) -> f64 {
     flush(target + (v - target) * libm::exp(-time / t))
 }
@@ -242,11 +324,12 @@ impl Meg {
         }
         let charge = self.charge_remaining.min(self.circuit.dt);
         self.charge_remaining -= charge;
-        self.voltage = rc(
+        self.voltage = self.circuit.rc(
+            0,
             self.voltage,
             value(c.meg_source_voltage, 5.0).min(12.0),
             charge,
-            tau(c.meg_attack_resistance, c.meg_capacitance),
+            self.circuit.meg_attack_tau,
         );
         let resistance = value(c.meg_decay_resistance, 200e3)
             + if accent {
@@ -254,7 +337,8 @@ impl Meg {
             } else {
                 d * value(c.decay_pot_resistance, 2.3e6)
             };
-        self.voltage = rc(
+        self.voltage = self.circuit.rc(
+            1,
             self.voltage,
             0.0,
             self.circuit.dt - charge,
@@ -297,23 +381,21 @@ impl Veg {
         }
         let charge = self.charge_remaining.min(self.circuit.dt);
         self.charge_remaining -= charge;
-        self.voltage = rc(
+        self.voltage = self.circuit.rc(
+            0,
             self.voltage,
             value(c.veg_source_voltage, 5.0).min(12.0),
             charge,
-            tau(c.veg_attack_resistance, c.veg_capacitance),
+            self.circuit.veg_attack_tau,
         );
-        let r = if gate {
-            c.veg_decay_resistance
+        let t = if gate {
+            self.circuit.veg_decay_tau
         } else {
-            c.veg_release_resistance
+            self.circuit.veg_release_tau
         };
-        self.voltage = rc(
-            self.voltage,
-            0.0,
-            self.circuit.dt - charge,
-            tau(r, c.veg_capacitance),
-        );
+        self.voltage = self
+            .circuit
+            .rc(1, self.voltage, 0.0, self.circuit.dt - charge, t);
         self.voltage
     }
 }
@@ -344,27 +426,30 @@ impl AccentSweep {
         let r = self.circuit.knob(resonance);
         let c = self.circuit.c;
         let source = (m * a - value(c.accent_diode_voltage, 0.6)).max(0.0);
-        let leak_tau = tau(c.accent_discharge_resistance, c.accent_capacitance);
-        let charge_tau = tau(c.accent_charge_resistance, c.accent_capacitance);
+        let leak_tau = self.circuit.accent_leak_tau;
+        let charge_tau = self.circuit.accent_charge_tau;
         // Charge and leakage conductances act simultaneously while the diode
         // conducts. Split exactly at diode turn-off within the sample.
         if accent_gate && source > self.voltage {
-            let t = 1.0 / (1.0 / leak_tau + 1.0 / charge_tau);
+            let t = self.circuit.accent_combined_tau;
             let target = source * t / charge_tau;
-            self.voltage = rc(self.voltage, target, self.circuit.dt, t);
+            self.voltage = self.circuit.rc(0, self.voltage, target, self.circuit.dt, t);
         } else if accent_gate && source > 0.0 {
             let crossing = leak_tau * libm::log((self.voltage / source).max(1.0));
             let off = crossing.min(self.circuit.dt);
-            self.voltage = rc(self.voltage, 0.0, off, leak_tau);
-            let t = 1.0 / (1.0 / leak_tau + 1.0 / charge_tau);
-            self.voltage = rc(
+            self.voltage = self.circuit.rc(1, self.voltage, 0.0, off, leak_tau);
+            let t = self.circuit.accent_combined_tau;
+            self.voltage = self.circuit.rc(
+                0,
                 self.voltage,
                 source * t / charge_tau,
                 self.circuit.dt - off,
                 t,
             );
         } else {
-            self.voltage = rc(self.voltage, 0.0, self.circuit.dt, leak_tau);
+            self.voltage = self
+                .circuit
+                .rc(1, self.voltage, 0.0, self.circuit.dt, leak_tau);
         }
         let floor = value(c.resonance_sweep_floor, 0.25).min(1.0);
         self.voltage * (floor + (1.0 - floor) * r)
@@ -391,7 +476,7 @@ impl FilterControl {
     /// VERIFY: Summing gains, polarity, reference and limits need SPICE calibration.
     pub fn bias_current(&self, cutoff: f64, env_mod: f64, meg: f64, accent_sweep: f64) -> f64 {
         let cutoff = self.circuit.knob(cutoff);
-        let env = audio(self.circuit.knob(env_mod));
+        let env = self.circuit.audio(self.circuit.knob(env_mod));
         let meg = self.circuit.input(meg).clamp(0.0, 12.0);
         let sweep = self.circuit.input(accent_sweep).clamp(0.0, 12.0);
         let c = self.circuit.c;
@@ -429,17 +514,7 @@ impl Vca {
         let c = self.circuit.c;
         let threshold = value(c.vca_threshold_voltage, 0.6).min(12.0);
         let vt = value(c.thermal_voltage, 0.026).clamp(1e-6, 1.0);
-        let drive = |x: f64| {
-            let z = (x - threshold) / vt;
-            if z > 40.0 {
-                x - threshold
-            } else {
-                vt * libm::log1p(libm::exp(z))
-            }
-        };
-        value(c.vca_leakage, 1e-5).min(1.0)
-            + drive(v)
-                / drive(value(c.vca_unity_voltage, 5.0).clamp(threshold + vt, 24.0)).max(1e-9)
+        value(c.vca_leakage, 1e-5).min(1.0) + drive(v, threshold, vt) / self.circuit.vca_unity_drive
     }
     /// Process VCF node voltage using VEG and accent control; return output V.
     pub fn tick(&mut self, input: f64, veg: f64, accent_gate: bool, accent: f64) -> f64 {
@@ -483,10 +558,10 @@ impl OutputStage {
     /// VERIFY: VOLUME/ENV MOD audio taper is estimated at 10% at half rotation.
     pub fn tick(&mut self, input: f64, volume: f64) -> f64 {
         let input = self.circuit.input(input).clamp(-24.0, 24.0);
-        let volume = audio(self.circuit.knob(volume));
+        let volume = self.circuit.audio(self.circuit.knob(volume));
         let c = self.circuit.c;
-        let t = tau(c.output_load_resistance, c.output_capacitance);
-        let k = -libm::expm1(-self.circuit.dt / t);
+        let t = self.circuit.output_tau;
+        let k = self.circuit.output_k;
         let delta = input - self.capacitor_voltage;
         self.capacitor_voltage = flush(self.capacitor_voltage + delta * k);
         flush(delta * k * t / self.circuit.dt * volume * value(c.output_buffer_gain, 1.0).min(24.0))

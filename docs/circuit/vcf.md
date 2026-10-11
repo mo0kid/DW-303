@@ -139,15 +139,21 @@ feedback loop. This is a ZDF solve, not delayed explicit feedback.
 The analytic derivatives use `cosh(delta/S)/S` for each interior junction,
 `(1 - tanh(u/S)^2)/S` for the input pair, and `1 - tanh(v3/H)^2` for the
 amplifier. The unit test checks every Jacobian entry with central differences
-in both qualities. A six-by-six partial-pivot Gaussian elimination uses
-stack arrays. Warm start is the previous solution, without extrapolation.
+in both qualities. The linear solve eliminates the two feedback RC states, followed by the
+tridiagonal ladder and its feedback corner, using stack values. A six-by-six
+partial-pivot Gaussian elimination remains the fallback for non-finite or
+near-zero pivots. The initial guess extrapolates the previous endpoint
+derivative only when every predicted voltage step is at most 1 mV; otherwise
+it uses the previous solution. Neither solver changes the residual equations.
 
 Newton has at most **eight iterations**, with absolute infinity-norm
 residual tolerance **1e-13 V** across all six companion equations. Each step
 has at most eight backtracking trials, halving damping until the residual
 decreases. A final residual check allows the eighth update to converge.
-Worst case is eight linear solves and 74 flow/Jacobian evaluations, including
-backtracking and the final history update. There are no data-dependent
+Accepted backtracking evaluations are reused for the next iteration, history
+and output. Worst case is eight linear solves and 66 flow/Jacobian evaluations
+(one initial evaluation, 64 backtracking evaluations, and one history
+reevaluation if tiny-state flushing changes the solution). There are no data-dependent
 unbounded loops, heap calls or unsafe operations.
 
 Failed convergence retains the previous physical state/history and counts
@@ -171,7 +177,7 @@ nominals at construction; their accepted finite range is 1e-15..1e9 SI units.
 Economy replaces each interior `sinh(delta/S)` with `delta/S`; the differential
 input pair and output amplifier remain nonlinear. The same loaded netlist,
 capacitors, feedback RC states and implicit integration are preserved. It
-avoids eight interior transcendental evaluations per flow/Jacobian evaluation
+avoids four interior exponentials per flow/Jacobian evaluation
 and generally uses fewer iterations. It still uses Newton for the input-pair
 feedback closure. This avoids introducing a different phase response or a
 delayed feedback path in the cheaper mode. It loses interior-junction drive
@@ -212,7 +218,8 @@ Evidence covered by the tests:
 - 35,840 consecutive samples per sweep run, **both** qualities at
   44.1/48/96/192/384 kHz: seven currents from 0 to 1 mA, four resonance
   settings, five input amplitudes from 0 to 12 V, with abrupt transitions.
-  **Zero non-convergence** across all runs. Full mean iterations 2.571..2.945;
+  **Zero non-convergence** across all runs. Before the performance pass,
+  Full mean iterations were 2.571..2.945;
   Economy 2.297..2.657; maximum eight. This is the bounded-CPU iteration
   statistic smoke test, not a timing benchmark.
 - One million samples **per quality**, maximum resonance, 6 V peak input,
@@ -221,8 +228,9 @@ Evidence covered by the tests:
   are also tested.
 
 These validate the implemented equations, not original-unit fidelity.
-No SPICE golden data, TD-03 captures, allocator instrumentation or CPU timing
-were available. Scope restrictions prevent creating `reference/spice` assets.
+No SPICE golden data, TD-03 captures or allocator instrumentation were
+available. CPU timing from the later performance pass appears below.
+Scope restrictions prevent creating `reference/spice` assets.
 
 ## VERIFY inventory and remaining weaknesses
 
@@ -260,3 +268,69 @@ frequency warping remains near Nyquist; Economy needs large-signal listening
 and CPU benchmarking. Sample-rate tests establish the stated operating points,
 not accuracy at every current/frequency combination. The fallback can freeze
 state on persistent failure; diagnostics must be monitored in integration.
+
+## Performance pass (2026-10-11)
+
+The original algorithm was frozen in `tests/support/reference.rs` before any
+production changes. Regression tests compare Full and Economy at 48/96/192 kHz
+under sinusoidal drive, rest/gate transitions, accent-like drive changes,
+continuous resonance sweeps, abrupt bias changes from zero through 1 mA,
+overdrive, non-finite signals, quality switching and reset. A separate test
+compares 192,000 consecutive seeded self-oscillation samples at each rate.
+The bound is `1e-6 * max(1, abs(reference))` (1 uV absolute / 1 ppm relative).
+All waveform comparisons and non-convergence comparisons pass.
+
+The implementation retains the original equations, eight Newton iterations,
+eight backtracking trials, **1e-13 V** residual tolerance, junction continuation,
+flush thresholds and hold-on-failure fallback:
+
+- Cache capacitance reciprocals, thermal scaling and feedback RC rates.
+- Reuse the accepted trial's residual/Jacobian for the next Newton iteration;
+  reuse its final flow and amplifier value for history/output unless flushing
+  changes the state.
+- Evaluate sinh/cosh together using one exponential and its reciprocal.
+- Solve the same six linear equations using their sparse ladder/feedback
+  structure; reuse pivot reciprocals. The original pivoted dense solver remains
+  the numerical fallback. A unit test compares both solutions and checks the
+  matrix residual across both qualities, all three rates, zero–1 mA bias and
+  resonance extremes, plus deliberate fallback activation.
+- Predict the next solution from the previous endpoint derivative only for
+  predicted changes <=1 mV per node. An unrestricted predictor failed the
+  extreme-current stability sweep and was rejected. The restricted predictor
+  passes it and reduces typical renderer iterations from three to two.
+
+Final package checks: **12 tests passed**, one manual timing test ignored by
+normal runs; offline clippy `--all-targets -- -D warnings` passed; all assigned
+Rust files pass direct rustfmt checks. Existing analytic response, Jacobian,
+self-oscillation, rate-independence and long-run/extreme-grid tests remain
+passing with zero non-convergence.
+
+Reproducible stage comparison (384,000 samples at 192 kHz, 3 V sinusoidal drive,
+20 uA bias, resonance 0.7):
+
+```
+cargo test --offline --release -p dw303-vcf --test regression performance_comparison -- --ignored --nocapture
+```
+
+Frozen VCF: **281.306 ms**; optimized VCF: **109.159 ms**, **2.58x** faster.
+Construction and WAV I/O are excluded. This benchmark retains the same residual
+tolerance and Full quality.
+
+The requested eight-second full-voice renderer measured **31.0%** of one core
+before the pass (2.484 s) and **12.6% / 12.5%** on final repeats
+(1.005 / 1.004 s). Final VCF telemetry: 1,536,000 samples, 3,095,581 iterations,
+maximum three, **zero non-convergence**; the baseline used 4,607,970 iterations.
+The **<=10% target remains unmet**. Other crates were under concurrent editing;
+these full-workspace timings do not isolate VCF changes. The frozen-stage
+benchmark does. macOS `sample` was attempted but could not examine the running
+renderer under current execution permissions.
+
+All **nine VERIFY items** in the inventory above remain unchanged, with no new
+schematic-validation claim. Known weaknesses of the reduced circuit remain.
+The sparse solver can fall back to dense elimination for unusual components;
+both paths are bounded. The predictor's 1 mV cutoff is a numerical initial-guess
+safeguard, not a circuit voltage limit or altered model equation. Direct
+exp/reciprocal sinh evaluation loses some relative precision for tiny junction
+arguments; the specified absolute waveform regression and original tight
+Newton/stability tests pass. Economy-specific wall-clock speedup and full
+hardware/SPICE fidelity remain unmeasured.

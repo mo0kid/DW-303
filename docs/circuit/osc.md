@@ -64,8 +64,9 @@ Vc/Rc = alphaF Is [exp((Ve-Vb)/Vt)-1]
        - Is [exp((Vc-Vb)/Vt)-1]
 ```
 
-A 32-iteration bisection between ground and supply covers forward operation,
-cutoff and reverse base-collector conduction in saturation. The exponential
+A warm-started Newton solve with a ground-to-supply bisection safeguard and
+a 40-iteration bound covers forward operation, cutoff and reverse
+base-collector conduction in saturation. The exponential
 arguments are bounded for numerical safety. A collector capacitor rounds edges;
 a second coupling capacitor removes DC and tilts the plateau. RC states use
 exact sample-held solutions. The collector equation assumes stiff base/emitter
@@ -89,8 +90,8 @@ frequency to 0.45 × stage rate and counts affected samples. Static frequency
 and charging-current queries retain the uncapped physical expo law.
 Tiny RC state values below 1e-24 V are flushed to zero, well above denormal scale.
 The Fourier arrays are built once in `new`; ticks use bounded stack/state work.
-There is no runtime performance-budget benchmark yet; this solution costs more
-CPU than a small BLEP kernel, especially for bass notes.
+Performance measurements from the October 2026 pass appear below. The harmonic
+reconstruction remains costly for bass notes.
 
 ## Validation evidence
 
@@ -175,7 +176,71 @@ its alias budget is not measured or guaranteed by the saw test. The voice's
 oversampling/decimation remains necessary. RC discretisation holds drive over a
 sample and omits feedback from transistor base current. A base-drive/collector
 SPICE sweep and per-note hardware waveforms are needed before claiming accurate
-TB-303 emulation. No runtime allocation instrumentation or CPU benchmark was
-run; allocation freedom follows from the fixed-storage production implementation.
+TB-303 emulation. No runtime allocation instrumentation was run; allocation freedom follows
+from the fixed-storage production implementation. CPU results appear below.
 
 Reference authority: [Roland TB-303 Service Notes scan](https://manuals.plus/m/71f1fcca7c758c8dbacf98dc21ee3002403ac1134016b6e45ee08cd3fa7e809f.pdf).
+
+## Performance pass (2026-10-11)
+
+The original production implementation was frozen in
+`tests/support/reference.rs` before any hot-path changes. The regression test
+compares every sample from PitchCv, Vco (both waveform nodes and static
+frequency/current queries), and the independent SquareShaper at 48/96/192 kHz.
+It exercises held notes, slide, continuous tuning sweeps, simulated rest/accent
+level changes, extreme CV/input, non-finite signals, reset, prepare and bandwidth
+changes. The limit is `1e-6 * max(1, abs(reference))`, i.e. 1 uV absolute below
+1 V and 1 ppm relative above it. All comparisons pass.
+
+Changes preserve the equations, gains, Fourier limit and recurrence/summation
+order:
+
+- Precompute the fixed 224–256 harmonic taper at construction.
+- Cache the exponential frequency query by bitwise CV/tuning comparison, and
+  harmonic gains by bitwise rendered-frequency comparison. Prepare and actual
+  bandwidth changes invalidate gains. Slides retain their exact instantaneous
+  frequencies; there is no pitch quantisation or tolerance-based cache reuse.
+- Rebuild only the bandwidth fade; restore gains crossing into the flat
+  passband. Harmonic counts use bounded quotient correction with the original
+  floating-point comparison order. An exhaustive unit test checks both sides
+  of every harmonic boundary at all three rates.
+- Unroll the branch-free summation four harmonics at a time, retaining scalar
+  recurrence and accumulation order. Share phase reduction using `libm::sincos`.
+- Hoist square-shaper constants and cache exp/expm1 at the existing -80/+40
+  argument clamps. These are the same libm values, rather than approximations.
+  Unclamped junctions retain the original transcendental calls and solver.
+
+Final package checks: **12 tests passed**, two manual timing tests ignored by
+normal runs; offline clippy with `--all-targets -- -D warnings` passed;
+all assigned Rust files pass direct rustfmt checks. Existing two-million-sample
+stability, pitch, shape, RC and saw-alias tests remain passing.
+
+Reproducible stage comparison (384,000 samples at 192 kHz, held pitches switching
+between 0–3 V every 24,000 samples, 20 kHz bandwidth):
+
+```
+cargo test --offline --release -p dw303-osc --test regression performance_comparison -- --ignored --nocapture
+```
+
+The frozen VCO took **243.089 ms**, the optimized VCO **146.976 ms**, **1.65x**
+faster, including its square shaper. Construction and WAV I/O are excluded.
+These are wall-clock measurements, not a hardware-counter profile.
+
+The requested eight-second full-voice renderer measured **31.0%** of one core
+before the pass (2.484 s), then **12.6% / 12.5%** on final repeats
+(1.005 / 1.004 s). Both final renders report zero VCF non-convergence and
+unchanged peak/RMS to the printed precision. The **<=10% target remains unmet**.
+Other packages were under concurrent editing; full-workspace timings cannot
+isolate this crate's contribution. The frozen per-stage comparison does.
+macOS `sample` was attempted on the running renderer for five seconds, but
+could not examine it under the execution permissions; no sampled-profile
+claim is made.
+
+All **26 VERIFY entries** in the complete register above are retained. No
+component or topology was newly promoted to schematic-verified. Additional
+performance limitations: slides still rebuild the fade every sample; bass
+notes still require up to 256 serial harmonics. A trial four-lane recurrence
+changed one saw sample by only 3e-16 V, but the existing safeguarded square solve
+after extreme transitions amplified it to about 0.155 V. That trial was
+reverted. This reveals a pre-existing numerical sensitivity of the square
+solver; changing its observable behaviour is outside this preservation pass.
