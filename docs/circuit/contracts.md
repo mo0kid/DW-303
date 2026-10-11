@@ -40,90 +40,88 @@ the integration boundary. Change them only by editing this file first.
     tolerance at 48k/96k/192k)
   - the documented qualitative behaviour of the original circuit
 
+## Revision 2 (schematic-based)
+
+The schematic is now transcribed. The authority is
+`reference/schematic/netlist.md` and its per-block files. `Components::NOMINAL`
+values must cite reference designators from those files. Anything not printed
+on the schematic (transistor models, saturation currents, betas) stays marked
+`VERIFY:`.
+
 ## `dw303-osc`: pitch CV, VCO and square shaper
 
 ```rust
-pub struct PitchCv { .. }          // sequencer DAC + slide lag
+pub struct PitchCv { .. }   // 6-bit DAC + IC11b buffer + slide (IC12, C35)
 impl PitchCv {
-    pub fn new(c: Components) -> Self;
-    pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError>;
-    pub fn reset(&mut self);
-    /// `note`: semitone index from the sequencer (0 = lowest note, C).
-    /// The octave/transpose are already folded into the index.
-    /// `slide`: slide switch state for the current step.
-    /// Returns the control voltage presented to the VCO expo converter (V).
+    /// `note`: sequencer semitone index, 0 = lowest C = 1.000 V (DAC code 11).
+    /// Voltage = (code+1)/12 V with code = note + 11, clamped to the 6-bit range.
+    /// `slide`: SLIDE line. When high, C35 (0.22 uF) charges through the ladder
+    /// Thevenin resistance (100 k, tau 22 ms). When low, C35 tracks the buffered CV.
+    /// Returns the CV node voltage (TP4 / CV OUT jack).
     pub fn tick(&mut self, note: u8, slide: bool) -> f64;
 }
 pub struct Vco { .. }
 impl Vco {
-    pub fn new(c: Components) -> Self;
-    pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError>;
-    pub fn reset(&mut self);
-    /// `cv`: from PitchCv. `tuning`: TUNING knob 0..=1 (0.5 = centre).
+    /// `cv`: from PitchCv. `tuning`: VR2 rotation 0..=1 (0.5 = centre, about +/-700 cents).
     pub fn tick(&mut self, cv: f64, tuning: f64) -> VcoOut;
-    pub fn frequency_hz(&self, cv: f64, tuning: f64) -> f64; // static expo law
+    pub fn frequency_hz(&self, cv: f64, tuning: f64) -> f64; // 1.000 V -> 32.70 Hz at centre
+    pub fn set_band_limit(&mut self, hz: Option<f64>);
 }
-pub struct VcoOut { pub saw: f64, pub square: f64 } // node voltages at the WAVEFORM switch
+pub struct VcoOut { pub saw: f64, pub square: f64 } // Q28 source (12 V -> 5.5 V ramp), Q8 collector (5-8 V)
 ```
-
-Saw reset discontinuities need band-limited correction (BLEP/BLAMP or an
-equivalent); naive resets are not acceptable. The square comes from the
-transistor waveshaper driven by the saw, not from a comparator.
 
 ## `dw303-vcf`: diode-ladder VCF
 
 ```rust
 pub struct Vcf { .. }
 impl Vcf {
-    pub fn new(c: Components) -> Self;
-    pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError>;
-    pub fn reset(&mut self);
-    /// `input`: voltage at the VCF input node (after WAVEFORM switch/mixing).
-    /// `bias_current`: ladder bias current from the cutoff expo converter (A).
-    /// `resonance`: RESONANCE knob 0..=1 (feedback gang only).
-    /// Returns the VCF output node voltage.
-    pub fn tick(&mut self, input: f64, bias_current: f64, resonance: f64) -> f64;
-    pub fn set_quality(&mut self, q: Quality);   // Full (Newton) | Economy
-    pub fn diagnostics(&self) -> VcfDiagnostics; // iterations, non-convergence count
+    /// `input`: WAVEFORM switch common voltage (before R62 220K / C17).
+    /// `ladder_current`: Q11 collector current (A) from FilterControl.
+    /// `resonance`: VR4 rotation (gang A, feedback).
+    pub fn tick(&mut self, input: f64, ladder_current: f64, resonance: f64) -> VcfOut;
+    pub fn set_quality(&mut self, q: Quality);
+    pub fn diagnostics(&self) -> VcfDiagnostics;
+}
+pub struct VcfOut {
+    pub output: f64,        // C14 output node (VR4A terminal 3), AC volts
+    pub resonance_tap: f64, // VR4A wiper, which also feeds the VCA through C22/R122
 }
 ```
 
-The model has these properties:
-- It is solved by Newton–Raphson per sample with trapezoidal (ZDF)
-  discretisation, an analytic Jacobian, a warm start and bounded iterations.
-- The ladder stage capacitors are unequal, as on the original.
-- There is a feedback path through the RESONANCE pot, and a high-pass coupling
-  in the loop that reduces resonance at low cutoff.
-- Economy mode is a cheaper approximation, tested against Full.
+The model must cover:
+- rung capacitors C26/C24/C19 = 33 nF and C18 = 18 nF;
+- the Q12 input pair with R62/R70 input attenuation and C17 coupling;
+- the Q21 differential output with C25/C27 coupling and the Q19 follower;
+- the C14 output;
+- resonance feedback VR4A → C15 → Q18 → C23 → R97/R98 into the Q12 right base.
 
-## `dw303-env`: MEG, VEG, accent sweep, cutoff control, VCA, output
+## `dw303-env`: trigger, MEG, accent, cutoff control, VEG, VCA, mixer
 
 ```rust
-pub struct Meg { .. }   // main (filter) envelope generator
-impl Meg {
-    /// `trigger`: true on the sample a new note's gate begins (not on slid steps).
-    /// `accent`: accent active for the current step (forces minimum decay).
-    pub fn tick(&mut self, trigger: bool, accent: bool, decay: f64) -> f64; // V
-}
-pub struct Veg { .. }   // VCA envelope generator
-impl Veg { pub fn tick(&mut self, gate: bool, trigger: bool) -> f64; } // V
-pub struct AccentSweep { .. }  // accent RC network, dual-gang with RESONANCE
-impl AccentSweep {
-    /// `accent_gate`: accent && gate for the current step. `meg`: MEG voltage.
-    pub fn tick(&mut self, accent_gate: bool, meg: f64, accent: f64, resonance: f64) -> f64; // V
-}
-pub struct FilterControl { .. } // cutoff pot + env mod + accent sweep -> expo converter
+pub struct TriggerPulse { .. } // Q38 one-shot (R148/C54, about 1.4 ms)
+impl TriggerPulse { pub fn tick(&mut self, trigger: bool) -> f64; } // pulse node voltage
+pub struct Meg { .. }  // C62 charge (D37/R152), discharge R138 + VR6 (DECAY) into D26-D28 clamp; Q41/Q40 buffer
+impl Meg { pub fn tick(&mut self, pulse: f64, accent: bool, decay: f64) -> f64; } // buffered MEG voltage
+pub struct Accent { .. } // IC12 1/2 gate + VR7 ACCENT pot
+impl Accent { pub fn tick(&mut self, accent: bool, meg: f64, accent_knob: f64) -> f64; } // VR7 wiper voltage
+pub struct AccentSweep { .. } // D24, R46, VR4B gang, C13, R72
+impl AccentSweep { pub fn tick(&mut self, accent_wiper: f64, resonance: f64) -> f64; } // VR4B wiper voltage
+pub struct FilterControl { .. } // VR3 CUTOFF, TM3, R73, VR5 ENV MOD, R63, R72/R71, Q9 VQ9, Q10/Q11 expo
 impl FilterControl {
-    /// Returns the VCF ladder bias current (A), the input to `Vcf::tick`.
-    pub fn bias_current(&self, cutoff: f64, env_mod: f64, meg: f64, accent_sweep: f64) -> f64;
+    pub fn ladder_current(&mut self, cutoff: f64, env_mod: f64, meg: f64, sweep_wiper: f64) -> f64; // A
 }
-pub struct Vca { .. }
-impl Vca { pub fn tick(&mut self, input: f64, veg: f64, accent_gate: bool, accent: f64) -> f64; }
-pub struct OutputStage { .. } // coupling HPF + VOLUME pot + buffer
-impl OutputStage { pub fn tick(&mut self, input: f64, volume: f64) -> f64; }
+pub struct Veg { .. } // C42 / R123 / Q32 discharge / Q31 control-current source
+impl Veg { pub fn tick(&mut self, pulse: f64) -> f64; } // VCA control current (A) before accent
+pub struct Vca { .. } // BA662A OTA; input sums VCF output (R121/C21) and resonance tap (R122/C22)
+impl Vca {
+    pub fn tick(&mut self, vcf: VcfSignals, veg_current: f64, accent_wiper: f64) -> f64; // C38 node
+}
+pub struct VcfSignals { pub output: f64, pub resonance_tap: f64 } // mirror of dw303_vcf::VcfOut (no crate dependency)
+pub struct OutputStage { .. } // VR8 VOLUME (50K A), mixer Q34/Q33 (VCA -2.13, MIX IN -1), C56/R161 to J6
+impl OutputStage { pub fn tick(&mut self, vca: f64, volume: f64, mix_in: f64) -> f64; } // OUTPUT jack volts
 ```
 
-All of these also implement `new(Components)`, `prepare` and `reset` as above.
+All stages also provide `new(Components)`, `prepare(rate)` and `reset()`.
 
 ## Shared error type
 
