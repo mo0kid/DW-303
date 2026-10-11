@@ -4,6 +4,8 @@ members = [
     "crates/dw303-vcf",
     "crates/dw303-env",
     "crates/dw303-sequencer",
+    "crates/dw303-engine",
+    "crates/dw303-clap",
 ]
 resolver = "3"
 
