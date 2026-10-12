@@ -137,16 +137,19 @@ components! {
     /// R145, Q36 collector load to ground.
     r145 = 10e3;
     /// C72, Q36 base-emitter storage (+ at the +12 V rail).
-    /// VERIFY: 10 µF printed → 12 µF joint session1/2 release fit (+20%).
+    /// VERIFY: 10 µF printed → 11 µF joint session1/2 gate-shape fit (+10%).
     /// R142/R143 and Q36's junction law are not separately identified by audio.
-    c72 = 12e-6;
-    /// VERIFY: Q36 collector current at the reference Vbe; the saturated gate
-    /// load is used as the junction reference pending device measurements.
-    q36_reference_current = 1.18e-3;
-    /// VERIFY: Q36 PNP Vbe at the gate-load reference current; generic
-    /// 0.65 V estimate → 0.55/0.46 V earlier fits → 0.40 V release fit.
-    /// Effective reduced-model junction parameter, not an internal measurement.
-    q36_vbe = 0.40;
+    c72 = 11e-6;
+    /// VERIFY: Q36 forward-active collector capacity at `q36_vbe`.
+    /// Gate-load estimate 1.18 mA → 1.90 mA fitted saturation headroom; the actual
+    /// collector current is limited by R145 and Q31's emitter load. This is
+    /// an effective junction parameter, not an internal-node measurement.
+    q36_reference_current = 1.90e-3;
+    /// VERIFY: Q36 PNP forward-junction reference, not a measured Vbe.
+    /// 0.65 V estimate → 0.40 V preceding fit → 0.50 V gate-shape fit.
+    /// This also clamps the C72 drive in the reduced saturation model; the
+    /// junction reference and saturation charge are not separately identified.
+    q36_vbe = 0.50;
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
@@ -762,6 +765,54 @@ mod tests {
         assert_eq!(m.circuit.dt, 1.0 / 192_000.0);
         assert_eq!(flush(1e-25), 0.0);
     }
+
+    #[test]
+    fn q36_discharge_is_bounded_by_forward_junction_currents() {
+        let c = Components::NOMINAL;
+        for rate in [48_000.0, 96_000.0, 192_000.0] {
+            let mut v = Veg::new(c);
+            v.prepare(rate).unwrap();
+            for _ in 0..(rate * 0.005) as usize {
+                v.tick(11.8);
+            }
+            for _ in 0..(rate * 0.055) as usize {
+                v.tick(0.0);
+            }
+            let initial_cap = v.capacitor_voltage();
+            let initial_current = v.tick(0.0);
+            let load =
+                (c.supply - c.saturation) / c.r145 + initial_current * (1.0 + 1.0 / c.q31_beta);
+            let maximum_base_drop = c.r142 * c.q36_reference_current / c.beta;
+            let minimum_base_drop = c.r142 * load / c.beta;
+            let threshold =
+                c.q36_vbe + c.thermal_voltage * libm::log(load / c.q36_reference_current);
+            let minimum_saturation_time = c.r142
+                * c.c72
+                * libm::log((c.q36_vbe + maximum_base_drop) / (threshold + maximum_base_drop));
+            v.set_gate(false);
+            let samples = (rate * minimum_saturation_time * 0.5).floor() as usize;
+            assert!(samples > 0);
+            for _ in 0..samples {
+                v.tick(0.0);
+            }
+            // Independent limiting RC solutions bound the decreasing forward
+            // junction current. A load/β-only saturation law falls on the
+            // upper bound, omitting the extra forward-junction base current.
+            let decay = (-(samples as f64) / rate / (c.r142 * c.c72)).exp();
+            let lower = (c.q36_vbe + maximum_base_drop) * decay - maximum_base_drop;
+            let upper = (c.q36_vbe + minimum_base_drop) * decay - minimum_base_drop;
+            assert!(v.gate_drive >= lower - 5e-5);
+            assert!(v.gate_drive < upper - 1e-5);
+            assert!(v.collector_current > initial_current * 0.985);
+            assert!(v.capacitor_voltage() > initial_cap);
+            assert!(v.gate_drive > threshold);
+            for _ in 0..(rate * 0.027).round() as usize {
+                v.tick(0.0);
+            }
+            assert_eq!(v.collector_current, 0.0);
+            assert!(v.gate_drive < threshold);
+        }
+    }
 }
 
 /// C72/Q36 gate supply, C41/Q32 reset, and C42/Q31 control current source.
@@ -788,6 +839,8 @@ impl Veg {
     }
     /// Discharge C42 on a positive TRIG pulse; return Q31 collector amperes.
     /// C42 otherwise recharges through R123, irrespective of the gate state.
+    /// VERIFY: Q36 uses a fixed-beta saturation reduction and the preceding
+    /// sample's Q31 emitter load; base-collector charge/recombination is omitted.
     pub fn tick(&mut self, pulse: f64) -> f64 {
         let pulse = self
             .circuit
@@ -833,13 +886,22 @@ impl Veg {
         // charge after it turns off. Saturation clamps forward base drive.
         // VERIFY: constant beta and a Vbe saturation clamp reduce Q36's
         // junction/storage dynamics; C72 and both resistors are printed.
-        let collector = if self.gate_drive == c.q36_vbe {
+        let capacity = if self.gate_drive == c.q36_vbe {
             c.q36_reference_current
         } else {
             c.q36_reference_current * libm::exp((self.gate_drive - c.q36_vbe) / c.thermal_voltage)
         };
-        let gate_voltage = (c.r145 * collector).min(c.supply - c.saturation);
-        let base_current = collector / c.beta;
+        // Q36's active capacity can exceed the load while saturated. GATE_HI
+        // then remains at the rail until C72 loses that forward-drive margin.
+        // Q31 also draws its emitter current from this node. Use its previous
+        // sample as a bounded explicit load, as for the C42 base-current term.
+        let emitter_load = self.collector_current * (1.0 + 1.0 / c.q31_beta);
+        let gate_voltage =
+            (c.r145 * (capacity - emitter_load)).clamp(0.0, (c.supply - c.saturation).max(0.0));
+        // VERIFY: forward-junction base current is capacity/beta. Additional
+        // base-collector recombination/forced-beta storage in saturation needs
+        // device validation; capacity is not actual collector load current.
+        let base_current = capacity / c.beta;
         let discharge = self.gate_drive / c.r142 + base_current;
         let charge = if self.gate {
             (c.supply - c.saturation - self.gate_drive) / c.r143

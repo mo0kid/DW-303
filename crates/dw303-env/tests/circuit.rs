@@ -437,6 +437,22 @@ fn q31_current_obeys_junction_equation_and_has_a_smooth_low_current_tail() {
 }
 
 #[test]
+fn gate_source_without_supply_headroom_stays_closed() {
+    let c = Components {
+        supply: 0.1,
+        saturation: 0.2,
+        ..Components::NOMINAL
+    };
+    let mut v = Veg::new(c);
+    for gate in [false, true] {
+        v.set_gate(gate);
+        for _ in 0..32 {
+            assert_eq!(v.tick(0.0), 0.0);
+        }
+    }
+}
+
+#[test]
 fn q36_gate_storage_has_a_short_monotone_release_at_all_rates() {
     let mut crossings = [0.0; 3];
     for (index, rate) in rates().into_iter().enumerate() {
@@ -460,8 +476,8 @@ fn q36_gate_storage_has_a_short_monotone_release_at_all_rates() {
         }
         assert!(crossed);
         assert_eq!(previous, 0.0);
-        // The joint C72/R142/Q36 fit extends the electrical 20%-current
-        // release to about 10 ms. Audible crossings also include output phase.
+        // The load-aware fit retains about 10 ms electrical 20%-current
+        // release. Audible crossings also include output phase and coupling.
         assert!(
             (0.009..0.011).contains(&crossings[index]),
             "fitted release at {rate} Hz: {} s",

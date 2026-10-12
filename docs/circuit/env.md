@@ -160,8 +160,8 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 | A-pot law | VR3 retains the preceding VCF fit; VR5/VR6 now have separate measured electrical track tables below. VR8 retains `(81^rotation−1)/80`, 10% at half rotation. A markings are printed; exact tracks are not. |
 | VR4 gang direction | Assume both move toward terminal 3 clockwise; VCF open item 3 does not establish correlation. |
 | VR7 steady-load reduction | The printed 50 kΩ track now loads R119/R120/D27. C36's transient current and D24 mutual loading are not exchanged across the voltage-only API. Full-turn source impedance is zero, so this correction cannot explain the full-ACCENT residual by itself. |
-| C72 / R142 / R143 | Printed 10 µF / 10 kΩ / 10 kΩ → current fit 12 µF / 10.5 kΩ / 9.5 kΩ. Earlier C72 fit was 8 µF. Resistors are at assumed ±5% tolerance bounds; only their combined gate response is constrained by output audio. |
-| Q36 junction reference | Generic 0.65 V; earlier fits 0.55/0.46 V → current effective 0.40 V at 1.18 mA. Joint gate attack/release fit with C72 and both resistors, not a measured transistor Vbe or Is. Constant beta 200 and the saturation clamp remain reductions. |
+| C72 / R142 / R143 | Printed 10 µF / 10 kΩ / 10 kΩ → current fit 11 µF / 10.5 kΩ / 9.5 kΩ. Earlier C72 fits were 8 and 12 µF. Resistors are at assumed ±5% tolerance bounds; only their combined gate response is constrained by output audio. |
+| Q36 junction reference | Generic 0.65 V; previous 0.40 V at 1.18 mA → current effective 0.50 V at 1.90 mA forward-active capacity. Joint gate-shape fit with C72; not a measured transistor Vbe or Is. Constant beta 200, forward-junction base current, saturation clamp and preceding-sample Q31 emitter load remain reductions. See the v7 phrase follow-up. |
 
 Other transcription open items remain explicit: duplicate C22/D27 are block
 qualified; R147's optional/selected notation is neglected against the assumed
@@ -1139,4 +1139,237 @@ cargo test --offline --release -p dw303-osc -p dw303-vcf -p dw303-env \
   -p dw303-standalone -p dw303-render -p dw303-capture
 cargo clippy --offline -p dw303-env -p dw303-voice --all-targets -- -D warnings
 cargo --offline fmt -p dw303-env -p dw303-voice -- --check
+```
+
+
+## Phrase dynamics follow-up (Harness v7, 2026-10-12)
+
+The starting renderer is the already merged round-10 implementation, including
+reciprocal C38/C59 loading and the previous retrigger work. Its v7 overall
+score is **0.752349791399**, SHA-256
+`2d7e313cea259a7c1d355f95aadcb55f9a8f3d71fab02ef5b4f575fd77bb0c17`.
+The rebuilt related-category baseline reproduces all six published category
+statistics exactly. Neither the scoring code nor capture data was changed.
+PLAN sections 3/4/6, the binding contract, v7 harness rules and the reconciled
+ENV/netlist authority were read before fitting.
+
+### Time-resolved diagnosis
+
+`crates/dw303-env/analysis/phrase_dynamics.py` now records 20-ms RMS windows at
+10-ms age increments, bin means, RMS after subtracting each bin's mean, the
+8-ms attack peak's age, and the next-onset interval. Bin-mean subtraction is
+an offline diagnostic, not a 30-Hz high-pass or a changed scoring metric.
+The audit retains absolute output levels, each gate island's independently
+measured acoustic arrival, every scheduled note and the original release age.
+No gain fit, release alignment or MIDI schedule adjustment is applied.
+
+All **119** combo phrases, patterns and repeat takes contain **1,042 notes**.
+Baseline medians below are signed model minus TD-3, in dB. Held decay means
+35–55-ms level minus 15–35-ms level. Raw gap bins are intentionally retained
+but can lie near/below capture noise; they are not a replacement for the
+harness's common floor and normalized trajectory distances.
+
+| Family | Notes | Attack peak | 15–35 ms | 35–55 ms | Held decay | Off 0–20 ms | Off 20–40 ms | Pre-next 20 ms |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| combo phrases | 832 | −0.276 | −0.245 | −0.259 | −0.090 | −3.237 | −0.541 | −5.388 |
+| session-1 patterns | 42 | −0.357 | −0.456 | −0.490 | −0.075 | −3.496 | +2.467 | −11.689 |
+| session-2 repeats | 168 | −0.340 | −0.425 | −0.535 | −0.114 | −4.260 | +2.029 | −4.568 |
+
+Combo first-note peak error is **−0.303 dB**, versus **−0.273 dB** on later
+notes. First/later held-decay errors are **−0.506/−0.061 dB**. Repeated normal
+attacks do not progressively lose their peak. The existing 48/96/192-kHz test
+also demonstrates that real Q38 pulses reset partly charged C42 and recharge
+C62 with <1% peak variation. This does not support weakening retriggers or
+resetting either storage node artificially. C54's printed 0.47-ms time constant
+is much shorter than the ordinary 62.5-ms phrase gap; omitted gate-edge recovery
+and R150/C55 sag remain VERIFY items, not evidence for a new long recovery law.
+
+The most consistent ordinary-note discrepancy is early release, not repeated
+attack height: output is several dB too quiet immediately after gate-off. On
+`pattern-classic`, median 10-ms release bins start at **−33.6/−66.6 dBFS** in
+hardware, versus **−37.5/−59.9 dBFS** in the model. Its later model tail is often
+too loud. Raw gaps change sign substantially between notes and carrier phases.
+At maximum ENV/RES there are also substantial held spectral/level errors;
+these cannot be uniquely assigned to VEG from output RMS alone.
+
+**VERIFY: timing attribution.** Release ages reuse the gate island's attack
+arrival offset. Host MIDI send/schedule times do not timestamp the hardware
+GATE_HI transition. Firmware note-off latency, Q36/C72, OTA behavior, coupling
+charge and carrier phase therefore remain confounded. Eight-ms peak windows
+are phase-sensitive at key 36, and raw quiet-gap values include background.
+
+### Rejected tolerance/device fits
+
+The fixed diagnostic set contains 120 captures, including 56 interactions,
+all 22 envelopes, all 3 gates, 3 patterns, 12 repeat takes and endpoint accent
+controls. Its category distribution differs from the full 620-capture matrix;
+its baseline weighted subset score is **0.974562051391**. Subset improvements
+were checked against the complete matrix rather than treated as acceptance.
+
+The examined Q36 reduction distinguishes its forward-active current capacity
+from collector load, includes Q31 emitter current drawn through D35/R133/R131,
+and lets C72 lose saturation headroom before GATE_HI falls. The load uses the
+preceding sample's Q31 current to avoid an extra real-time solve.
+
+| Trial | Previous → trial values / result |
+|---|---|
+| Extra headroom only | Q36 current reference **1.18 → 3 mA**, C72 **12 µF**, Vbe **0.40 V**, base current from collector load/β. Diagnostic score **1.387846**; release is much too long. Rejected. |
+| Nominal C72 / generic junction | C72 **12 → 10 µF** (printed 10), Q36 Vbe **0.40 → 0.65 V**, reference **1.18 → 5 mA**, collector-load/β base reduction. Diagnostic score improves, but complete interaction aggregate rises about **5.8%**, and accent about **2.5%**. Rejected. |
+| Preserve more of the old attack | C72 **12 → 9.5 µF** (printed 10), Vbe **0.40 → 0.60 V**, reference **1.18 → 5 mA**, collector-load/β. Complete overall **0.748682631491**, but interaction **+5.21%**. Rejected despite the smaller overall score. |
+| Lower C72 endpoint | C72 **8 µF** (printed 10, −20%), Vbe **0.60 or 0.65 V**, reference **5 mA**. Diagnostic scores **0.967034/1.018064**; ordinary phrase interaction/behavior regressions remain. Rejected. |
+| Lower R142 endpoint | R142 **10.5 → 9.5 kΩ** (printed 10), C72 **10 µF**, Vbe **0.65 V**, reference **5 mA**. Diagnostic score **0.9469**; worse than the joint nominal trial. Rejected. |
+| Modest load headroom | Earlier C72/Vbe retained; reference **1.18 → 1.40 mA**, Q31 gate loading and collector-load/β. Complete **0.752791839587**; behavior **+1.958%**, interaction **+0.471%**, despite gate **−17.21%**. Overall worsens. Rejected. |
+| Smaller load headroom | Reference **1.18 → 1.25 mA**, otherwise preceding row. Complete **0.756661878441**; interaction **+1.824%**, overall worse. Rejected. |
+| Additional junction-base trial | C72 **10 µF**, Vbe **0.65 V**, capacity **5 mA**, Q31 emitter load included; retain forward-junction capacity/β for C72 base discharge instead of collector-load/β. Complete overall **0.744185453526**, but interaction **+5.153%**, accent **+2.391%**. Rejected. |
+
+**VERIFY:** these device references are effective junction/saturation estimates,
+not measured transistor currents. The fixed-beta saturated reduction omits
+base-collector recombination and forced-beta storage. The prior unusually low
+0.40-V reference is not authenticated by the output captures. The previous
+C72/R142/R143 estimates, unprinted Q31/Q36 laws and all earlier VERIFY registers
+remain applicable. None of these trial values revises the transcription.
+
+A read-only common-gain diagnostic on the 1.40-mA trial also fails to rescue
+its full objective while keeping every category within 2%. The existing
+`FULL_SCALE_VOLTS` calibration and OTA/output topology are retained.
+
+
+### Retained gate-load correction and VERIFY register
+
+The retained fit keeps the forward-junction base-current reduction, including
+its larger base current during saturation. The load/β-only trials above are
+not retained. GATE_HI now supplies Q31's emitter current as well as R145:
+
+```text
+U = voltage across C72 (Q36 emitter minus base)
+capacity = I36_ref * exp((U - V36_ref) / VT)
+Q31_load = previous_I31 * (1 + 1/beta31)
+GATE_HI = clamp(R145 * (capacity - Q31_load), 0, max(12 - Vsat, 0))
+I36_base = capacity / beta36
+C72 dU/dt = gate*(12 - Vsat - U)/R143 - U/R142 - I36_base
+```
+
+U remains bounded by the existing junction/saturation drive clamp. Capacity
+is the transistor's forward-active capacity, not current known to flow through
+R145. At full gate, Q31 draws roughly 47 µA in addition to R145's 1.18 mA.
+Neglecting that load changes the falling gate supply and the control-current
+shape. The preceding circuit sample supplies the load, keeping the explicit
+state update bounded without adding a nonlinear solver. A supply with no
+positive output headroom closes the gate rather than forming an invalid clamp.
+C41/C42/C62 and all existing coupling-capacitor charges remain independent
+physical states. No fixed retrigger reset, extra MIDI delay or release envelope
+was introduced.
+
+| VERIFY item | Printed / previous → retained | Evidence and limitation |
+|---|---|---|
+| C72 | Printed **10 µF**, previous **12 → 11 µF** | +10% from transcription, within the assumed ±20% electrolytic tolerance. Joint gate-shape fit against both sessions; C72, R142/R143 and Q36's device law are not individually identified. |
+| Q36 junction reference | Generic **0.65 V**, previous **0.40 → 0.50 V** | Effective forward-junction reference and saturated-drive clamp, fitted jointly with C72 and current capacity. Not an internally measured Vbe or authenticated transistor Is. |
+| Q36 reference capacity | Unprinted; earlier gate-load estimate **1.18 → 1.90 mA** | Modest saturation margin above the combined R145/Q31 load, instead of the rejected 5-mA trials. Output audio constrains the combined gate response, not this device parameter separately. |
+| Q31 gate loading | Omitted → **I_Q31*(1+1/beta31)** | D35/R133/R131 supply path is printed. Emitter/collector relation retains the earlier unprinted beta31=200. The one-sample explicit load is an approximation, checked across 48/96/192 kHz, not a simultaneous transistor solve. |
+| Q36 saturated base current | Retain **forward capacity/beta36**, beta36=200 | Forward-junction base current remains present when collector voltage clips. Base-collector recombination, reverse beta and detailed forced-beta storage are omitted; the load/β-only simplification was rejected. |
+| Remaining attribution | No new MIDI law or independent timing parameter | C54 recovery/C55 sag, firmware note-off latency, capture clock uncertainty, carrier phase, accent mutual loading and OTA transfer remain unresolved. These cannot be authenticated from OUTPUT alone. |
+
+R142 **10.5 kΩ** and R143 **9.5 kΩ** retain their preceding ±5% fits.
+All other component/pot/device defaults and FULL_SCALE_VOLTS **10.192 V** are
+unchanged. The existing VCF/oscillator, OTA/output loading and MonoNoteInput
+implementations were not edited. All earlier diode, JFET, beta, temperature,
+IC12, VR4 gang, OTA, output-load and recording-chain VERIFY items remain open.
+
+The retained per-note audit reduces median off-0–20-ms error from
+**−3.237 → −1.687 dB** for combos, **−3.496 → −1.814 dB** for patterns and
+**−4.260 → −1.785 dB** for repeats. Peak medians stay within 0.005 dB of the
+baseline audit. Later release/gap errors still vary with carrier phase and
+coupling charge. For pattern-classic, the median 10–20-ms release bin moves
+**−59.9 → −66.1 dBFS**, versus hardware **−66.6 dBFS**. The earlier 0–10-ms
+bin still differs; the whole release is not claimed solved.
+
+### Complete v7 objective and remaining error
+
+Category aggregate is `0.75*median + 0.25*p90`, before category weighting.
+Both complete runs have **620 sidecars, 629 analysis rows, zero failures**.
+Overall **0.752349791399 → 0.715179553686**, **−4.94055%**.
+
+| Category | Before aggregate | After aggregate | Change |
+|---|---:|---:|---:|
+| envelopes | 0.318553072 | 0.307959740 | −3.325% |
+| amplitude | 1.107211725 | 1.047605645 | −5.383% |
+| accent | 0.347337338 | 0.350187815 | +0.821% |
+| gate | 0.510936207 | 0.467186265 | −8.563% |
+| behavior | 1.744754881 | 1.551604681 | −11.070% |
+| interaction | 1.636103088 | 1.557757110 | −4.789% |
+
+No category worsens by >2%. Pitch, tuning, waveform, VCF and slide aggregates
+are unchanged within 0.00008%. The largest increase is accent at **0.821%**.
+The hardware repeatability floor remains **1.202458/1.407178** median/p90,
+zero score weight, with no floor subtraction or modified metric.
+
+Behavior RMS-trajectory median improves **2.220209 → 1.852800 dB**; band
+trajectory median **2.839835 → 2.7232 dB**. Interaction RMS median improves
+**1.872375 → 1.6851 dB**, band median **1.460665 → 1.3226 dB**. These are
+output feature distances, not independently measured capacitor errors.
+Remaining high-ENV/RES spectral mismatch, phase-dependent quiet gaps, accent
+cross-loading, OTA/device transfer and uncertain hardware gate-off timing
+limit further attribution. A more complete Q36 base-collector model and shared
+analog-node integration need device/internal-node evidence; replacing the
+remaining error with arbitrary timing or envelope factors is not justified.
+
+
+### Final validation and reproduction
+
+All ten workspace packages were tested offline with explicit `-p` selections:
+**138 passed, zero failures, five manual benchmarks ignored**. ENV has
+**20 passing tests**, including independent limiting RC bounds on C72's
+forward-junction discharge at 48/96/192 kHz and the zero-output-headroom guard.
+Existing real-Q38 partial-charge retrigger, Q31 junction residual, rate,
+OTA/network, allocation-counter and extreme-input tests pass. Scoped ENV
+all-target Clippy with `-D warnings`, rustfmt and diff whitespace checks pass.
+The sample path adds no allocation, lock, solver or unbounded loop.
+
+Exact replay audits cover **346 + 274 = 620 captures**, **zero VCF
+non-convergence**, **zero sanitized inputs**, maximum **four Newton evaluations**.
+The unchanged bounded Q31 solver is checked by its current-law/rate tests.
+The final rebuilt renderer exactly reproduces the retained complete score and
+every category. Requested related-category score is
+**0.977592537128 → 0.915146421949**; it renormalizes category weights and is not the
+full-session objective.
+
+After replay workers finished, warm sequential Full Circuit measurements used
+48-kHz host / 192-kHz circuit, a 2-second warmup and three 16-second holds per
+setting. DSP wall time excludes WAV writing. Each hold reports zero solver
+non-convergence/sanitization. These workloads satisfy the approximate 18% CPU
+limit; they do not establish a hard scheduling bound.
+
+| Workload | Median CPU / one core | Maximum |
+|---|---:|---:|
+| C1, default controls | 10.2% | 10.4% |
+| C3, default controls | 9.8% | 9.8% |
+| C3, CUTOFF/RES max, ENV MOD min | 10.6% | 10.6% |
+
+Final renderer SHA-256:
+`d81572a57ef0674301e087e0b1101aee2da105e04c504882479e2e4f20dffd3a`.
+Unchanged harness analysis SHA-256:
+`30ff76c5c5047125bebd78c932d8b493ba0583429a513612bc25d548a6cf2649`.
+Full/related reports are `/tmp/env-i-full-score.json` and
+`/tmp/env-i-score.json`; all-note evidence is
+`/tmp/env-i-phrase-before-all.json` and `/tmp/env-i-phrase-after-all.json`.
+Solver evidence is `/tmp/env-i-solver-session1.json` and
+`/tmp/env-i-solver-session2.json`; CPU runs are `/tmp/env-i-cpu.json`.
+Only small reports/logs were written under `/tmp`. All render WAVs used the
+harness default cache; CPU WAVs and audit-driver files used one ENV scratch
+directory. Both generated directories were deleted after validation.
+Changes are left in the assigned worktree, without a commit or history change.
+
+```sh
+cargo build --offline --release -p dw303-render
+python3 -B tools/analysis/harness/score.py \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
+  --categories behavior,interaction,amplitude,envelopes,accent,gate \
+  --json /tmp/env-i-score.json
+# Repeat without --categories for /tmp/env-i-full-score.json.
+cargo test --offline -p dw303-osc -p dw303-vcf -p dw303-env \
+  -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
+  -p dw303-standalone -p dw303-render -p dw303-capture
+cargo clippy --offline -p dw303-env --all-targets -- -D warnings
+cargo --offline fmt -p dw303-env -- --check
 ```
