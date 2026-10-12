@@ -772,3 +772,16 @@ depends on the note and the tempo: about 5.7 steps for C2 at 120 BPM.
 The TD-3 drifts slightly slower because that unit is tuned 6.6 cents flat.
 This behaviour is kept deliberately (owner decision). Do not add note-on
 oscillator reset or sync.
+
+## Decision 2026-10-13 (later): TD-3 tuning restored
+
+At the owner's request, TUNING again uses the TD-3 unit fit, replacing the
+Roland specification described above:
+
+- `reference_hz` 32.577173 (A ≈ 109.58 Hz at centre, 6.6 cents flat)
+- VR2 44.945 kΩ, bow 0.1025, skew −0.0383
+- range −1086.6 / +891.9 cents
+
+The Roland values are recorded above in case they are wanted again: A =
+110 Hz, ±700 cents, ideal linear control. Pitch and tuning harness scores
+return to the fitted baseline (overall 0.698, v7).

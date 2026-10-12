@@ -107,19 +107,12 @@ impl Components {
     pub const NOMINAL: Self = Self {
         slide_resistance: 100_000.0,
         slide_capacitance: 0.232e-6,
-        // Roland calibration (service notes p. 7): A key = 110 Hz at centre
-        // TUNING, so the lowest C is 12-TET C1. The TD-3 unit measured 6.6 cents
-        // flat (fitted 32.577173 Hz); that is a unit trim, not the design.
-        reference_hz: 32.703_195_662_574_83,
+        reference_hz: 32.577_173_303_309_65,
         temperature_kelvin: 300.0,
-        // Roland specification (p. 1): TUNING approx. ±700 cents. Modelled as
-        // an ideal unloaded linear control spanning exactly ±700 cents. The
-        // TD-3 fit (44.945 kΩ, bow 0.1025, skew −0.0383, −1087/+892 cents)
-        // described that unit, whose range is wider than the TB-303 spec.
-        tuning_octaves: 1_400.0 / 1_200.0,
-        tuning_resistance: 1.0,
-        tuning_track_bow: 0.0,
-        tuning_track_skew: 0.0,
+        tuning_octaves: 1_978.472 / 1_200.0,
+        tuning_resistance: 44_945.454,
+        tuning_track_bow: 0.102_496_922_354_261_72,
+        tuning_track_skew: -0.038_276_829_432_479_28,
         tuning_input_resistance: 100_000.0,
         cv_input_resistance: 27_000.0,
         posistor_resistance: 560.0,
