@@ -656,7 +656,7 @@ fn levels(args: &[String]) -> Result<(), Error> {
     let channels = usize::from(config.channels());
     let rate = 96_000;
     let device = ravet_device::input_device(Some(audio_id))?.ok_or("device disappeared")?;
-    let (_stream, mut consumer) = ravet_device::open_input(
+    let (stream, mut consumer) = ravet_device::open_input(
         &device,
         cpal::StreamConfig {
             channels: channels as u16,
@@ -665,6 +665,7 @@ fn levels(args: &[String]) -> Result<(), Error> {
         },
         65536,
     )?;
+    stream.play()?;
     let midi_name = option(args, "--midi-out")?;
     let port = ravet_midi_device::output_ports()?
         .into_iter()
@@ -679,6 +680,7 @@ fn levels(args: &[String]) -> Result<(), Error> {
     let mut next_report = 0.5;
     let mut next_note = 0.0;
     let mut note_on = false;
+    let mut received = 0usize;
     while start.elapsed().as_secs_f64() < seconds {
         let t = start.elapsed().as_secs_f64();
         if t >= next_note {
@@ -703,7 +705,8 @@ fn levels(args: &[String]) -> Result<(), Error> {
                 .enumerate()
                 .map(|(i, p)| format!("{}:{:>4.0}", i + 1, 20.0 * (p.max(1e-9)).log10()))
                 .collect();
-            println!("{:>4.1}s {}", t, row.join(" "));
+            println!("{:>4.1}s frames {:>6} | {}", t, received, row.join(" "));
+            received = 0;
             peaks.iter_mut().for_each(|p| *p = 0.0);
             next_report += 0.5;
         }
