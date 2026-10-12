@@ -346,13 +346,36 @@ const CALIBRATION_MEG_REST: f64 = 0.5;
 /// VERIFY: computed Q9 rest/reference voltage; no internal-node capture calibration.
 const CALIBRATION_SWEEP_REST: f64 = 3.3165;
 
+/// VERIFY: output-only VR3 electrical track fit to the session1 ring sweep.
+/// Relative to the earlier track, the calibrated top current is 6% lower;
+/// tenth-turn currents from 0.1 through 0.8 retain the earlier fit. The fixed
+/// endpoints preserve the physical pot wiring; minimum current falls by 6%.
+/// See `docs/circuit/vcf-top-range-2026-10-12.md` for pitch-resolution limits.
+const CALIBRATION_CUTOFF_TRACK: [f64; 11] = [
+    0.0,
+    0.025166027,
+    0.058405302,
+    0.090603915,
+    0.114135804,
+    0.140121040,
+    0.157719965,
+    0.318703784,
+    0.666613079,
+    0.985,
+    1.0,
+];
+
 /// Return fitted cutoff components with the expo ratio normalised at centre.
-/// TM3 and VR3 retain the measurement fit in `dw303_env::Components`; the bounded
-/// continuous pole search adjusts only Is(Q11)/Is(Q10), on the control thread.
-/// VERIFY: the effective ratio is approximately 3.134 (nominal fitted ratio 3.074);
+/// TM3 retains the ENV component setting; VR3 uses the top-range calibration
+/// above. The bounded continuous pole search adjusts only Is(Q11)/Is(Q10),
+/// on the control thread.
+/// VERIFY: the effective ratio is approximately 3.163 (nominal fitted ratio 3.074);
 /// audio identifies its product with TM3's reference current, not either alone.
 pub fn calibrated_env_components() -> dw303_env::Components {
-    let mut c = dw303_env::Components::NOMINAL;
+    let mut c = dw303_env::Components {
+        vr3_taper: CALIBRATION_CUTOFF_TRACK,
+        ..dw303_env::Components::NOMINAL
+    };
     let vcf = Vcf::new(dw303_vcf::Components::NOMINAL);
     let Some(target) = vcf.calibration_current(CALIBRATION_RING_HZ) else {
         return c;
