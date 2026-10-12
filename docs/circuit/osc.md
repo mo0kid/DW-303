@@ -752,3 +752,23 @@ The reason, from the project decisions: the original schematic and
 specification are authoritative, and TD-3 deviations are not adopted silently.
 The TD-3's flat calibration and wider TUNING range are properties of that unit
 or its design, not of the TB-303.
+
+## Free-running VCO phase (authentic "wobble"), 2026-10-13
+
+The VCO runs freely and is never reset at a note. Each note therefore starts at
+a different point in the waveform, so the audible leading transient shifts from
+step to step and wraps once per waveform cycle. With repeated notes this sounds
+like a repeating swing or tempo wobble. The sequencer's triggers stay
+sample-exact; tests confirm 125.000 ms steps at 120 BPM.
+
+The step count before the wobble repeats is `1 / frac(f0 × step duration)`. It
+depends on the note and the tempo: about 5.7 steps for C2 at 120 BPM.
+
+| Repeated C2 at 120 BPM, ms after trigger | Transient timing |
+|---|---|
+| DW-303 | 10.2, 7.4, 4.7, 2.0, **14.6**, 11.9, … |
+| TD-3 (`combo-c04-e00-r00-k36-phrase`) | 6.3, 4.3, 2.4, 0.5, −1.3, −3.0, **10.0**, 8.1 |
+
+The TD-3 drifts slightly slower because that unit is tuned 6.6 cents flat.
+This behaviour is kept deliberately (owner decision). Do not add note-on
+oscillator reset or sync.
