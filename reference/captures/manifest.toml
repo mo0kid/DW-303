@@ -2,7 +2,7 @@
 # VERIFY: TD-03/TD-3 model name, manual, firmware, accent threshold, overlap slide,
 # channel, clock reception and playable note range on the actual unit.
 [midi]
-channel = 1
+channel = 15  # TD-3 receive channel, measured with midi-scan 2026-10-12
 accent_velocity_threshold = 100
 slide = "overlap"
 
