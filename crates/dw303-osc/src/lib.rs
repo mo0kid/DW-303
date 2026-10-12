@@ -65,26 +65,28 @@ pub struct Components {
     /// R36 return, 5.333 V rail (exact 64/12 for DAC calibration).
     pub square_return: f64,
     /// R35, DC saw-to-Q8-base path, printed 100k.
-    /// VERIFY: 100k → 103.660k fitted (5% resistor tolerance).
+    /// VERIFY: 100k → 100.435k fitted (assumed 5% resistor tolerance).
     pub square_dc_resistance: f64,
     /// R34, series path from C10 to Q8 base, 10k.
     pub square_input_resistance: f64,
     /// C10, printed .01 uF.
-    /// VERIFY: 10 nF → 8.455 nF fitted (20% capacitor tolerance).
+    /// VERIFY: 10 nF → 9.2824 nF fitted (assumed 20% capacitor tolerance).
     pub square_input_capacitance: f64,
     /// R36, collector return resistance, 10k.
     pub square_collector_resistance: f64,
     /// R45, emitter supply resistance, printed 22k.
-    /// VERIFY: 22k → 22.776k fitted (5% resistor tolerance).
+    /// VERIFY: 22k → 22.7955k fitted (assumed 5% resistor tolerance).
     pub square_emitter_resistance: f64,
     /// C11, emitter storage capacitor, printed 1 uF.
-    /// VERIFY: 1 uF → 0.819 uF fitted (20% capacitor tolerance).
+    /// VERIFY: 1 uF → 0.8343 uF fitted (assumed 20% capacitor tolerance).
     pub square_emitter_capacitance: f64,
-    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation, fitted 0.5425 V.
+    /// Q8 forward Veb at 100 uA collector current and `temperature_kelvin`.
+    /// VERIFY: Q8 unprinted part/model (O6); fitted 0.5 V reference drop,
+    /// replacing the previous constant 0.5425 V junction approximation.
     pub transistor_vbe: f64,
-    /// VERIFY: Q8 forward beta, estimated 200 → fitted 389.5; no device curve supplied.
+    /// VERIFY: Q8 forward beta, estimated 200 → fitted 423.559; no device curve supplied.
     pub transistor_beta: f64,
-    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.08055 V.
+    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.043233 V.
     pub transistor_vce_sat: f64,
 }
 
@@ -111,15 +113,15 @@ impl Components {
         follower_pinch_off_v: 1.0,
         square_supply: 12.0,
         square_return: 64.0 / 12.0,
-        square_dc_resistance: 103_660.0,
+        square_dc_resistance: 100_434.6,
         square_input_resistance: 10_000.0,
-        square_input_capacitance: 8.455e-9,
+        square_input_capacitance: 9.282_418e-9,
         square_collector_resistance: 10_000.0,
-        square_emitter_resistance: 22_776.0,
-        square_emitter_capacitance: 0.819e-6,
-        transistor_vbe: 0.5425,
-        transistor_beta: 389.5,
-        transistor_vce_sat: 0.080_55,
+        square_emitter_resistance: 22_795.5,
+        square_emitter_capacitance: 0.834_299_7e-6,
+        transistor_vbe: 0.5,
+        transistor_beta: 423.5591,
+        transistor_vce_sat: 0.043_232_68,
     };
 
     fn valid(mut self) -> Self {
@@ -260,7 +262,11 @@ impl PitchCv {
 /// Q8 PNP shaper with the printed R35 || (C10 + R34) base network,
 /// R45/C11 emitter network and R36 return to 5.333 V.
 /// Stores C10 voltage and C11 emitter voltage; collector is DC-coupled.
-/// VERIFY: piecewise-linear Q8 model omits junction curvature and parasitics.
+/// Forward-active Q8 uses an exponential base junction with constant beta;
+/// saturation clamps Vec while preserving base/emitter/collector current balance.
+/// VERIFY: the saturation reduction retains the forward base-junction law;
+/// reverse-active transport, beta rolloff, Early effect and parasitics are omitted.
+/// The reference Veb is an output-audio fit, not a measured device characteristic.
 pub struct SquareShaper {
     c: Components,
     input_cap: f64,
@@ -271,7 +277,53 @@ pub struct SquareShaper {
     emitter_g: f64,
     emitter_cap_g: f64,
     collector_g: f64,
+    junction_vt: f64,
+    active_drive_offset: f64,
+    active_current_scale: f64,
+    saturated_drive_offset: f64,
+    saturated_current_scale: f64,
     diagnostics: OscDiagnostics,
+}
+
+// ln(x), positive normal x. Reduce to [1/sqrt(2), sqrt(2)] and
+// use the atanh series through z^13. |z| <= 0.171573 bounds the
+// omitted tail below 4.6e-13; no libc calls are needed in the Halley loop.
+fn junction_log(x: f64) -> f64 {
+    let bits = x.to_bits();
+    let mut exponent = ((bits >> 52) & 0x7ff) as i32 - 1023;
+    let mut mantissa = f64::from_bits((bits & ((1_u64 << 52) - 1)) | (1023_u64 << 52));
+    if mantissa > core::f64::consts::SQRT_2 {
+        mantissa *= 0.5;
+        exponent += 1;
+    }
+    let z = (mantissa - 1.0) / (mantissa + 1.0);
+    let z2 = z * z;
+    let series = 1.0
+        + z2 * (1.0 / 3.0
+            + z2 * (1.0 / 5.0
+                + z2 * (1.0 / 7.0 + z2 * (1.0 / 9.0 + z2 * (1.0 / 11.0 + z2 / 13.0)))));
+    exponent as f64 * LN_2 + 2.0 * z * series
+}
+
+// Positive W(exp(t)), equivalently u + ln(u) = t. This is the
+// exact inverse of the reduced exponential base-junction/load-line law.
+// Four Halley steps are bounded. At t <= -30, the omitted voltage
+// drop across the effective load is <= Vt*exp(-30) < 3.3e-15 V
+// even at 400 K; flushing it avoids unnecessary underflow-scale work.
+fn junction_w(t: f64) -> f64 {
+    if t <= -30.0 {
+        return 0.0;
+    }
+    let mut u = if t > 1.0 {
+        t - junction_log(t)
+    } else {
+        libm::exp(t)
+    };
+    for _ in 0..4 {
+        let f = u + junction_log(u) - t;
+        u -= f * u * (u + 1.0) / ((u + 1.0) * (u + 1.0) + 0.5 * f);
+    }
+    u
 }
 
 impl SquareShaper {
@@ -288,6 +340,11 @@ impl SquareShaper {
             emitter_g: 1.0 / c.square_emitter_resistance,
             emitter_cap_g: 0.0,
             collector_g: 1.0 / c.square_collector_resistance,
+            junction_vt: BOLTZMANN_OVER_Q * c.temperature_kelvin,
+            active_drive_offset: 0.0,
+            active_current_scale: 0.0,
+            saturated_drive_offset: 0.0,
+            saturated_current_scale: 0.0,
             diagnostics: OscDiagnostics::default(),
         };
         s.set_rate(48_000.0);
@@ -297,6 +354,17 @@ impl SquareShaper {
         self.dt_over_input_cap = 1.0 / (rate * self.c.square_input_capacitance);
         self.base_ac_g = 1.0 / (self.c.square_input_resistance + self.dt_over_input_cap);
         self.emitter_cap_g = rate * self.c.square_emitter_capacitance;
+        let gb = self.base_dc_g + self.base_ac_g;
+        let ge = self.emitter_g + self.emitter_cap_g;
+        // Reference collector current only parameterises the junction curve;
+        // Is = 100 uA * exp(-Veb_ref/Vt), not a separate fitted gain.
+        let reference = 100e-6 / self.c.transistor_beta;
+        let active_r = 1.0 / gb + (self.c.transistor_beta + 1.0) / ge;
+        let saturated_r = 1.0 / gb + 1.0 / (ge + self.collector_g);
+        self.active_current_scale = self.junction_vt / active_r;
+        self.saturated_current_scale = self.junction_vt / saturated_r;
+        self.active_drive_offset = libm::log(reference / self.active_current_scale);
+        self.saturated_drive_offset = libm::log(reference / self.saturated_current_scale);
     }
     /// Prepare backward-Euler capacitor companions, preserving node voltages.
     pub fn prepare(&mut self, sample_rate: f64) -> Result<(), StageError> {
@@ -315,7 +383,10 @@ impl SquareShaper {
         self.diagnostics
     }
     /// Process Q28 source voltage into Q8 collector voltage (no output capacitor).
-    /// Cutoff, forward-active and saturation branches are solved analytically.
+    /// Backward-Euler capacitor companions reduce each conduction branch to
+    /// `R*ib + Vt*ln(ib/ib_ref) = Vdrive - Veb_ref`, inverted by four
+    /// bounded Halley steps. Saturation uses `ic=(Ve-Vec_sat-Vreturn)/R36`.
+    /// No allocations or sample-rate-dependent iteration bounds.
     pub fn tick(&mut self, saw: f64) -> f64 {
         let saw = sanitise(saw, &mut self.diagnostics.non_finite_inputs).clamp(-100.0, 100.0);
         let gb = self.base_dc_g + self.base_ac_g;
@@ -324,25 +395,27 @@ impl SquareShaper {
         let supply = self.emitter_g * self.c.square_supply + self.emitter_cap_g * self.emitter;
         let off_emitter = supply / ge;
         let off_base = drive / gb;
-        let (emitter, base, collector) = if off_emitter - off_base <= self.c.transistor_vbe {
-            (off_emitter, off_base, self.c.square_return)
-        } else {
-            // ib = gb*(Ve - Veb) - drive; ie = (beta+1)*ib.
-            let beta1 = self.c.transistor_beta + 1.0;
-            let offset = gb * self.c.transistor_vbe + drive;
-            let mut ve = (supply + beta1 * offset) / (ge + beta1 * gb);
-            let ib = (gb * ve - offset).max(0.0);
-            let mut vc = self.c.square_return + self.c.transistor_beta * ib / self.collector_g;
-            if vc > ve - self.c.transistor_vce_sat {
-                // Saturation: vc = ve - Vec_sat, ie = ib + ic.
-                ve = (supply
-                    + offset
-                    + self.collector_g * (self.c.square_return + self.c.transistor_vce_sat))
-                    / (ge + gb + self.collector_g);
-                vc = (ve - self.c.transistor_vce_sat).max(self.c.square_return);
-            }
-            (ve, ve - self.c.transistor_vbe, vc)
-        };
+        // Eliminate Ve and Vb using the capacitor companion KCL equations.
+        // Active: Ve=Voff-(beta+1)*ib/ge, Vb=Voff_base+ib/gb.
+        let beta1 = self.c.transistor_beta + 1.0;
+        let delta = (off_emitter - off_base - self.c.transistor_vbe) / self.junction_vt;
+        let ib = self.active_current_scale * junction_w(delta + self.active_drive_offset);
+        let mut ve = (supply - beta1 * ib) / ge;
+        let mut vc = self.c.square_return + self.c.transistor_beta * ib / self.collector_g;
+        let mut base = (drive + ib) / gb;
+        if vc > ve - self.c.transistor_vce_sat {
+            // Saturated: ie=ib+ic, with the collector load entering the
+            // emitter companion. This keeps C11 charge physically balanced.
+            let sat_ge = ge + self.collector_g;
+            let sat_supply =
+                supply + self.collector_g * (self.c.square_return + self.c.transistor_vce_sat);
+            let delta = (sat_supply / sat_ge - off_base - self.c.transistor_vbe) / self.junction_vt;
+            let ib = self.saturated_current_scale * junction_w(delta + self.saturated_drive_offset);
+            ve = (sat_supply - ib) / sat_ge;
+            vc = (ve - self.c.transistor_vce_sat).max(self.c.square_return);
+            base = (drive + ib) / gb;
+        }
+        let (emitter, collector) = (ve, vc);
         self.input_cap = clean_state(
             self.input_cap
                 + self.dt_over_input_cap * self.base_ac_g * (saw - base - self.input_cap),
@@ -675,6 +748,51 @@ impl Vco {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn exponential_junction_inverse_converges_across_bounded_drive() {
+        for i in 0..=20_000 {
+            let t = -29.999 + i as f64 * (20_000.0 + 29.999) / 20_000.0;
+            let u = junction_w(t);
+            assert!(u.is_normal() && u > 0.0);
+            // Independent libm log checks the actual load-line equation,
+            // including the polynomial-log error and all four Halley steps.
+            let residual = u + libm::log(u) - t;
+            assert!(residual.abs() < 5e-10, "t={t}, residual={residual}");
+        }
+        for i in 0..=10_000 {
+            let x = libm::exp(-30.0 + i as f64 * 50.0 / 10_000.0);
+            assert!((junction_log(x) - libm::log(x)).abs() < 5e-13);
+        }
+        assert_eq!(junction_w(-30.0), 0.0);
+        assert!(junction_w(-29.999) < 1e-13);
+    }
+
+    #[test]
+    fn nonlinear_q8_satisfies_junction_law_and_capacitor_kcl() {
+        for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
+            let mut q = SquareShaper::new(Components::NOMINAL);
+            q.prepare(rate).unwrap();
+            q.emitter = 8.5;
+            for saw in [5.3, 6.5, 7.9, 8.4, 9.2, 11.5, 12.0] {
+                let old_cap = q.input_cap;
+                let old_emitter = q.emitter;
+                let collector = q.tick(saw);
+                let base =
+                    saw - old_cap - (q.input_cap - old_cap) / (q.dt_over_input_cap * q.base_ac_g);
+                let ib = q.base_dc_g * (base - saw) + q.base_ac_g * (base - saw + old_cap);
+                let ic = (collector - q.c.square_return) * q.collector_g;
+                let ie = q.emitter_g * (q.c.square_supply - q.emitter)
+                    + q.emitter_cap_g * (old_emitter - q.emitter);
+                assert!((ie - ib - ic).abs() < 1e-12);
+                if ib > 1e-12 {
+                    let junction_ib = 100e-6 / q.c.transistor_beta
+                        * libm::exp((q.emitter - base - q.c.transistor_vbe) / q.junction_vt);
+                    assert!((ib / junction_ib - 1.0).abs() < 1e-8);
+                }
+            }
+        }
+    }
 
     #[test]
     fn follower_load_line_and_drain_compliance() {

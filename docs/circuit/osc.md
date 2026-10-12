@@ -1,8 +1,8 @@
-# Pitch CV, VCO and square shaper — fitting round 2
+# Pitch CV, VCO and square shaper — fitting round 3
 
 Authority: [reconciled netlist](../../reference/schematic/netlist.md),
 [VCO transcription](../../reference/schematic/transcription/vco.md), and
-[binding contract](contracts.md). Round 2 changes only `crates/dw303-osc`
+[binding contract](contracts.md). Fitting rounds 2 and 3 change only `crates/dw303-osc`
 and this document. No dependencies were added. Calibration uses the 346
 read-only session-1 TD-3 WAV/JSON pairs dated 2026-10-12, with the unchanged
 [scoring harness](../harness.md). These are unit-specific output-audio fits,
@@ -14,7 +14,9 @@ at their transcribed values. The earlier source annotations, 5.5–12 V, are no
 longer substituted for C33 voltage: `saw_low` and `saw_high` now describe the
 capacitor cycle endpoints **before** the explicitly modelled Q28 follower.
 `VcoOut.saw` remains Q28 source voltage and `VcoOut.square` Q8 collector voltage;
-method signatures and SI units remain unchanged.
+method signatures and SI units remain unchanged. Round 3 changes Q8's junction
+law and fitted base/emitter parameters. The round-2 score sections below are
+historical harness-v1 evidence; current harness-v2 results appear at the end.
 
 ## Pitch CV and slide
 
@@ -86,8 +88,8 @@ follower approximation, so this is also a correction of node interpretation.
 
 The retained cycle charge is **63 nC**, and the fitted A sink current **6.9033 uA**
 (previous calibrated approximation 65 nC / 7.15 uA). C33/endpoints vary the
-period inversely while leaving converter current fixed. Reset duration is
-still neglected; the captures do not isolate sub-microsecond recovery.
+period inversely while leaving converter current fixed. Reset duration remains an ideal regenerative step; output captures do not
+isolate its duration (see the round-3 reset audit below).
 
 Q28 **2SK30(O)** drives the printed **R105 10k** load from the 12 V drain rail.
 Its fitted estimates are **IDSS=0.6 mA, |Vp|=1 V**. The static load line solves
@@ -110,29 +112,48 @@ Construction uses fixed arrays and bounded loops; `tick` performs no follower
 solve, quadrature or allocation. Frequency/bandwidth caching and continuous
 slide frequency remain intact.
 
-## Q8 square shaper
+## Q8 square shaper — current round-3 model
 
 The topology is unchanged: **R35** directly drives Q8's base in parallel with
 **C10 + R34 10k**; **R45/C11** feed/store the emitter voltage; **R36 10k** returns
 the collector to **5.333 V**. There is no coupling high-pass in this block.
 C10 voltage and C11 emitter voltage are physical state variables. Backward-Euler
-companions solve cutoff, forward-active and saturation branches analytically:
-`ib = g_base*(Ve-Veb)-drive`, `ic=beta*ib`, `ie=ib+ic` in active operation,
-and `Vc=Ve-Vec_sat` in saturation, with base and collector current loading C11.
+companions eliminate the base/emitter nodes in favour of base current. The
+forward-junction law now varies with current instead of switching at one fixed
+Veb:
 
-Fitted **R35=103.660k**, **R45=22.776k**, **C10=8.455 nF**, and **C11=0.819 uF**
-use plausible ±5% resistor / ±20% capacitor search bounds. Those bounds are
-assumptions, not verified tolerances for the original parts. Q8 estimates are
-**Veb=0.5425 V**, **beta=389.5**, **Vec_sat=0.08055 V**. The unloaded emitter recharge
-is now **18.654 ms**, and off-state C10 discharge **0.961 ms**. The Q8 junction
-law remains piecewise linear; no measured transistor model is claimed.
+```
+ib_ref = 100 uA / beta
+Veb(ib) = Veb_ref + Vt * ln(ib / ib_ref)
+R_active = 1/g_base + (beta+1)/g_emitter
+R_saturated = 1/g_base + 1/(g_emitter+g_collector)
+R*ib + Vt*ln(ib/ib_ref) = Vdrive - Veb_ref
+```
 
-Candidate fits compared octave collector harmonic ratios against baseline
-output residuals, then were checked through real MIDI replay and the unchanged
-harness. This separates source-shape estimation from the downstream response
-as far as output-only measurements allow. No VCF, VCA, output or interface
-high-pass compensation was introduced. Harmonic cancellation constrains duty
-more usefully than audio-output midpoint duty, which those stages distort.
+`transistor_vbe` now means **Veb at 100 uA forward collector current**, at the
+selected model temperature; it is no longer a fixed switching drop. The
+reference current only parameterises the junction curve: equivalently
+`Is = 100 uA * exp(-Veb_ref/Vt)`. It is not an extra amplitude control.
+Forward-active `ic=beta*ib`; in saturation `Vc=Ve-Vec_sat` and `ie=ib+ic`,
+including collector current in C11's charge balance. This is a reduced
+exponential-junction model, **not full Ebers–Moll**. The saturation branch keeps
+the same forward base-junction law; reverse-active transport, beta rolloff,
+Early effect and parasitic capacitances remain omitted and marked VERIFY.
+
+The scalar inverse is `u + ln(u) = t` (`u=W(exp(t))`), with four bounded Halley
+steps and no warm-start dependence. Rate-dependent resistances, current scales
+and logarithmic offsets are prepared outside `tick`. The hot logarithm uses
+binary range reduction and the atanh series through degree 13. Its omitted
+series tail is bounded by 4.6e-13; tests compare it with independent `libm::log`
+to 5e-13 and check inverse residuals below 5e-10 over drives -29.999 to 20,000.
+Flushing `t<=-30` omits at most `Vt*exp(-30) < 3.3e-15 V` across the effective
+load at 400 K. Tick uses fixed arrays already present in the VCO, bounded loops,
+no allocation, locks or new dependencies.
+
+Final component/device estimates and octave residuals are recorded in the
+round-3 evidence below. The printed R34/R36, rails, C33, Q28 and all pitch,
+tuning and slide defaults are retained. No source equaliser or per-key
+correction was introduced.
 
 ## Complete VERIFY register
 
@@ -149,17 +170,17 @@ Every code `VERIFY:` item, including inherited approximations, is covered here.
 | C33 upper endpoint / Q27/D25, O6 | Former ideal source annotation 12 → capacitor 11.5 V; reset drops inferred, not individually identified |
 | Q28 IDSS / pinch-off | Ideal follower → 0.6 mA / −1 V; harmonic balance across five octaves; no internal voltage or device curve; near lower search boundaries |
 | Q28 model reduction | Shockley saturation and triode load line; omit gate current, capacitances and Q8 base-network back-loading into Q28; estimates covary with Q8 and reset endpoints |
-| R35 | 100k → 103.660k (+3.66%); square harmonic fit; ±5% search bound assumed |
-| R45 | 22k → 22.776k (+3.53%); square harmonic fit; ±5% search bound assumed |
-| C10 | 10 → 8.455 nF (−15.45%); square harmonic fit; ±20% search bound assumed |
-| C11 | 1 → 0.819 uF (−18.1%); octave duty/tilt harmonic fit; ±20% search bound assumed |
-| Q8 Veb, O6 | 0.65 → 0.5425 V; constant forward drop, near lower fit boundary; real current/temperature dependence omitted |
-| Q8 beta | Estimated 200 → 389.5; fits waveform, not independently measured |
-| Q8 Vec_sat | Estimated 0.2 → 0.08055 V; fits waveform, not independently measured |
+| R35 | 100k → 100.435k (+0.435%); round-3 square harmonic/phase fit; round-2 was 103.660k; ±5% search bound assumed |
+| R45 | 22k → 22.7955k (+3.62%); round-3 square harmonic/phase fit; round-2 was 22.776k; ±5% search bound assumed |
+| C10 | 10 → 9.282418 nF (−7.18%); round-3 square harmonic/phase fit; round-2 was 8.455 nF; ±20% search bound assumed |
+| C11 | 1 → 0.8342997 uF (−16.57%); round-3 octave duty/tilt fit; round-2 was 0.819 uF; ±20% search bound assumed |
+| Q8 Veb, O6 | Former fixed 0.65 / round-2 0.5425 V → exponential-law reference 0.500 V at Ic=100 uA, 300 K; different parameter meaning; effective Is≈3.98e-13 A; lower 0.50–0.70 V search boundary; device curve and temperature law unmeasured |
+| Q8 beta | Estimated 200 → 423.5591 (round-2 389.5); constant forward beta; fits waveform, not independently measured |
+| Q8 Vec_sat | Estimated 0.2 → 0.04323268 V (round-2 0.08055 V); constant saturation clamp; fits waveform, not independently measured |
 | `cv_for_note` | IC10 supply unprinted; ideal logic high = 64/12 V; selected DAC resistor mismatch omitted |
 | `PitchCv`, O2 | Already-latched note; shared IC9/slide clock ambiguity delegated to sequencer |
 | `PitchCv`, O7/O6 | Ideal IC12 and IC11b; omit switch Ron, settling, clamps and Q29/Q30 switching; IC12 supply unprinted |
-| `SquareShaper` | Piecewise-linear Q8 omits smooth Ebers–Moll curvature, reverse-active operation and parasitics |
+| `SquareShaper` reduction | Forward exponential base junction with beta, and a Vec clamp with KCL; saturated base current still uses the forward law, omitting the reverse junction, reverse-active transport, beta rolloff, Early effect and parasitics; no measured transistor model |
 | Reset recovery | Instantaneous regenerative reset; no device recovery time fit |
 | Q26 | Ideal constant-current sink; omit Early effect and pair mismatch |
 | IC11a/R104/C34 and TM4/R102, O1 | Ideal regulator; calibrate net current rather than resolve printed R102 “100” unit |
@@ -191,9 +212,9 @@ A stronger Q28 curvature trial (C33 endpoints 5.268/11.324 V, IDSS 1.256 mA,
 |Vp| 3.421 V) reduced saw harmonic RMS at C3/C4/C5 from 0.551/1.401/1.460 to
 0.415/1.235/1.253 dB, but increased C2 error 0.447 → 0.752 dB and square errors
 into 6–12 dB. Bounded Q8 retuning could not recover it. It was rejected. The
-retained Q28/C33 model and all saw renders are unchanged. At roughly 4 kHz,
+retained Q28/C33 model and all saw renders are unchanged. At roughly 2 kHz,
 the saw errors from three octaves are similar: H16/C3 +0.728 dB, H8/C4
-+0.740 dB, H4/C5 +0.717 dB. At roughly 8 kHz, H16/C4 +2.433 dB and H8/C5
++0.740 dB, H4/C5 +0.717 dB. At roughly 4 kHz, H16/C4 +2.433 dB and H8/C5
 +1.711 dB remain. This common trend suggests output-path bandwidth; finite reset
 or Q28 bandwidth may contribute, but output-only evidence does not identify
 which circuit element. An arbitrary oscillator low-pass would conceal that
@@ -230,7 +251,7 @@ repair. This does not rule out missing oscillator/device effects in hardware,
 or downstream envelope/release error. Internal Q28 voltage captures or
 phase-controlled repetitions would be needed to separate those causes.
 
-## Full-session scoring and regression audit
+## Round-2 full-session scoring and regression audit (harness v1)
 
 Overall weighted error **1.7143 → 1.6553** (-3.44%). Both runs analyse **346 captures with zero failures**.
 
@@ -281,7 +302,7 @@ trial reports and diagnostic tools are under `/tmp`; capture data and harness
 sources remain read-only. Only oscillator source/tests and this stage document
 are changed. No new dependencies, commits or branch/history operations.
 
-## Validation and remaining limits
+## Round-2 validation and remaining limits
 
 Offline package-scoped tests across all ten workspace packages: **115 passed,
 4 existing manual timing tests ignored**. Oscillator tests: **15 passed**, with
@@ -322,3 +343,203 @@ reset, ideal Q26 current, static Q28 without gate current/capacitances/back-load
 and piecewise-linear Q8 remain model weaknesses. Resolving residual bandwidth
 and even-harmonic cancellations needs better internal-node/device measurements.
 No SPICE or hardware-internal validation is claimed.
+
+
+## Round-3 fitting evidence (harness v2)
+
+The starting release reproduces **1.0198058937** overall, matching
+`tools/analysis/harness/results/round2-v2.json`. Every trial and build runs in
+this oscillator worktree. Scratch scripts, immutable capture symlinks, hashed
+replay caches and score artifacts are under `/tmp`; captures, scoring code,
+other crates, manifests and dependencies are unchanged. No commits are made.
+
+A source-harmonic surrogate proposed bounded R35/R45/C10/C11 and unprinted Q8
+device estimates. It compared complex Fourier coefficients over five octaves
+with relative output harmonics, then real engine replay accepted candidates.
+Seventy local coordinate replays compared the constant-drop and exponential
+junction models. The cheaper constant-drop fit reached **0.9412** waveform
+aggregate, while the retained exponential model reaches **0.8029**. Joint
+Q28/end-point proposals did not establish an identifiable improvement and were
+not adopted. No note-phase reset, source gain correction, note table, downstream
+compensation or metric change was introduced.
+
+### Nominal and previous values to fitted defaults
+
+Printed tolerances are unavailable. Search bounds assume ±5% for resistors,
+±20% for capacitors, Veb_ref 0.50–0.70 V, beta 100–600 and Vec_sat 0.04–0.20 V.
+The device bounds are estimates, not manufacturer specifications. Veb_ref ends
+at its lower bound and covaries with beta and saturation; audio cannot uniquely
+identify these parameters.
+
+| Parameter | Transcribed nominal / prior estimate | Round 2 | Round 3 |
+|---|---:|---:|---:|
+| R35 | 100 kΩ | 103.660 kΩ | 100.4346 kΩ (+0.435%) |
+| R45 | 22 kΩ | 22.776 kΩ | 22.7955 kΩ (+3.62%) |
+| C10 | 10 nF | 8.455 nF | 9.282418 nF (−7.18%) |
+| C11 | 1 µF | 0.819 µF | 0.8342997 µF (−16.57%) |
+| Q8 Veb | Estimated fixed 0.65 V | Fixed 0.5425 V | 0.500 V at Ic=100 µA, 300 K |
+| Q8 beta | Estimated 200 | 389.5 | 423.5591 |
+| Q8 Vec_sat | Estimated 0.2 V | 0.08055 V | 0.04323268 V |
+
+C11 unloaded recharge is **19.018 ms**; C10's off-state time constant is
+**1.0251 ms**. All pitch, tuning, slide, C33 and Q28 parameters remain at the
+round-2 defaults. Q8's reference-current parameterisation changes the meaning
+of its Veb field; 0.5425 → 0.500 V is not a constant threshold adjustment.
+
+### Harmonic magnitude and phase evidence
+
+Only CUTOFF=1, RESONANCE=0, ENV MOD=0, unaccented saw/square octave captures
+are used for waveform acceptance. Each sustained segment is 0.6–1.1 s after
+its latency-aligned first onset, matching the harness. Magnitudes below the
+harness's hardware-relative −60 dB threshold remain censored.
+
+| Square MIDI key | Harmonic RMS before → after (dB) | Log bands before → after (dB) |
+|---|---:|---:|
+| 24 | 1.729 → 1.312 | 1.186 → 1.471 |
+| 36 | 1.007 → 0.678 | 1.412 → 0.448 |
+| 48 | 1.258 → 0.476 | 0.832 → 0.578 |
+| 60 | 0.757 → 0.601 | 0.750 → 0.636 |
+| 72 | 0.922 → 0.857 | 2.089 → 1.840 |
+
+All five square harmonic RMS distances improve. C3's surviving even lines are
+better matched: MIDI 48 H10/H12/H14 signed residuals change **+1.835/+2.275/
++2.778 → +0.036/−0.192/−0.426 dB**. Low-order cancellation remains imperfect:
+its H2/H4 residuals are **+0.976/+1.225 dB**. At MIDI 24, H19 changes
+**−5.921 → −1.698 dB**, but the log-band distance increases **0.285 dB**.
+That single-capture tradeoff is retained because its first-20 harmonic fit and
+the aggregate improve. Upper square MIDI 72 retains **+1.615 dB at H11** and
+**1.840 dB** log-band distance.
+
+Phase uses Hann-weighted complex demodulation at each recording's measured
+fundamental. `psi_h = arg(X_h) - h*arg(X_1)` removes free-running cycle phase.
+Subtracting saw psi from square psi at the same MIDI key suppresses common
+linear output-path phase, then comparing model minus hardware constrains Q8's
+relative shape. Only lines at least −40 dB below **each** hardware waveform's
+largest first-20 harmonic are retained; H1 is excluded because its invariant
+is zero. No time shift, phase correction, deconvolution or phase term is added
+to the harness.
+
+| MIDI key | Resolved lines | Square-minus-saw relative-phase RMS before → after (degrees) |
+|---|---:|---:|
+| 24 | 19 | 33.218 → 27.907 |
+| 36 | 17 | 13.602 → 11.259 |
+| 48 | 8 | 5.609 → 5.003 |
+| 60 | 7 | 3.161 → 3.036 |
+| 72 | 4 | 2.462 → 2.361 |
+
+These diagnostic phases improve at all five octaves, but are not internal-node
+phase measurements. Separate hardware takes, weak/null harmonics, envelope
+age and nonlinear output loading limit exact cancellation. Phase artifacts:
+`/tmp/osc-r3-phase.json` and `/tmp/osc-r3-final-phase.json`.
+
+### Saw reset and upper-harmonic audit
+
+Saw renders and all saw harmonic distances are **exactly unchanged**. The
+printed waveform draws a vertical regenerative return within the annotated
+9 ms A-key cycle; the drawing does not determine a microsecond reset time.
+The audio-output folds include the open VCF, coupling and VCA and cannot be
+read as C33 charge/discharge edges. The historical round-2 approximate frequency
+labels above have been corrected by a factor of two; explicit MIDI keys and
+measured carrier frequencies avoid octave-label ambiguity here.
+
+With fixed converter current, finite reset time implies
+`f = f_ideal / (1 + f_ideal*t_reset)`. A linear reset contributes approximately
+`sinc(pi*f_harmonic*t_reset)` to the harmonic magnitudes. A diagnostic best
+centre/width affine retrim against the 49 pitch captures gives:
+
+| Linear reset duration | Attenuation at 8 kHz | Predicted pitch median / p90 after best affine retrim (cents) |
+|---|---:|---:|
+| 5 µs | 0.023 dB | 0.338 / 0.894 |
+| 10 µs | 0.092 dB | 0.332 / 0.780 |
+| 25 µs | 0.579 dB | 0.966 / 1.852 |
+| 50 µs | 2.420 dB | 2.622 / 4.293 |
+
+This is an analytical sensitivity check, not rendered/fitted reset circuitry.
+Short reset times are not excluded by pitch, but have too little rolloff to
+explain the remaining upper harmonics. Longer times worsen the present pitch
+p90 of **1.325 cents** even with a generous independent affine retrim. Other
+nonlinear recovery laws are not ruled out. No reset-duration parameter or
+retrim is adopted without identifiable recovery evidence.
+
+Current resolved saw residuals at **about 4.17 kHz** are **+1.451 dB**
+(MIDI 60 H16) and **+0.932 dB** (MIDI 72 H8); MIDI 72 H11 at **5.73 kHz** is
+**+1.426 dB**. A 50 µs linear reset attenuates 4.17 kHz by only about 0.63 dB.
+Higher saw lines are often below the −60 dB hardware censoring boundary, so
+8 kHz is a sensitivity example, not a confidently measured isolated source
+pole. Low MIDI 24/36 balance also retains output-coupling uncertainty. Finite
+reset, Q28/Q8 back-loading, source parasitics, VCF/VCA and interface response
+cannot be separated by these output captures. A source low-pass would not
+identify the responsible circuit element; none is introduced.
+
+### Full-session regression audit
+
+Both full runs score **346 captures with zero failures**, under the same
+harness-v2 analysis hash. Overall weighted score **1.0198058937 → 0.9920475818**
+(**−2.72%**). Waveform aggregate **1.0527177208 → 0.8028929137** (**−23.73%**).
+
+| Category | Before median / p90 | After median / p90 | Aggregate before → after |
+|---|---:|---:|---:|
+| pitch | 0.0957 / 0.2651 | 0.0957 / 0.2651 | 0.1380 → 0.1380 |
+| tuning | 0.0995 / 0.5593 | 0.0995 / 0.5593 | 0.2145 → 0.2145 |
+| waveform | 0.9161 / 1.4625 | 0.6195 / 1.3531 | 1.0527 → 0.8029 |
+| vcf | 0.5762 / 4.1235 | 0.5762 / 4.1235 | 1.4631 → 1.4631 |
+| envelopes | 0.6346 / 0.8764 | 0.6346 / 0.8764 | 0.6951 → 0.6951 |
+| amplitude | 1.0204 / 3.0017 | 1.0204 / 3.0017 | 1.5157 → 1.5157 |
+| accent | 0.2452 / 0.9055 | 0.2452 / 0.9055 | 0.4103 → 0.4103 |
+| slide | 0.0000 / 0.1565 | 0.0000 / 0.1565 | 0.0391 → 0.0391 |
+| gate | 0.5174 / 0.8480 | 0.5174 / 0.8480 | 0.6001 → 0.6001 |
+| behavior | 2.8152 / 2.9732 | 2.8152 / 2.9732 | 2.8547 → 2.8547 |
+
+Every other category aggregate, including pitch/tuning/slide and amplitude,
+is unchanged. No category worsens by 2%. Waveform native harmonic RMS
+median/p90 **0.8740/1.3049 → 0.7740/1.0742 dB**; log-band median/p90
+**0.8068/1.4798 → 0.6074/1.5082 dB**. The small log-band p90 increase is included
+in the accepted aggregate, not hidden.
+
+Artifacts: `/tmp/osc-fit-before.json`, `/tmp/osc-r3-score.json`,
+`/tmp/osc-r3-overall.json`, with matching Markdown. Final renderer SHA-256:
+`b13259123a93622c5872ab7bc4c81f21b78d25622346032205316000ab16317c`.
+Analysis SHA-256:
+`c62e2c0e72028d55d33f49a37f3d2acee6917575107bd33dfe376d10a1e741bb`.
+
+### Validation and remaining limits
+
+Offline package-scoped tests across all ten workspace packages: **119 passed,
+4 existing manual timing tests ignored**. Oscillator tests: **17 passed**, with
+its one manual timing test ignored normally. Its separately run release timing
+test passes: **384,000 VCO ticks at 192 kHz in 187.90 ms**. All-target oscillator
+clippy with warnings denied, scoped rustfmt and whitespace checks pass.
+New tests independently check the exponential load-line residual over the
+bounded drive range and Kirchhoff current balance for C10/C11 at all supported
+rate extremes. The previous exact off-state collector equality is now a
+**1e-7 V tolerance**, because a forward exponential has subthreshold current.
+
+Serial Full Circuit renderer holds, 10 s at host 48 kHz, open cutoff, minimum
+resonance/env/decay/accent, full volume:
+
+| MIDI key | Wall CPU (% of one core) | User / sys CPU (s) | Max Newton iterations |
+|---|---:|---:|---:|
+| 24 | 17.4% | 1.73 / 0.00 | 3 |
+| 48 | 15.2% | 1.51 / 0.00 | 3 |
+
+The initial unoptimised log-based inverse exceeded the CPU budget and was
+replaced by cached companion constants and the verified reduced-range log
+polynomial. The final timing meets the approximate 18% hold-workload budget;
+construction, worst-case callback deadlines and sustained glides are not
+claimed by those holds. The hot path remains safe `no_std` Rust with no
+allocation or locks, a fixed four-step inverse and the existing bounded
+harmonic loops.
+
+A scratch auditor copies the current renderer's MIDI replay/parser and links
+the final release engine libraries, adding only post-render VCF diagnostics.
+It covers **346 captures / 384,960,000 circuit ticks**, **zero Newton
+non-convergence**, **zero sanitised inputs**, maximum **4 iterations**.
+Audit source/output: `/tmp/osc-r3-solver-audit`; result log: `results.txt`.
+No workspace renderer, voice or VCF source is changed for that audit.
+
+The complete VERIFY register above covers every code annotation. Principal
+limits remain the inferred Q8 device/reference curve and reduced saturation
+law, unmeasured parasitics/back-loading and reset recovery, finite source
+harmonic bandwidth, output-only identification, and inherited DAC/switch/expo
+approximations. There is no manufacturer Q8 model, isolated internal-node TD-3
+measurement or new SPICE validation in this fitting round.

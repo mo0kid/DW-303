@@ -199,7 +199,8 @@ fn fitted_source_waveforms_and_dc_levels() {
         for _ in 0..(rate / 4.0) as usize {
             shaper.tick(12.0);
         }
-        assert_eq!(shaper.tick(12.0), 64.0 / 12.0);
+        // The exponential junction retains a tiny forward subthreshold current.
+        assert!((shaper.tick(12.0) - 64.0 / 12.0).abs() < 1e-7);
     }
 }
 
