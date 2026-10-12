@@ -62,7 +62,7 @@ fn schematic_component_changes_affect_expo_divider() {
 }
 
 #[test]
-fn fitted_linear_vr2_is_monotonic_with_asymmetric_endpoints() {
+fn fitted_b_taper_vr2_is_monotonic_with_asymmetric_endpoints() {
     let vco = Vco::new(Components::NOMINAL);
     let centre = vco.frequency_hz(1.0, 0.5);
     assert!((cents(vco.frequency_hz(1.0, 0.0) / centre) + 1086.62).abs() < 1.0);
@@ -78,6 +78,81 @@ fn fitted_linear_vr2_is_monotonic_with_asymmetric_endpoints() {
             (cents(vco.frequency_hz(cv, 0.0) / vco.frequency_hz(cv, 0.5)) + 1086.62).abs() < 1.0
         );
     }
+}
+
+#[test]
+fn intermediate_tuning_matches_both_sessions_without_retrimming_pitch() {
+    let c = Components::NOMINAL;
+    let mut fitted = Vco::new(c);
+    let mut linear = Vco::new(Components {
+        tuning_track_bow: 0.0,
+        tuning_track_skew: 0.0,
+        ..c
+    });
+    for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
+        fitted.prepare(rate).unwrap();
+        linear.prepare(rate).unwrap();
+        for cv in [1.0, 3.0, 5.0] {
+            let centre = fitted.frequency_hz(cv, 0.5);
+            // Session-2 same-key offsets: median of MIDI 24/48/72. Allow
+            // estimator/key/session variation, rather than pinning coefficients.
+            for (rotation, measured_cents) in [(0.25, -502.8), (0.75, 447.3)] {
+                assert!(
+                    (cents(fitted.frequency_hz(cv, rotation) / centre) - measured_cents).abs()
+                        < 1.5
+                );
+            }
+            for rotation in [0.0, 0.5, 1.0] {
+                assert_eq!(
+                    fitted.frequency_hz(cv, rotation),
+                    linear.frequency_hz(cv, rotation)
+                );
+            }
+        }
+        fitted.reset();
+        linear.reset();
+        for _ in 0..1024 {
+            let a = fitted.tick(3.0, 0.5);
+            let b = linear.tick(3.0, 0.5);
+            assert_eq!(a.saw, b.saw);
+            assert_eq!(a.square, b.square);
+        }
+    }
+}
+
+#[test]
+fn b_taper_track_has_positive_resistance_density_and_physical_loading() {
+    let c = Components::NOMINAL;
+    // Differentiate the integrated track law independently. The validation
+    // bounds must retain positive segment resistance at every panel angle.
+    for bow in [-0.25, c.tuning_track_bow, 0.25] {
+        for skew in [-0.15, c.tuning_track_skew, 0.15] {
+            let vco = Vco::new(Components {
+                tuning_track_bow: bow,
+                tuning_track_skew: skew,
+                ..c
+            });
+            let mut previous = vco.frequency_hz(1.0, 0.0);
+            for i in 1..=1000 {
+                let x = i as f64 / 1000.0;
+                let u = 2.0 * x - 1.0;
+                let density = 1.0 + 0.5 * bow * (1.0 - 3.0 * u * u) + skew * (u - 2.0 * u * u * u);
+                assert!(density >= 0.6);
+                let frequency = vco.frequency_hz(1.0, x);
+                assert!(frequency > previous);
+                previous = frequency;
+            }
+        }
+    }
+    // Removing R118 loading must reduce the asymmetric endpoint displacement.
+    let unloaded = Vco::new(Components {
+        tuning_input_resistance: 1e9,
+        ..c
+    });
+    let centre = unloaded.frequency_hz(1.0, 0.5);
+    let lo = cents(unloaded.frequency_hz(1.0, 0.0) / centre);
+    let hi = cents(unloaded.frequency_hz(1.0, 1.0) / centre);
+    assert!((lo + hi).abs() < 1e-4);
 }
 
 fn measured_frequency(vco: &mut Vco, rate: f64, cv: f64, tuning: f64) -> f64 {
@@ -123,7 +198,7 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
                     < 1e-9
             );
         }
-        for tuning in [0.0, 0.5, 1.0] {
+        for tuning in [0.0, 0.25, 0.5, 0.75, 1.0] {
             vco.reset();
             let f = measured_frequency(&mut vco, rate, 2.0, tuning);
             assert!(cents(f / vco.frequency_hz(2.0, tuning)).abs() < 1.0);
@@ -273,6 +348,8 @@ fn stability_sanitisation_and_prepare_errors() {
     bad.square_supply = f64::NAN;
     bad.saw_high = -1.0;
     bad.slide_capacitance = f64::INFINITY;
+    bad.tuning_track_bow = f64::NAN;
+    bad.tuning_track_skew = f64::INFINITY;
     assert!(Vco::new(bad).tick(f64::MAX, f64::MAX).saw.is_finite());
     assert!(PitchCv::new(bad).tick(255, true).is_finite());
 }

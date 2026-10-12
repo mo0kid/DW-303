@@ -33,9 +33,19 @@ pub struct Components {
     /// VR2 total tuning span in octaves, converted to an effective pin-3 rail.
     /// VERIFY: O3 pin-3 assumed reference rail; 1400 → 1978.472 cents fitted.
     pub tuning_octaves: f64,
-    /// VR2 linear panel pot, printed 50k(B).
+    /// VR2 B-taper panel pot total resistance, printed 50k(B).
     /// VERIFY: 50k → 44.945k fitted within typical 20% pot tolerance.
     pub tuning_resistance: f64,
+    /// VR2 smooth resistive-track bow coefficient (ideal linear B taper: zero).
+    /// Electrical fraction = x + x*(1-x)*(2*x-1)*(bow + skew*(2*x-1)).
+    /// VERIFY: 0 → 0.102497 fitted to session-2 intermediate tuning positions;
+    /// track density and operator angle placement cannot be isolated by audio.
+    pub tuning_track_bow: f64,
+    /// VR2 resistive-track skew coefficient (ideal linear B taper: zero).
+    /// Shares the electrical-fraction law documented on `tuning_track_bow`.
+    /// VERIFY: 0 → -0.038277 fitted; smooth B-taper approximation, not a
+    /// manufacturer track specification. No panel-angle offset is applied.
+    pub tuning_track_skew: f64,
     /// R118, tuning summing resistor, 100k.
     pub tuning_input_resistance: f64,
     /// R106, CV summing resistor, 27k.
@@ -91,7 +101,7 @@ pub struct Components {
 }
 
 impl Components {
-    /// Schematic components with session-1 fitted tolerances/device estimates.
+    /// Schematic components with session-1/2 fitted tolerances/device estimates.
     /// See the VERIFY register for every departure from printed nominals.
     pub const NOMINAL: Self = Self {
         slide_resistance: 100_000.0,
@@ -100,6 +110,8 @@ impl Components {
         temperature_kelvin: 300.0,
         tuning_octaves: 1_978.472 / 1_200.0,
         tuning_resistance: 44_945.454,
+        tuning_track_bow: 0.102_496_922_354_261_72,
+        tuning_track_skew: -0.038_276_829_432_479_28,
         tuning_input_resistance: 100_000.0,
         cv_input_resistance: 27_000.0,
         posistor_resistance: 560.0,
@@ -139,6 +151,9 @@ impl Components {
         bound!(temperature_kelvin, 200.0, 400.0);
         bound!(tuning_octaves, 0.0, 4.0);
         bound!(tuning_resistance, 1.0, 1e9);
+        // These bounds keep the track resistance density strictly positive.
+        bound!(tuning_track_bow, -0.25, 0.25);
+        bound!(tuning_track_skew, -0.15, 0.15);
         bound!(tuning_input_resistance, 1.0, 1e9);
         bound!(cv_input_resistance, 1.0, 1e9);
         bound!(posistor_resistance, 1.0, 1e9);
@@ -686,18 +701,27 @@ impl Vco {
                 + self.c.posistor_temperature_coefficient
                     * (self.c.temperature_kelvin - n.temperature_kelvin));
         let cv_gain = 1.0 / (1.0 + rcv / ptc + rcv / self.c.tuning_input_resistance);
-        // A linear VR2 is loaded toward the R100 reference by R118, rather
-        // than toward its own midpoint. This produces the measured asymmetric
-        // endpoints without a polynomial knob law. TM4 absorbs centre offset.
+        // VR2 is loaded toward the R100 reference by R118, rather
+        // than toward its own midpoint. R118 loading produces the measured
+        // asymmetric endpoints; TM4 absorbs the centre offset.
         // VERIFY: O3 pin-3 effective rail is inferred from the endpoint span;
         // 5.402 V is close to, but does not establish, the 5.333 V reference.
         let load = self.c.tuning_input_resistance;
         let tune_gain = cv_gain * rcv / load;
         let nominal_tune_gain = target * nominal_rcv / n.tuning_input_resistance;
         let rail = target * self.c.tuning_octaves / nominal_tune_gain;
-        let source_r = self.c.tuning_resistance * tuning * (1.0 - tuning);
+        // Integrating a smooth positive track resistance density gives this
+        // electrical fraction. Both unloaded voltage and Thevenin resistance
+        // use the same two track segments; centre and endpoints stay fixed.
+        let u = 2.0 * tuning - 1.0;
+        let fraction = tuning
+            + tuning
+                * (1.0 - tuning)
+                * u
+                * (self.c.tuning_track_bow + self.c.tuning_track_skew * u);
+        let source_r = self.c.tuning_resistance * fraction * (1.0 - fraction);
         let centre_r = self.c.tuning_resistance * 0.25;
-        let wiper_voltage = (rail * tuning * load + (64.0 / 12.0) * source_r) / (load + source_r);
+        let wiper_voltage = (rail * fraction * load + (64.0 / 12.0) * source_r) / (load + source_r);
         let centre_voltage = (rail * 0.5 * load + (64.0 / 12.0) * centre_r) / (load + centre_r);
         let delta_vbe = cv_gain * (cv - 1.0) + tune_gain * (wiper_voltage - centre_voltage);
         self.reference_frequency * libm::exp((delta_vbe / vt).clamp(-80.0, 80.0))
