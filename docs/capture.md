@@ -146,6 +146,87 @@ pairs. Very long custom selections may take a long time to finish the current
 capture. Native audio/MIDI streams reopen for each capture; startup overhead and
 hardware interruption behaviour remain unmeasured.
 
+## Session 2: control interactions and repeatability
+
+`reference/captures/sessions/03-combos.toml` selects **274 new captures,
+71 panel prompts, 48.6 minutes** (2,915 seconds) using the existing panel
+grouping and greedy ordering. The estimate includes pre/post-roll, 1 s settling
+between unchanged panels and 15 s per confirmation; allow additional time for
+warmup, metadata, device startup and physical adjustments. All stimuli use MIDI
+channel **15**, keys **24–72**, VOLUME **1.0 (10/10)**, saw and 120 BPM. Keep
+interface input gain unchanged and distortion disabled. The manifest's original
+3,416 entries are preserved; the appended session brings its total to 3,690.
+
+```sh
+cargo run --offline -p dw303-capture -- plan reference/captures/manifest.toml \
+  --select '*' --session-file reference/captures/sessions/03-combos.toml
+cargo run --offline -p dw303-capture -- session reference/captures/manifest.toml \
+  --select '*' --session-file reference/captures/sessions/03-combos.toml \
+  --audio-device AUDIO_ID --channel 1 --midi-out 'EXACT OUTPUT NAME' \
+  --rate 96000 --out reference/captures/2026-10-12-session2/ --resume
+```
+
+Only changed controls require panel confirmation; entries with identical panels
+run together. The session file's list does not override planner ordering. Every
+capture sends scripted notes with clock transport disabled; no stored pattern
+programming is required. TUNING is 0.5 except in the six tuning holds.
+
+| Family | New captures | Panel fractions and stimuli |
+|---|---:|---|
+| `combo-c…` | 144 | CUTOFF .2/.4/.6 × ENV MOD 0/.6/1 × RES 0/.5/.8/1, DECAY .5, ACCENT 0; each panel has a single note and an eight-note phrase at each of keys 36/48 |
+| `combo-decay-…` | 64 | DECAY 0/.25/.75/1 × RES 0/.5/.8/1, CUTOFF .4, ENV MOD .6, ACCENT 0; same keys and single/phrase pairing. DECAY .5 comes from the matching three-way grid |
+| `accent2-…` | 48 | ACCENT 0/.25/.5/.75/1 × RES 0/.5/.8/1 × 1/4 consecutive accents, key 48, CUTOFF .4, ENV MOD .6, DECAY .5; plus eight velocity-80 references at ACCENT 0 |
+| `tuning2-…` | 6 | TUNING .25/.75 at keys 24/48/72, open filter, RES/ENV MOD/DECAY/ACCENT 0; 3.5 s held notes |
+| `repeat-…` | 12 | Four exact copies of each existing `pattern-classic`, `pattern-accent-slide`, and `pattern-rests-ties`, including their original complete panel settings, timing, notes and 5 s duration |
+
+The three-way grid uses 4 s recordings with 1.5 s single-note gates. The decay
+extension uses 6 s recordings with 3.5 s single-note gates, retaining more of the
+long-decay tail. Each phrase is eight unaccented sixteenths, 125 ms onset spacing
+and 62.5 ms gates (velocity 80), leaving a tail after the last note. Accent
+captures use the same spacing/gates at velocity 120 and last 4 s; `-v80` IDs
+are matched normal-trigger references. ACCENT=0 at velocity 120 still exercises
+the accented trigger's short MEG decay and must not be treated as unaccented.
+Names encode .25/.75 as 25/75 for DECAY/ACCENT/TUNING, and tenths as 00/02/04/
+06/08/10 for the three-way controls and resonance.
+
+These interactions extend session 1's separate envelope sweeps and resonance
+endpoint accents. Round 6 reports a behavior median normalized error of 2.534
+across only three patterns, with median RMS-envelope error 5.270 dB and
+band-envelope error 3.009 dB. The twelve repeats provide four separately recorded takes
+per pattern under one unchanged panel: tuning .5, cutoff .4, resonance .8,
+env mod .6, decay .5, accent .7, volume 1. Compare the six within-session pairs
+per pattern using the same onset alignment, envelope windows and behavior
+metrics as model comparisons. Report their distribution as TD-3 run-to-run
+variability before attributing smaller differences to the model. Comparisons
+to the older session include knob resetting and session conditions and should
+be reported separately. No 10-minute or longer drift recording is selected.
+
+**VERIFY items and limits for session 2:**
+
+- **VERIFY:** physical knob placement, especially quarter positions, using the
+  printed template. Sidecars record requested settings, not measured pot angles.
+- **VERIFY:** the existing 1 s settle gap plus pre-roll clears residual envelope
+  and accent charge adequately on this unit. Check pre-roll and first-note
+  consistency; lengthen the gap in a future tool change if evidence requires it.
+  Recording tails provide extra release time, but this is not a measured RC bound.
+- **VERIFY:** 15 s per panel adjustment and the 48.6-minute estimate against actual
+  operator timing. Warmup, metadata and native stream startup are excluded.
+- **VERIFY:** velocity-80/120 accent classification and overlap slide semantics
+  on the actual firmware, along with the existing metadata/calibration register.
+  MIDI channel 15 and playable keys 24–72 follow the measured session-1 setup.
+- **VERIFY:** alignment and metric repeatability on the new WAVs before using the
+  four takes as a behavior error floor. Four takes have limited statistical power
+  and cannot estimate thermal drift or between-session variability.
+
+No component values or circuit topology are introduced. Output-only filter and
+accent observations cannot identify internal capacitor voltages uniquely. The
+copied `pattern-rests-ties` schedule has rests and short notes but no long tied
+gate; preserving it measures repeatability of the existing stimulus and leaves
+true sequencer tie behavior unresolved. New ID prefixes need explicit mapping
+in any downstream analyzer that classifies only session-1 IDs; planning tests
+validate stimuli, not analysis support or hardware fidelity. No hardware was
+opened by validation.
+
 ## Matrix and measurement interpretation
 
 The checked-in TOML is fully expanded: 3,416 unique entries, including calibration.

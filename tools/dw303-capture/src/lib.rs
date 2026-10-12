@@ -379,7 +379,7 @@ mod tests {
     #[test]
     fn full_manifest_validates() {
         let m = Manifest::parse(include_str!("../../../reference/captures/manifest.toml")).unwrap();
-        assert!(m.captures.len() > 1000);
+        assert_eq!(m.captures.len(), 3690); // Original matrix + session 2 interactions.
         assert_eq!(m.mapping.channel, 14); // MIDI channel 15, the TD-3 receive channel
     }
     #[test]
