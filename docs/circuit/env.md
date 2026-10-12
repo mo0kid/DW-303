@@ -271,7 +271,9 @@ historical analytical TM3 paragraph above describes Revision 2; current
 assembled-voice trimming is documented in `vcf-calibration.md` (470 kΩ TM3
 endpoint and fitted expo ratio), not that original 62.918 kΩ setting.
 
-Q31 base-current feedback into C42 and temperature dependence are omitted.
+At this historical round, Q31 base-current feedback into C42 and temperature
+dependence were omitted. Round 3 below adds the base-current term; temperature
+dependence remains omitted.
 Accent cross-loading and transistor/OTA gm compression are not independently
 identified. Short pattern trajectories retain gate/MIDI arrival jitter and
 filter-envelope errors; no timing compensation was fitted. Coupling to the
@@ -476,3 +478,225 @@ measured 27.9%, and an earlier 96 kHz run 18.9%; these results do not establish
 a hard scheduling bound. Measurements made during batch rendering are excluded
 from the warmed CPU figures. The audio path remains deterministic and contains
 no added allocation, lock or unbounded iteration. No commit was created.
+
+## Session-1 fitting round 3 (Harness v2, 2026-10-12)
+
+The isolated ENV worktree reproduces the merged round-2 executable exactly:
+SHA-256 `82e0b02b781580c38e06b3d3eb77cafff59e203e0d86b830daf9e5862db3cc84`,
+overall **1.0198058937**. All 346 hardware WAV/JSON pairs were read from the
+absolute, read-only session path supplied for this round. No filter cutoff-law,
+oscillator, engine, manifest, dependency, or sequencer implementation changed.
+
+### Circuit correction and fitted values: VERIFY register
+
+Q31 is a PNP whose base is the C42 storage node. Its base current flows **into**
+C42, in addition to R123's recharge current. Previously it was omitted. The
+unsaturated reset-free charge equation is now
+
+```text
+C42 dV_C42/dt = (12 - V_C42)/R123 + I_Q31/beta_Q31
+```
+
+The existing Q32 discharge and bounded Q31 junction solver remain in place.
+The previous circuit sample's collector current supplies the base-current
+term; this is a single explicit integration step, with no extra nonlinear
+solve. The 48/96/192 kHz tests check the independent linear-junction solution
+and the logarithmic-junction residual. At high control current, the effective
+recharge time constant is about **1.524 s**, instead of the unloaded **1.575 s**;
+C42 and R123 themselves retain their round-2 values. The approximation neglects
+reverse-active Q31 behavior and detailed saturation/base storage.
+
+| VERIFY item | Nominal / round 2 → final | Evidence and residual |
+|---|---|---|
+| Q31 beta | Base loading omitted → **beta = 200** | Generic 2SA733-class PNP estimate, not printed or independently measured. At 47 µA collector current, about 0.235 µA additionally charges C42. Keeping this physical current reduces the full envelope contribution from 0.6620 to 0.4876 before gain adjustment. R123/C42/Is/beta are not individually identified by output audio. |
+| Q36 junction | Generic 0.65; round-2 **0.60 → 0.55 V at 1.18 mA** | Unprinted effective junction parameter; C72 remains its earlier fitted 8 µF, both 10 kΩ gate resistors and beta=200 remain unchanged. Gate on-timing p90 improves 6.101 → 5.382 ms; off-timing is unchanged. First-onset latency already includes hardware attack, and the harness adds the model's own attack after that offset, so this is not an independent measurement of Q36 Vbe. |
+| C38 | Printed **1 → 0.8 µF** | Assumed −20% electrolytic tolerance. Coupling into the modeled 50 kΩ VR8 track has tau 40 ms, about 3.98 Hz. Fitted jointly with C59/C56 to inter-note output tails; individual capacitances and omitted inter-stage loading are not separately identifiable. |
+| C59 | Printed **1 → 0.8 µF** | Assumed −20% electrolytic tolerance. At full volume, R155/C59 tau is 37.6 ms, about 4.233 Hz. The all-0.8 µF trial reduces targeted amplitude contribution 2.8442 → 2.7301 and behavior 2.7604 → 2.7278 before Q31 loading/gain. |
+| C56 | Printed **1 → 0.8 µF** | Assumed −20% electrolytic tolerance. R161+R165 remains 101 kΩ, giving unloaded tau 80.8 ms / 1.970 Hz. No external interface load was added. Quiet tails still differ, including measured interface noise. |
+| FULL_SCALE_VOLTS | Original 5.12; round-2 **10.334 → 10.041 V** | One session-wide **+0.25 dB** recording-chain adjustment after the physical fit. A bounded gain-only evaluation of the full v2 objective selects approximately +0.25 dB; the rebuilt executable is then rescored. No per-note/capture gain. Absolute dBFS/volt remains uncalibrated. |
+
+All prior VERIFY items remain: generic diode drops/clamp and IC12 Ron/supply;
+Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe, Is, matching, beta and temperature; Q39 Idss;
+Q36/Q38/Q32 saturation and buffer headroom; Q31 reference current/ideality;
+BA662A pin-1 voltage, mirror gain, offset/feedthrough and buffer transfer;
+VR4 gang correlation; fitted C13/C42/C62, R138/VR6, R119/R120 tolerances;
+VR5/VR6/VR8 pot tracks; VCF-owned VR3/TM3/expo calibration; omitted mutual
+VR7/accent-branch loading and C38/VR8/C59 loading; output-interface response,
+noise and voltage calibration; capture latency/MIDI jitter. The original
+transcription's duplicate C22/D27, R147 notation, CPU strobe interpretation,
+TP6 placement and headphone ambiguities also remain unresolved. Earlier round
+registers document their values and evidence; this round does not promote
+estimates into measured TB-303 parts.
+
+### Mechanism audit and rejected trials
+
+The worst starting amplitude captures were inspected first: `pitch-k24-t0`,
+then repeated accents (`a10/a09-n8-r0`, low ACCENT `n8-r10/r0`) and
+`pattern-classic`. Normal-note level and brightness generally track the hardware
+much more closely than the quiet gaps. For `accent-a00-n8-r0`, first-note
+70–110 ms windows have roughly −78…−92 dBFS hardware tails versus −69…−70 dBFS
+model tails before fitting. The minimum tuned key is below one cycle per 40 ms
+harness window; its remaining phase/noise discrepancy is not an ENV time constant.
+
+TriggerPulse correctly generates one R148/C54 one-shot per non-overlapped note;
+a held trigger does not restart it. C62 already integrates the finite D37/R152
+charge from its previous voltage, rather than resetting to a chosen envelope
+peak. C41/Q32 similarly discharges partially recharged C42. A new test exercises
+four real Q38 retriggers at 125 ms intervals at 48/96/192 kHz: both capacitors
+retain charge between notes, the C62 attack recovers, and VEG peak current stays
+within 1% of the first attack. No hard capacitor reset or overlap retrigger was
+introduced. The R119/C36/R120/D27 conducting/off network is retained; its
+analytical current and threshold-crossing tests still pass.
+
+An IC13-inspired trial holding MIDI accent after the final note-off was
+**reverted**. At full ACCENT/minimum RES, hardware falls to about −42 dBFS at
+70–80 ms and −60 dBFS at 80–90 ms; the held-accent trial remains about
+−29/−30 dBFS. Its full behavior contribution worsens 2.8547 → 3.2785 and
+amplitude 1.5157 → 1.8735. The schematic latch alone does not establish the
+TD-3 MIDI adapter's strobe/reset behavior. The recorded audio supports retaining
+current note-off accent clearing, last-note priority and overlap slide semantics.
+The `rests-ties` sidecar schedules short gates/rests, not internal tie commands.
+
+An estimated external 20 kΩ line load was also **reverted**: amplitude
+contribution 1.5157 → 1.5338 and behavior 2.8547 → 2.8924. Interface impedance
+was not measured, and the trial did not justify changing the output boundary.
+The coupling search compared 0.8/1.0/1.2 µF within assumed electrolytic
+±20% tolerance, including a linear frequency-domain diagnostic of the existing
+renders; decisions and final metrics use newly rendered audio. The all-1.2 µF
+trial was worse than all-0.8 µF on the targeted set. A 0.40 V Q36 trial was
+rejected as an implausible junction fit; the retained value is 0.55 V, flagged
+above. No synthetic noise floor, audio fade, MIDI time shift or arbitrary accent
+compression was fitted.
+
+### Pattern audit: every scheduled note
+
+All comparisons use the sidecar timeline and one first-note latency shift; no
+per-note alignment or gain matching. `L` is 15–60 ms RMS in dBFS; `B` is the
+harness band centroid in Hz; `P` is the largest 3 ms RMS within the first
+62.5 ms, in dBFS; `D` is late (45–62.5 ms) minus early (15–35 ms) RMS in dB.
+Triples are **TD-3 / round-2 / final**. `on` is the final-minus-TD local 20%-peak
+crossing in ms, using 3 ms windows from −15 to +45 ms; it is an audio proxy
+with capture jitter and frame quantization. Legato pitch changes have no new
+gate edge, so their `on` is omitted.
+
+#### pattern-classic
+
+| Note/key/velocity | L (dBFS) | B (Hz) | P (dBFS) | D (dB) | on (ms) |
+|---|---:|---:|---:|---:|---:|
+| 1/48/120 | -26.8 / -26.4 / -26.2 | 418 / 476 / 476 | -22.5 / -21.4 / -21.1 | -2.8 / -3.1 / -3.2 | 0 |
+| 2/48/80 | -31.8 / -32.1 / -31.8 | 463 / 464 / 464 | -27.7 / -28.6 / -28.4 | 1.6 / -1.0 / -1.0 | -3 |
+| 3/60/80 | -29.3 / -30.5 / -30.2 | 577 / 578 / 577 | -28.3 / -29.5 / -29.3 | -0.1 / -0.1 / -0.1 | 0 |
+| 4/55/80 | -30.0 / -31.1 / -30.8 | 543 / 536 / 536 | -28.3 / -29.1 / -28.9 | 0.4 / -0.6 / -0.6 | 3 |
+| 5/48/120 | -27.3 / -26.9 / -26.6 | 436 / 478 / 478 | -22.5 / -20.5 / -20.2 | -1.4 / -0.8 / -0.8 | 3 |
+| 6/51/80 | -30.7 / -31.7 / -31.5 | 511 / 517 / 517 | -28.0 / -28.8 / -28.5 | 0.3 / -0.4 / -0.4 | 3 |
+| 7/48/80 | -31.2 / -32.1 / -31.9 | 464 / 449 / 449 | -27.7 / -28.7 / -28.5 | -1.1 / -1.0 / -1.0 | 0 |
+| 8/60/80 | -29.3 / -30.4 / -30.2 | 579 / 572 / 572 | -28.3 / -29.5 / -29.3 | 0.3 / -0.0 / -0.1 | 0 |
+| 9/48/120 | -26.8 / -26.4 / -26.1 | 439 / 478 / 478 | -22.5 / -20.8 / -20.6 | -2.7 / -3.2 / -3.2 | 0 |
+| 10/55/80 | -30.0 / -31.1 / -30.9 | 548 / 564 / 564 | -28.3 / -29.1 / -28.9 | 0.2 / -0.0 / -0.0 | 3 |
+| 11/51/80 | -30.7 / -31.7 / -31.5 | 508 / 497 / 497 | -28.0 / -28.8 / -28.5 | -0.9 / -1.0 / -1.0 | 0 |
+| 12/48/80 | -31.2 / -32.1 / -31.9 | 463 / 445 / 445 | -27.7 / -28.7 / -28.5 | -1.0 / -1.1 / -1.1 | -3 |
+| 13/60/120 | -24.8 / -24.7 / -24.5 | 537 / 620 / 620 | -22.6 / -21.4 / -21.1 | -2.2 / -2.1 / -2.1 | 3 |
+| 14/55/80 | -30.0 / -31.1 / -30.8 | 550 / 565 / 565 | -28.3 / -29.1 / -28.9 | -0.5 / -0.7 / -0.7 | 0 |
+| 15/48/80 | -31.2 / -32.1 / -31.9 | 464 / 447 / 447 | -27.7 / -28.7 / -28.4 | -1.1 / 0.3 / 0.3 | 3 |
+| 16/48/80 | -31.2 / -32.4 / -32.1 | 461 / 446 / 446 | -27.7 / -28.5 / -28.3 | 0.4 / 0.2 / 0.2 | 0 |
+
+#### pattern-accent-slide
+
+| Note/key/velocity | L (dBFS) | B (Hz) | P (dBFS) | D (dB) | on (ms) |
+|---|---:|---:|---:|---:|---:|
+| 1/48/120 | -26.9 / -26.4 / -26.2 | 417 / 476 / 476 | -22.4 / -21.4 / -21.1 | -2.7 / -3.1 / -3.2 | 3 |
+| 2/60/80 | -31.3 / -32.2 / -32.0 | 358 / 373 / 373 | -28.8 / -29.8 / -29.6 | -0.6 / -0.2 / -0.2 | legato |
+| 3/55/80 | -30.0 / -31.1 / -30.9 | 532 / 542 / 542 | -28.3 / -29.1 / -28.9 | 0.3 / 0.3 / 0.3 | 0 |
+| 4/48/80 | -31.2 / -32.1 / -31.8 | 463 / 445 / 445 | -27.7 / -28.7 / -28.4 | 0.3 / -1.1 / -1.1 | 0 |
+| 5/51/120 | -29.4 / -30.0 / -29.8 | 355 / 347 / 347 | -24.8 / -25.0 / -24.8 | -1.4 / -2.9 / -2.9 | legato |
+| 6/63/80 | -29.2 / -30.3 / -30.1 | 647 / 656 / 656 | -28.5 / -29.6 / -29.4 | -0.1 / -0.4 / -0.5 | 0 |
+| 7/55/80 | -30.0 / -31.4 / -31.1 | 545 / 533 / 533 | -28.3 / -29.1 / -28.9 | 0.3 / -0.7 / -0.7 | 0 |
+| 8/48/80 | -31.6 / -33.1 / -32.9 | 381 / 369 / 369 | -28.8 / -29.9 / -29.6 | -1.0 / 0.3 / 0.3 | legato |
+| 9/48/120 | -26.7 / -26.5 / -26.3 | 432 / 478 / 478 | -22.4 / -20.5 / -20.2 | -2.1 / -2.1 / -2.1 | 3 |
+| 10/60/80 | -29.2 / -30.5 / -30.2 | 581 / 601 / 601 | -28.3 / -29.5 / -29.3 | 0.1 / -0.3 / -0.3 | 0 |
+| 11/55/80 | -31.1 / -31.9 / -31.7 | 418 / 416 / 416 | -29.3 / -30.3 / -30.1 | -0.0 / -0.8 / -0.8 | legato |
+| 12/51/80 | -30.7 / -31.7 / -31.5 | 502 / 493 / 493 | -28.0 / -28.8 / -28.5 | 0.4 / 0.2 / 0.2 | 3 |
+| 13/48/120 | -26.7 / -26.6 / -26.3 | 442 / 479 / 479 | -22.4 / -20.7 / -20.5 | -2.6 / -2.1 / -2.1 | 3 |
+| 14/55/80 | -31.8 / -32.7 / -32.5 | 335 / 348 / 348 | -29.0 / -30.0 / -29.8 | 0.5 / 0.4 / 0.4 | legato |
+| 15/60/80 | -29.2 / -30.7 / -30.4 | 568 / 579 / 578 | -28.1 / -29.6 / -29.3 | -0.2 / -0.2 / -0.2 | 0 |
+| 16/48/80 | -31.3 / -32.1 / -31.9 | 465 / 443 / 443 | -27.7 / -28.5 / -28.2 | 0.3 / 0.3 / 0.3 | 0 |
+
+#### pattern-rests-ties
+
+| Note/key/velocity | L (dBFS) | B (Hz) | P (dBFS) | D (dB) | on (ms) |
+|---|---:|---:|---:|---:|---:|
+| 1/48/120 | -27.3 / -26.4 / -26.2 | 418 / 476 / 476 | -22.5 / -21.4 / -21.1 | -1.9 / -3.1 / -3.2 | -3 |
+| 2/48/80 | -31.2 / -32.6 / -32.4 | 455 / 449 / 449 | -27.7 / -28.6 / -28.3 | -1.1 / 1.4 / 1.4 | -3 |
+| 3/48/80 | -31.3 / -32.1 / -31.9 | 459 / 445 / 445 | -27.7 / -28.6 / -28.3 | 0.4 / 0.1 / 0.1 | 0 |
+| 4/60/80 | -29.2 / -30.4 / -30.2 | 570 / 571 / 571 | -28.2 / -29.5 / -29.3 | -0.2 / 0.3 / 0.2 | 0 |
+| 5/55/80 | -30.0 / -31.2 / -30.9 | 536 / 534 / 535 | -28.2 / -29.2 / -28.9 | -0.5 / 0.4 / 0.4 | 0 |
+| 6/48/120 | -26.7 / -26.4 / -26.1 | 436 / 478 / 478 | -22.6 / -20.4 / -20.2 | -2.7 / -3.2 / -3.2 | 3 |
+| 7/48/80 | -31.2 / -32.6 / -32.4 | 455 / 449 / 449 | -27.8 / -28.6 / -28.3 | 0.3 / 1.4 / 1.4 | 0 |
+| 8/60/80 | -29.2 / -30.7 / -30.4 | 577 / 573 / 573 | -28.3 / -29.5 / -29.2 | -0.0 / 0.1 / 0.1 | 3 |
+| 9/55/80 | -30.0 / -31.1 / -30.8 | 537 / 535 / 535 | -28.3 / -29.0 / -28.8 | -0.5 / -0.6 / -0.7 | 0 |
+| 10/48/80 | -31.2 / -32.1 / -31.9 | 459 / 442 / 442 | -27.8 / -28.7 / -28.4 | -0.5 / 0.3 / 0.3 | 3 |
+
+### Final scoring, validation and residuals
+
+Full Harness-v2 error **1.0198058937 → 0.9576377038** (**6.10% reduction**),
+346/346 captures, **zero analysis failures**. The requested four-category subset
+is **1.4467224324 → 1.3790682907**; its weights differ from the full objective.
+Category contribution below is `0.75*median + 0.25*p90` before weighting.
+
+| Category | Median before → after | p90 before → after | Contribution before → after | Change |
+|---|---:|---:|---:|---:|
+| pitch | 0.0957 → 0.0961 | 0.2651 → 0.2667 | 0.1380 → 0.1387 | +0.49% |
+| tuning | 0.0995 → 0.0995 | 0.5593 → 0.5599 | 0.2145 → 0.2146 | +0.04% |
+| waveform | 0.9161 → 0.9146 | 1.4625 → 1.4541 | 1.0527 → 1.0494 | -0.31% |
+| vcf | 0.5762 → 0.5762 | 4.1235 → 4.1235 | 1.4631 → 1.4631 | +0.00% |
+| envelopes | 0.6346 → 0.4007 | 0.8764 → 0.6797 | 0.6951 → 0.4705 | -32.31% |
+| amplitude | 1.0204 → 0.9555 | 3.0017 → 2.9010 | 1.5157 → 1.4419 | -4.87% |
+| accent | 0.2452 → 0.2484 | 0.9055 → 0.9058 | 0.4103 → 0.4128 | +0.60% |
+| slide | 0.0000 → 0.0000 | 0.1565 → 0.1565 | 0.0391 → 0.0391 | +0.00% |
+| gate | 0.5174 → 0.5174 | 0.8480 → 0.7761 | 0.6001 → 0.5821 | -3.00% |
+| behavior | 2.8152 → 2.6707 | 2.9732 → 2.7748 | 2.8547 → 2.6968 | -5.53% |
+
+No category worsens by more than 2%; the largest increase is accent **0.60%**.
+Gate on-timing median/p90 is **3.674/6.101 → 3.674/5.382 ms**;
+release median/p90 stays **1.500/2.378 ms**. Behavior absolute-level median/p90
+improves **0.393/0.458 → 0.111/0.195 dB**. Envelope normalized RMS median/p90
+improves **1.257/1.908 → 0.694/1.368 dB**, amplitude-decay ratio median/p90
+**0.108/0.198 → 0.067/0.165 octaves**. These are output measurements, not
+independent capacitor or transistor measurements.
+
+Accent level-increase p90 remains **2.735 → 2.737 dB**. Minimum-resonance full
+accents remain roughly 4 dB too loud in the 15–60 ms window; maximum-resonance
+levels are closer, so a common accent-current multiplier would sacrifice those
+captures. Brightness and peak/decay discrepancies also implicate the VCF/accent
+sweep and OTA/device transfer. R119/R120 are already at the prior +5% tolerance
+fit. Unmeasured cross-loading, OTA transfer/headroom and the filter's large-signal
+response limit further physically justified fitting in this scope. No claim
+is made that the high-accent residual was solved.
+
+Quiet-gap waveform/capacitor transients, interface noise, uncertain latency and
+MIDI send jitter remain significant. `pattern-classic` retains 6.483 dB normalized
+RMS trajectory error despite its smaller aggregate contribution. A recording
+with a calibrated interface transfer and independent gate/internal-node probes
+would distinguish coupling, noise and timing from envelope components.
+
+All ten workspace packages were tested with explicit offline `-p` selections:
+**118 passed, zero failures, four manual tests ignored**. ENV has **15 passing
+tests**, including the new actual-Q38 partial-charge retrigger/rate test;
+its recharge test now checks independent Q31-base-loaded physics instead of
+pinning the superseded unloaded RC law. The output test checks the fitted
+coupling corners. Existing Q31 junction residual/tail, C72 release, OTA/accent
+current, sanitization and extreme-run tests pass. ENV/voice/sequencer all-target
+Clippy with `-D warnings`, package-scoped rustfmt checks and `git diff --check`
+pass. No dependencies, allocation, locks or unbounded tick loops were added.
+
+Three sequential warmed eight-second Full Circuit renders at 48 kHz measured
+**18.1 / 18.0 / 17.9% of one core** (1.446 / 1.442 / 1.436 s wall time).
+Each processed **1,536,000 VCF samples**, **zero non-convergence**, zero sanitized
+inputs, maximum Newton count **3**. Timings are wall-clock observations, not a
+hard scheduling guarantee. Existing engine allocation checks pass. No commit
+or branch/history change was made.
+
+Reports: `/tmp/env-before.json`, `/tmp/env3-score.json`,
+`/tmp/env3-full-score.json`, with matching Markdown companions. Final renderer
+SHA-256: `712176db16feaaba441b9770f48aa6a6f58ea1accee652b7e4dc4acc105f7ede`.
+Analysis SHA-256: `c62e2c0e72028d55d33f49a37f3d2acee6917575107bd33dfe376d10a1e741bb`.

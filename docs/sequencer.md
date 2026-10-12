@@ -323,3 +323,23 @@ this analog change. See [ENV round-2 evidence](circuit/env.md) for the fit,
 remaining gate-attack error and unverified device parameters. Output-only audio
 and sidecar send times do not establish internal MIDI gate/CPU timing, so no
 extra sequencer delay, overlap retrigger or velocity rule was inferred.
+
+
+### Session-1 fitting round 3: note-by-note MIDI audit
+
+All 42 scheduled notes in the three pattern captures were compared for onset,
+3 ms RMS peak, 15–60 ms level/brightness and early-to-late decay. The detailed
+TD-3 / round-2 / final tables and limitations are in
+[ENV round-3 evidence](circuit/env.md#session-1-fitting-round-3-harness-v2-2026-10-12).
+The accent-slide capture's overlapping note-ons suppress retrigger and preserve
+capacitor charge; the other two schedules use explicit short gates/rests. Their
+names alone do not establish internal sequencer tie or strobe behavior.
+
+Holding `MonoNoteInput` accent through note-off was tested against IC13's
+schematic latch, then reverted: the hardware full-accent tail reaches roughly
+−60 dBFS where the held-accent replay stays near −30 dBFS. Output evidence
+therefore supports the existing MIDI note-off accent clearing. Last-note
+priority, accent threshold, repeated-key overlap and legato return remain
+unchanged. No MIDI timing compensation or new trigger rule was added; the
+retained changes are Q31 base-current charging, Q36 junction fitting and output
+coupling/gain calibration in ENV/voice.

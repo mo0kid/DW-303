@@ -67,10 +67,11 @@ pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 /// Output node voltage that maps to digital full scale (1.0).
 /// VERIFY: session1 overall-RMS fit to TD-3 / UMC1820 at unity gain.
 /// Round 1 used 11.595 V after a +7.10 dB baseline correction; round 2
-/// reduces the divisor by 1.00 dB after the source/filter fits.
+/// used 10.334 V. Round 3 adds 0.25 dB after the physical envelope fit,
+/// minimizing the full Harness-v2 objective with one session-wide gain.
 /// This calibrates the recording chain, not a TB-303 component value.
 /// VERIFY: absolute volts are unknown (no interface dBFS-per-volt calibration).
-pub const FULL_SCALE_VOLTS: f64 = 10.334;
+pub const FULL_SCALE_VOLTS: f64 = 10.041;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
