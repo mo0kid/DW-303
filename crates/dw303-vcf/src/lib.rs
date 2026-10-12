@@ -1,7 +1,7 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-fitting-round5-2026-10-12.md` for the current measurement fit.
+//! `docs/circuit/vcf-fitting-round10-2026-10-12.md` for the current measurement fit.
 //! Q12 differential base loading retains ten physical capacitor states;
 //! unmeasured transistor betas and the effective Q21 gain remain VERIFY items.
 
@@ -24,11 +24,15 @@ pub enum StageError {
 /// Schematic component values in SI units (reconciled service-notes page 5).
 #[derive(Clone, Copy, Debug)]
 pub struct Components {
-    /// C18, C19, C24, C26, bottom to top.
+    /// C18, C19, C24, C26, bottom to top; printed 18/33/33/33 nF.
+    /// VERIFY: fitted 19.8/30.8/30.8/34.1 nF, within assumed ±10% tolerances.
+    /// Output audio identifies their ratios and calibrated current jointly.
     pub ladder_capacitance: [f64; 4],
     /// C17 input coupling.
     pub c17: f64,
-    /// C25 (L1 to Q21R), C27 (R1 to Q21L), crossed output coupling.
+    /// C25 (L1 to Q21R), C27 (R1 to Q21L), crossed output coupling, printed 0.1 uF.
+    /// VERIFY: fitted 0.086667 uF each, assuming ±20% tolerance; actual part
+    /// tolerance and capacitance are unmeasured. Correlated with Q21 beta.
     pub output_capacitance: [f64; 2],
     /// C14 output, C15 Q18 input, C23 Q12 feedback coupling.
     pub coupling_capacitance: [f64; 3],
@@ -47,13 +51,16 @@ pub struct Components {
     /// VERIFY: junction temperature / ideality; VT estimated at 300 K.
     pub thermal_voltage: f64,
     /// VERIFY: Q20 Vbe used to derive Q21 tail current; not printed.
+    /// Generic 0.65 V → effective fitted 0.60381 V; no device curve measured.
     pub vbe: f64,
     /// VERIFY: Q21 common-emitter current gain at its approximately 0.26 mA
-    /// collector bias. Fitted base loading; no internal current measurement.
+    /// collector bias. Previous 302.5 → fitted 314.93, jointly with Q20 Vbe
+    /// and C25/C27; no internal current measurement or device curve.
     pub output_beta: f64,
     /// VERIFY: Q12 current gain; differential base currents load R62/R70 and
-    /// R97/R98. Fitted to 300 for the unmeasured low-current 2SC1583 pair;
-    /// see the round-5 fit register for evidence and identifiability limits.
+    /// R97/R98. Previous 300 → effective fitted 50 for the unmeasured
+    /// low-current 2SC1583 pair. This reaches the model's supported lower
+    /// bound, not an identified device rating; see the round-10 fit register.
     pub input_beta: f64,
     /// VERIFY: effective Q21 collector gain, fitted to TD-3 ring captures.
     /// Preserves the printed resistors; multiplies Q21 collector swing and gm.
@@ -64,11 +71,11 @@ pub struct Components {
     pub output_coupling_scale: f64,
 }
 impl Components {
-    /// Printed passives/supplies with explicitly marked device and fit estimates.
+    /// Schematic passives/supplies with marked fitted tolerances/device estimates.
     pub const NOMINAL: Self = Self {
-        ladder_capacitance: [18e-9, 33e-9, 33e-9, 33e-9],
+        ladder_capacitance: [19.8e-9, 30.8e-9, 30.8e-9, 34.1e-9],
         c17: 1e-6,
-        output_capacitance: [0.1e-6; 2],
+        output_capacitance: [0.086_666_667e-6; 2],
         coupling_capacitance: [1e-6; 3],
         input_resistance: [220_000.0, 2_200.0],
         output_bias_resistance: [100_000.0; 2],
@@ -77,9 +84,9 @@ impl Components {
         amplifier_resistance: [10_000.0, 10_000.0, 10_000.0, 2_200.0, 2_200.0],
         bias_supply: 5.333,
         thermal_voltage: 0.02585,
-        vbe: 0.65,
-        output_beta: 302.5,
-        input_beta: 300.0,
+        vbe: 0.603_810_227_708_695_2,
+        output_beta: 314.931_506_849_315_04,
+        input_beta: 50.0,
         output_gain_correction: 9.125,
         output_coupling_scale: 1.0,
     };

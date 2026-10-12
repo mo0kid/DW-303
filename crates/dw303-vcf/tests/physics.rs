@@ -129,14 +129,27 @@ fn response(rate: f64, current: f64, f: f64, p: f64, q: Quality) -> f64 {
     2.0 * sin.hypot(cos) / count as f64 / 1e-4
 }
 #[test]
-fn printed_values_gains_and_corners() {
+fn fitted_passives_and_loaded_output_corner() {
     let c = Components::NOMINAL;
-    assert_eq!(c.ladder_capacitance, [18e-9, 33e-9, 33e-9, 33e-9]);
+    for (fitted, printed) in c
+        .ladder_capacitance
+        .into_iter()
+        .zip([18e-9, 33e-9, 33e-9, 33e-9])
+    {
+        assert!((fitted / printed - 1.0).abs() <= 0.100_001);
+    }
+    for fitted in c.output_capacitance {
+        assert!((fitted / 0.1e-6 - 1.0).abs() < 0.20);
+    }
     let fc = |r: f64, c: f64| 1.0 / (TAU * r * c);
     assert!((fc(222_200.0, c.c17) - 0.7163).abs() < 0.001);
     assert!((fc(12_200.0, c.coupling_capacitance[2]) - 13.0455).abs() < 0.001);
-    assert!((fc(100_000.0, c.output_capacitance[0]) - 15.9155).abs() < 0.001);
-    assert!((Vcf::new(c).output_gain() / c.output_gain_correction - 10.85).abs() < 0.1);
+    let tail = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3];
+    let collector = 0.5 * tail * c.output_beta / (c.output_beta + 1.0);
+    let loaded_g =
+        1.0 / c.output_bias_resistance[0] + collector / (c.output_beta * c.thermal_voltage);
+    assert!((loaded_g / (TAU * c.output_capacitance[0]) - 78.35).abs() < 0.1);
+    assert!((Vcf::new(c).output_gain() - 103.26).abs() < 0.1);
 }
 #[test]
 fn response_matches_netlist_and_rates() {

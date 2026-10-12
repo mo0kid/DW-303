@@ -1,4 +1,4 @@
-# Pitch CV, VCO and square shaper — session-2 tuning fit
+# Pitch CV, VCO and square shaper — current fits
 
 Authority: [reconciled netlist](../../reference/schematic/netlist.md),
 [VCO transcription](../../reference/schematic/transcription/vco.md), and
@@ -16,9 +16,11 @@ longer substituted for C33 voltage: `saw_low` and `saw_high` now describe the
 capacitor cycle endpoints **before** the explicitly modelled Q28 follower.
 `VcoOut.saw` remains Q28 source voltage and `VcoOut.square` Q8 collector voltage;
 method signatures and SI units remain unchanged. Round 3 changes Q8's junction
-law and fitted base/emitter parameters. The latest round fits VR2's resistive
-track only. Earlier score sections are historical evidence; current combined
-harness-v5 results appear at the end.
+law and fitted base/emitter parameters. The session-2 tuning round fits VR2's
+resistive track. Round 10 refits Q8 parameters with the revised VCF coupling;
+its combined results and limitations are in
+[the round-10 report](vcf-fitting-round10-2026-10-12.md).
+Earlier score sections are historical evidence.
 
 ## Pitch CV and slide
 
@@ -183,13 +185,13 @@ Every code `VERIFY:` item, including inherited approximations, is covered here.
 | C33 upper endpoint / Q27/D25, O6 | Former ideal source annotation 12 → capacitor 11.5 V; reset drops inferred, not individually identified |
 | Q28 IDSS / pinch-off | Ideal follower → 0.6 mA / −1 V; harmonic balance across five octaves; no internal voltage or device curve; near lower search boundaries |
 | Q28 model reduction | Shockley saturation and triode load line; omit gate current, capacitances and Q8 base-network back-loading into Q28; estimates covary with Q8 and reset endpoints |
-| R35 | 100k → 100.435k (+0.435%); round-3 square harmonic/phase fit; round-2 was 103.660k; ±5% search bound assumed |
-| R45 | 22k → 22.7955k (+3.62%); round-3 square harmonic/phase fit; round-2 was 22.776k; ±5% search bound assumed |
+| R35 | 100k → 102.3096k (+2.310%); round-10 octave fit with current VCF coupling; round-3 was 100.435k; ±5% search bound assumed |
+| R45 | 22k → 22.7705k (+3.502%); round-10 octave fit; round-3 was 22.7955k; ±5% search bound assumed |
 | C10 | 10 → 9.282418 nF (−7.18%); round-3 square harmonic/phase fit; round-2 was 8.455 nF; ±20% search bound assumed |
-| C11 | 1 → 0.8342997 uF (−16.57%); round-3 octave duty/tilt fit; round-2 was 0.819 uF; ±20% search bound assumed |
+| C11 | 1 → 0.8372997 uF (−16.27%); round-10 octave duty/tilt fit; round-3 was 0.8342997 uF; ±20% search bound assumed |
 | Q8 Veb, O6 | Former fixed 0.65 / round-2 0.5425 V → exponential-law reference 0.500 V at Ic=100 uA, 300 K; different parameter meaning; effective Is≈3.98e-13 A; lower 0.50–0.70 V search boundary; device curve and temperature law unmeasured |
-| Q8 beta | Estimated 200 → 423.5591 (round-2 389.5); constant forward beta; fits waveform, not independently measured |
-| Q8 Vec_sat | Estimated 0.2 → 0.04323268 V (round-2 0.08055 V); constant saturation clamp; fits waveform, not independently measured |
+| Q8 beta | Estimated 200 → 428.5591 (round-3 423.5591); constant forward beta; fits waveform, not independently measured |
+| Q8 Vec_sat | Estimated 0.2 → 0.04573268 V (round-3 0.04323268 V); constant saturation clamp; fits waveform, not independently measured |
 | `cv_for_note` | IC10 supply unprinted; ideal logic high = 64/12 V; selected DAC resistor mismatch omitted |
 | `PitchCv`, O2 | Already-latched note; shared IC9/slide clock ambiguity delegated to sequencer |
 | `PitchCv`, O7/O6 | Ideal IC12 and IC11b; omit switch Ron, settling, clamps and Q29/Q30 switching; IC12 supply unprinted |

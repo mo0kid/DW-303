@@ -75,7 +75,8 @@ pub struct Components {
     /// R36 return, 5.333 V rail (exact 64/12 for DAC calibration).
     pub square_return: f64,
     /// R35, DC saw-to-Q8-base path, printed 100k.
-    /// VERIFY: 100k → 100.435k fitted (assumed 5% resistor tolerance).
+    /// VERIFY: 100k → 102.310k fitted (assumed 5% resistor tolerance);
+    /// round-10 output fit includes the current VCF coupling parameters.
     pub square_dc_resistance: f64,
     /// R34, series path from C10 to Q8 base, 10k.
     pub square_input_resistance: f64,
@@ -85,18 +86,18 @@ pub struct Components {
     /// R36, collector return resistance, 10k.
     pub square_collector_resistance: f64,
     /// R45, emitter supply resistance, printed 22k.
-    /// VERIFY: 22k → 22.7955k fitted (assumed 5% resistor tolerance).
+    /// VERIFY: 22k → 22.7705k fitted (assumed 5% resistor tolerance).
     pub square_emitter_resistance: f64,
     /// C11, emitter storage capacitor, printed 1 uF.
-    /// VERIFY: 1 uF → 0.8343 uF fitted (assumed 20% capacitor tolerance).
+    /// VERIFY: 1 uF → 0.8373 uF fitted (assumed 20% capacitor tolerance).
     pub square_emitter_capacitance: f64,
     /// Q8 forward Veb at 100 uA collector current and `temperature_kelvin`.
     /// VERIFY: Q8 unprinted part/model (O6); fitted 0.5 V reference drop,
     /// replacing the previous constant 0.5425 V junction approximation.
     pub transistor_vbe: f64,
-    /// VERIFY: Q8 forward beta, estimated 200 → fitted 423.559; no device curve supplied.
+    /// VERIFY: Q8 forward beta, estimated 200 → fitted 428.559; no device curve supplied.
     pub transistor_beta: f64,
-    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.043233 V.
+    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.045733 V.
     pub transistor_vce_sat: f64,
 }
 
@@ -125,15 +126,15 @@ impl Components {
         follower_pinch_off_v: 1.0,
         square_supply: 12.0,
         square_return: 64.0 / 12.0,
-        square_dc_resistance: 100_434.6,
+        square_dc_resistance: 102_309.6,
         square_input_resistance: 10_000.0,
         square_input_capacitance: 9.282_418e-9,
         square_collector_resistance: 10_000.0,
-        square_emitter_resistance: 22_795.5,
-        square_emitter_capacitance: 0.834_299_7e-6,
+        square_emitter_resistance: 22_770.5,
+        square_emitter_capacitance: 0.837_299_7e-6,
         transistor_vbe: 0.5,
-        transistor_beta: 423.5591,
-        transistor_vce_sat: 0.043_232_68,
+        transistor_beta: 428.5591,
+        transistor_vce_sat: 0.045_732_68,
     };
 
     fn valid(mut self) -> Self {

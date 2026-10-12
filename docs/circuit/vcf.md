@@ -7,13 +7,14 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-round5-2026-10-12.md](vcf-fitting-round5-2026-10-12.md);
+validation are in [vcf-fitting-round10-2026-10-12.md](vcf-fitting-round10-2026-10-12.md);
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
 
-The four differential rung voltages are ordered bottom to top: C18 18 nF,
-C19/C24/C26 33 nF. Define `v = R - L`. Q12 is the fixed-tail input pair;
+The four differential rung voltages are ordered bottom to top. Printed values
+are C18 18 nF and C19/C24/C26 33 nF; current fitted defaults and their tolerance
+assumptions are in the round-10 register. Define `v = R - L`. Q12 is the fixed-tail input pair;
 Q13/Q15, Q14/Q17 and Q16/Q23 are diode-connected rungs; Q22 has fixed bases
 at BIAS_Q22 and acts as the common-base top termination. With `S = 2 VT`,
 `I = Q11 collector current`, `Iladder = I beta12/(beta12+1)`, and differential capacitor current equal to
@@ -64,7 +65,8 @@ j_input = (Iladder/2) tanh(u_intrinsic/(2 VT))
 dh23/dt additionally subtracts R98/(R97+R98) j_input/(beta12 C23)
 ```
 
-`beta12=300` is a fitted, unmeasured device estimate (**VERIFY**). The settled
+`beta12=50` is the current effective, unmeasured device estimate (**VERIFY**),
+at the supported lower fitting bound; round 5 used 300. The settled
 DC base-current sum remains absorbed in the bias. Small-signal Q12 conductance
 includes the frequency-dependent source degeneration
 `g12 = g / (1 + g (Zleft+Zright)/beta12)`. The continuous calibration pole and
@@ -74,7 +76,7 @@ small-step Taylor evaluation to avoid repeated exponentials; it solves the
 same implicit current law. C17/C23 form another 2×2 Schur block, retaining ten
 capacitor voltages, with no new allocation, lock or unbounded tick loop.
 
-Crossed C25/C27 (each 0.1µF) feed Q21R/Q21L respectively:
+Crossed C25/C27 (printed 0.1µF each; fitted 0.086667µF) feed Q21R/Q21L respectively:
 
 ```
 b_right = -v[3]/2 - h25
@@ -87,10 +89,11 @@ dh27/dt = i_left/C27
 C26 dv[3]/dt additionally subtracts (i_left-i_right)/2
 ```
 
-R113/R114=100K alone yield 10 ms / 15.915 Hz corners. The current reduction
+R113/R114=100K with the printed capacitors alone yield 10 ms / 15.915 Hz
+corners; fitted capacitance gives 8.667 ms / 18.364 Hz before base loading. The current reduction
 also includes complementary nonlinear Q21 base currents. Their zero-signal
-linearisation is still `r_pi = beta VT / Ic`, with a loaded corner of about
-67.91 Hz; the DC base-current sum is absorbed into the settled bias. Both
+linearisation is still `r_pi = beta VT / Ic`, with a fitted loaded corner of about
+78.35 Hz (round 5: 67.91 Hz); the DC base-current sum is absorbed into the settled bias. Both
 currents load the ladder top. Constant beta and stiff common-mode bias remain
 VERIFY assumptions.
 Q20 tail current is derived from R116/R112/R109's three-resistor divider,
@@ -104,8 +107,9 @@ Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 
 For the printed-only gain with infinite beta and correction one,
 R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
-The current fitted gain correction and finite beta give 99.19 V/V and
-5.13 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
+The current fitted Q20 Vbe/Q21 beta, with the retained gain correction 9.125,
+give 103.26 V/V and 5.34 V swing; the missing gain remains explicitly provisional
+in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
 
@@ -173,7 +177,7 @@ ENV MOD, DECAY and ACCENT minima and CUTOFF centre are integrator settings.
 The helper does not assume a knob-to-current mapping.
 
 Historical printed-only, infinite-beta 500 Hz pole calibration gave **23.1996 µA**.
-For the current fitted components, see the round-3 report above. A small impulse produces
+For the current fitted components, see the round-10 report above. Historical small-impulse measurements produced
 first peak-to-peak periods of **1.896 / 1.906 / 1.906 ms** at 48/96/192 kHz,
 inside page 7's 2 ms ±0.5 ms adjustment window. Early peaks contain other
 modes, so their spacing differs slightly from the isolated pole's 2 ms.
@@ -221,7 +225,7 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 
 1. `Components::thermal_voltage`: estimated VT=25.85 mV at 300 K;
    transistor temperature and ideality are not printed.
-2. `Components::vbe`: Q20 Vbe=0.65 V is an estimate. It sets tail current,
+2. `Components::vbe`: Q20 Vbe=0.60381 V is a fitted estimate (previous 0.65 V). It sets tail current,
    Q21 gain, clipping amplitude and calibration current. The schematic's
    unspecified individual transistor types, Is/β and matching remain unknown.
 3. `Vcf::flow`: algebraic common-mode elimination neglects ladder base currents,
@@ -232,12 +236,18 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
    Q21 includes complementary nonlinear base currents, but retains constant beta,
    fixed tail current and settled common-mode base bias. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
 
-5. `Components::output_beta`: fitted Q21 beta 302.5 is unprinted and unmeasured.
+5. `Components::output_beta`: fitted Q21 beta 314.93 is unprinted and unmeasured.
 6. `Components::output_gain_correction`: fitted gain multiplier 9.125 remains
    unresolved against the printed Q20/R108/R110 gain; see the round-5 fit register.
-7. `Components::input_beta`: Q12 beta 300 is inferred from output audio, not
+7. `Components::input_beta`: Q12 effective beta 50 is inferred from output audio, not
    measured at the ladder microamp bias. Constant beta, matched devices and
-   stiff common-mode bias remain approximations; see the round-5 register.
+   stiff common-mode bias remain approximations; see the round-10 register.
+8. `Components::ladder_capacitance`: fitted C18/C19/C24/C26 remain within
+   assumed ±10% of 18/33/33/33 nF. Actual tolerances are unmeasured; their
+   ratios covary with the calibrated current and output-device parameters.
+9. `Components::output_capacitance`: C25/C27 0.1 → 0.086667 uF each, within
+   assumed ±20% tolerance. The part tolerance is not printed or measured;
+   output audio cannot separate capacitance from Q21 base loading uniquely.
 
 Additional transcription open items: TP6's attachment / printed DC levels
 remain unresolved and are excluded from level calibration. Gang-B direction
