@@ -46,16 +46,35 @@ fn schematic_component_changes_affect_expo_divider() {
     });
     assert!(
         cents(less_tune_gain.frequency_hz(1.0, 1.0) / less_tune_gain.frequency_hz(1.0, 0.5))
-            < 400.0
+            < 550.0
     );
     assert!(
-        (cents(nominal.frequency_hz(1.0, 1.0) / nominal.frequency_hz(1.0, 0.5)) - 700.0).abs()
-            < 1e-9
+        (cents(nominal.frequency_hz(1.0, 1.0) / nominal.frequency_hz(1.0, 0.5)) - 891.852).abs()
+            < 0.01
     );
     assert_eq!(cv_for_note(0), 1.0);
     assert_eq!(cv_for_note(21), 2.75);
     assert_eq!(cv_for_note(36), 4.0);
     assert_eq!(cv_for_note(255), 64.0 / 12.0);
+}
+
+#[test]
+fn fitted_linear_vr2_is_monotonic_with_asymmetric_endpoints() {
+    let vco = Vco::new(Components::NOMINAL);
+    let centre = vco.frequency_hz(1.0, 0.5);
+    assert!((cents(vco.frequency_hz(1.0, 0.0) / centre) + 1086.62).abs() < 1.0);
+    assert!((cents(vco.frequency_hz(1.0, 1.0) / centre) - 891.852).abs() < 1.0);
+    let mut previous = vco.frequency_hz(1.0, 0.0);
+    for i in 1..=100 {
+        let frequency = vco.frequency_hz(1.0, i as f64 / 100.0);
+        assert!(frequency > previous);
+        previous = frequency;
+    }
+    for cv in [1.0, 2.0, 3.0, 4.0] {
+        assert!(
+            (cents(vco.frequency_hz(cv, 0.0) / vco.frequency_hz(cv, 0.5)) + 1086.62).abs() < 1.0
+        );
+    }
 }
 
 fn measured_frequency(vco: &mut Vco, rate: f64, cv: f64, tuning: f64) -> f64 {
@@ -66,7 +85,7 @@ fn measured_frequency(vco: &mut Vco, rate: f64, cv: f64, tuning: f64) -> f64 {
     let mut last = 0.0;
     let mut periods = 0;
     // Crossing away from the reset/kernel ringing.
-    let threshold = 8.75;
+    let threshold = 8.2;
     for n in 1..samples {
         let x = vco.tick(cv, tuning).saw;
         if previous < threshold && x >= threshold {
@@ -107,13 +126,14 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
             assert!(cents(f / vco.frequency_hz(2.0, tuning)).abs() < 1.0);
         }
         assert!(
-            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1400.0).abs() < 1e-9
+            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1978.472).abs()
+                < 1e-9
         );
     }
     let nominal = Vco::new(Components::NOMINAL);
-    assert!((nominal.frequency_hz(1.0, 0.5) - 32.70).abs() < 0.004);
-    assert!((nominal.frequency_hz(2.75, 0.5) - 110.0).abs() < 1e-10);
-    assert!((nominal.charging_current_a(2.75, 0.5) - 7.15e-6).abs() < 1e-16);
+    assert!((nominal.frequency_hz(1.0, 0.5) - 32.577).abs() < 0.004);
+    assert!((nominal.frequency_hz(2.75, 0.5) - 109.576).abs() < 0.001);
+    assert!((nominal.charging_current_a(2.75, 0.5) - 6.903e-6).abs() < 1e-9);
     for temp in [280.0, 300.0, 320.0] {
         let v = Vco::new(Components {
             temperature_kelvin: temp,
@@ -124,7 +144,7 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
 }
 
 #[test]
-fn printed_a_waveforms_and_dc_levels() {
+fn fitted_source_waveforms_and_dc_levels() {
     for rate in [48_000.0, 96_000.0, 192_000.0] {
         let mut vco = Vco::new(Components::NOMINAL);
         vco.prepare(rate).unwrap();
@@ -135,7 +155,7 @@ fn printed_a_waveforms_and_dc_levels() {
         let mut hi = [f64::NEG_INFINITY; 2];
         let mut falling = 0;
         let mut previous = 0.0;
-        let count = (rate / 110.0).round() as usize;
+        let count = (rate / vco.frequency_hz(2.75, 0.5)).round() as usize;
         let mut saw_sum = 0.0;
         let mut duty = 0;
         let mut plateau_sum = 0.0;
@@ -162,8 +182,8 @@ fn printed_a_waveforms_and_dc_levels() {
             duty as f64 / count as f64
         );
         // Kernel overshoot is allowed near the instantaneous reset only.
-        assert!(lo[0] < 5.6 && lo[0] > 4.8 && hi[0] > 11.9 && hi[0] < 12.7);
-        assert!((saw_sum / count as f64 - 8.75).abs() < 0.025);
+        assert!(lo[0] < 5.4 && lo[0] > 4.6 && hi[0] > 11.0 && hi[0] < 11.8);
+        assert!((saw_sum / count as f64 - 8.19).abs() < 0.04);
         assert!(falling as f64 / count as f64 > 0.8);
         assert!((lo[1] - 64.0 / 12.0).abs() < 1e-12);
         println!("plateau average {}", plateau_sum / duty as f64);
@@ -178,6 +198,40 @@ fn printed_a_waveforms_and_dc_levels() {
         }
         assert_eq!(shaper.tick(12.0), 64.0 / 12.0);
     }
+}
+
+#[test]
+fn square_even_harmonic_null_varies_with_octave() {
+    let rate = 192_000.0;
+    let c = Components::NOMINAL;
+    let mut h2_db = [0.0; 5];
+    for (octave, level) in h2_db.iter_mut().enumerate() {
+        // A coherent cycle keeps the collector DC out of the harmonic bins.
+        let count = (rate / (c.reference_hz * 2_f64.powi(octave as i32))).round() as usize;
+        let cv = 1.0 + (rate / count as f64 / c.reference_hz).log2();
+        let mut vco = Vco::new(c);
+        vco.prepare(rate).unwrap();
+        vco.set_band_limit(Some(20_000.0));
+        for _ in 0..((0.4 * rate / count as f64).ceil() as usize * count) {
+            vco.tick(cv, 0.5);
+        }
+        let mut re = [0.0; 2];
+        let mut im = [0.0; 2];
+        for n in 0..count {
+            let collector = vco.tick(cv, 0.5).square;
+            for h in 0..2 {
+                let angle = TAU * (h + 1) as f64 * n as f64 / count as f64;
+                re[h] += collector * angle.cos();
+                im[h] += collector * angle.sin();
+            }
+        }
+        let power = |h: usize| re[h] * re[h] + im[h] * im[h];
+        *level = 10.0 * (power(1) / power(0)).log10();
+    }
+    // Session square captures have their deepest low-order even-harmonic
+    // cancellation near C3. Downstream filtering changes the exact dB level.
+    assert!(h2_db[2] < -24.0, "collector H2/H1 {h2_db:?}");
+    assert!(h2_db[2] < h2_db[1] - 8.0 && h2_db[2] < h2_db[3] - 3.0);
 }
 
 #[test]

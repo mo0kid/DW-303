@@ -16,7 +16,7 @@ pub enum StageError {
     InvalidSampleRate,
 }
 
-/// Printed component values and adjustment targets, in SI units.
+/// Circuit component values and fitted adjustment targets, in SI units.
 /// Invalid values fall back individually to nominal.
 #[derive(Clone, Copy, Debug)]
 pub struct Components {
@@ -24,14 +24,16 @@ pub struct Components {
     pub slide_resistance: f64,
     /// C35, 0.22 uF.
     pub slide_capacitance: f64,
-    /// TM4 adjustment: A at 2.75 V = 110 Hz; lowest C at 1 V.
+    /// TM4 centre adjustment, expressed as lowest-C frequency at 1 V.
+    /// VERIFY: 32.703195663 Hz service target → 32.577173 Hz session fit.
     pub reference_hz: f64,
     /// Chosen operating temperature of the Q26 2SC1583 pair, kelvin.
     pub temperature_kelvin: f64,
-    /// VR2 50k(B), R118 100k; page-1 specification gives +/-700 cents.
-    /// VERIFY: O3 pin-3 destination; span calibrated to spec, not inferred rail.
+    /// VR2 total tuning span in octaves, converted to an effective pin-3 rail.
+    /// VERIFY: O3 pin-3 assumed reference rail; 1400 → 1978.472 cents fitted.
     pub tuning_octaves: f64,
-    /// VR2 linear panel pot, 50k(B).
+    /// VR2 linear panel pot, printed 50k(B).
+    /// VERIFY: 50k → 44.945k fitted within typical 20% pot tolerance.
     pub tuning_resistance: f64,
     /// R118, tuning summing resistor, 100k.
     pub tuning_input_resistance: f64,
@@ -45,62 +47,78 @@ pub struct Components {
     pub width_resistance: f64,
     /// C33, .01 uF.
     pub timing_capacitance: f64,
-    /// Q28 source waveform annotation, 5.5 V just before reset.
+    /// C33 lower reset threshold, set by Q24/Q25 junction difference.
+    /// VERIFY: ideal source annotation 5.5 V → fitted capacitor threshold 5.2 V.
     pub saw_low: f64,
-    /// Q28 source waveform annotation, 12 V just after reset.
+    /// C33 upper reset voltage after Q27/D25 conduction.
+    /// VERIFY: ideal source annotation 12 V → fitted capacitor endpoint 11.5 V.
     pub saw_high: f64,
+    /// R105 source-follower load, printed 10k.
+    pub follower_load_resistance: f64,
+    /// VERIFY: Q28 2SK30(O) zero-gate-bias drain current; fitted 0.6 mA.
+    pub follower_idss_a: f64,
+    /// VERIFY: magnitude of Q28 negative pinch-off voltage; fitted 1 V.
+    pub follower_pinch_off_v: f64,
     /// Q27 emitter / R45 top, 12 V rail.
     pub square_supply: f64,
     /// R36 return, 5.333 V rail (exact 64/12 for DAC calibration).
     pub square_return: f64,
-    /// R35, DC saw-to-Q8-base path, 100k.
+    /// R35, DC saw-to-Q8-base path, printed 100k.
+    /// VERIFY: 100k → 102.940k fitted (5% resistor tolerance).
     pub square_dc_resistance: f64,
     /// R34, series path from C10 to Q8 base, 10k.
     pub square_input_resistance: f64,
-    /// C10, .01 uF.
+    /// C10, printed .01 uF.
+    /// VERIFY: 10 nF → 8.402 nF fitted (20% capacitor tolerance).
     pub square_input_capacitance: f64,
     /// R36, collector return resistance, 10k.
     pub square_collector_resistance: f64,
-    /// R45, emitter supply resistance, 22k.
+    /// R45, emitter supply resistance, printed 22k.
+    /// VERIFY: 22k → 22.776k fitted (5% resistor tolerance).
     pub square_emitter_resistance: f64,
-    /// C11, emitter storage capacitor, 1 uF.
+    /// C11, emitter storage capacitor, printed 1 uF.
+    /// VERIFY: 1 uF → 0.819 uF fitted (20% capacitor tolerance).
     pub square_emitter_capacitance: f64,
-    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation.
+    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation, fitted 0.55 V.
     pub transistor_vbe: f64,
-    /// VERIFY: Q8 forward beta, estimated 200; no device curve supplied.
+    /// VERIFY: Q8 forward beta, estimated 200 → fitted 362; no device curve supplied.
     pub transistor_beta: f64,
-    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V.
+    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.08 V.
     pub transistor_vce_sat: f64,
 }
 
 impl Components {
-    /// Nominal schematic values, with TM4/TM5 adjusted per service-notes page 7.
+    /// Schematic components with session-1 fitted tolerances/device estimates.
+    /// See the VERIFY register for every departure from printed nominals.
     pub const NOMINAL: Self = Self {
         slide_resistance: 100_000.0,
         slide_capacitance: 0.22e-6,
-        reference_hz: 32.703_195_662_574_83,
+        reference_hz: 32.577_173_303_309_65,
         temperature_kelvin: 300.0,
-        tuning_octaves: 7.0 / 6.0,
-        tuning_resistance: 50_000.0,
+        tuning_octaves: 1_978.472 / 1_200.0,
+        tuning_resistance: 44_945.454,
         tuning_input_resistance: 100_000.0,
         cv_input_resistance: 27_000.0,
         posistor_resistance: 560.0,
         posistor_temperature_coefficient: 1.0 / 300.0,
         width_resistance: 4_700.0,
         timing_capacitance: 10e-9,
-        saw_low: 5.5,
-        saw_high: 12.0,
+        saw_low: 5.2,
+        saw_high: 11.5,
+        follower_load_resistance: 10_000.0,
+        follower_idss_a: 0.6e-3,
+        follower_pinch_off_v: 1.0,
         square_supply: 12.0,
         square_return: 64.0 / 12.0,
-        square_dc_resistance: 100_000.0,
+        square_dc_resistance: 102_940.0,
         square_input_resistance: 10_000.0,
-        square_input_capacitance: 10e-9,
+        square_input_capacitance: 8.402e-9,
         square_collector_resistance: 10_000.0,
-        square_emitter_resistance: 22_000.0,
-        square_emitter_capacitance: 1e-6,
-        transistor_vbe: 0.65,
-        transistor_beta: 200.0,
-        transistor_vce_sat: 0.2,
+        square_emitter_resistance: 22_776.0,
+        square_emitter_capacitance: 0.819e-6,
+        transistor_vbe: 0.55,
+        transistor_beta: 362.0,
+        transistor_vce_sat: 0.08,
     };
 
     fn valid(mut self) -> Self {
@@ -130,6 +148,9 @@ impl Components {
             self.saw_low = n.saw_low;
             self.saw_high = n.saw_high;
         }
+        bound!(follower_load_resistance, 1.0, 1e9);
+        bound!(follower_idss_a, 1e-6, 0.1);
+        bound!(follower_pinch_off_v, 0.01, 10.0);
         bound!(square_supply, 1.0, 20.0);
         bound!(square_return, 0.0, 20.0);
         if self.square_return >= self.square_supply {
@@ -344,11 +365,12 @@ pub struct VcoOut {
 /// Q27/D25 regeneratively reset C33 toward the 12 V rail.
 /// VERIFY: reset treated as instantaneous (printed waveform); device recovery omitted.
 /// VERIFY: Q25 NPN choice follows O5 topology; Q24/Q25 Vbe and D25 drop
-/// are represented by the annotated low endpoint, not measured device models.
+/// are represented by the fitted low endpoint, not measured device models.
 /// VERIFY: Q26 ideal constant-current sink omits Early effect and pair mismatch.
 /// VERIFY: IC11a/R104/C34 treated as ideal reference regulation; TM4/R102
-/// current is calibrated from A=110 Hz, bypassing the unresolved R102 unit (O1).
-/// VERIFY: Q28/R105 follower transfer folded into printed source-node endpoints.
+/// current is calibrated from centre-pitch captures, bypassing R102 unit (O1).
+/// VERIFY: Q28/R105 uses a Shockley saturation/triode follower without gate
+/// current or capacitances; IDSS/pinch-off fitted from output harmonic balance.
 /// Analytic cycle projection bounds the reset spectrum to 256 harmonics.
 pub struct Vco {
     c: Components,
@@ -394,9 +416,25 @@ fn harmonics_in_band(frequency: f64, rate: f64, edge: f64, inclusive: bool) -> u
     count
 }
 
-// C33 loses this charge between the printed endpoints; Q26b is a sink.
+// C33 loses this charge between the capacitor endpoints; Q26b is a sink.
 fn cycle_charge(c: Components) -> f64 {
     c.timing_capacitance * (c.saw_high - c.saw_low)
+}
+
+// Positive root of the source-follower load-line equation. The gate is the
+// C33 voltage; Vs is Q28 source. Only construction calls this static function.
+fn follower_voltage(c: Components, gate: f64) -> f64 {
+    let a = c.follower_pinch_off_v / libm::sqrt(c.follower_load_resistance * c.follower_idss_a);
+    let overdrive = gate + c.follower_pinch_off_v;
+    if overdrive > c.square_supply {
+        // Linear/triode region when Vds < Vgs - Vp. Include the finite
+        // drain rail instead of letting the saturation law approach it.
+        let b = 2.0 * overdrive + a * a;
+        let k = c.square_supply * (2.0 * overdrive - c.square_supply);
+        return 2.0 * k / (b + libm::sqrt((b * b - 4.0 * k).max(0.0)));
+    }
+    let root = 2.0 * overdrive / (libm::sqrt(a * a + 4.0 * overdrive) + a);
+    root * root
 }
 
 impl Vco {
@@ -431,12 +469,32 @@ impl Vco {
             square: SquareShaper::new(c),
             diagnostics: OscDiagnostics::default(),
         };
-        // Constant Q26b collector current: V(phi) = high - span*phi.
-        // Instantaneous upward regenerative reset at phi=1 gives sine-only
-        // coefficients span/(pi*h), and no frequency-dependent rebuilding.
-        s.dc = 0.5 * (c.saw_high + c.saw_low);
+        // Q26b discharges C33 linearly. Q28's loaded source follows a
+        // Shockley JFET law: Vs/R105 = IDSS*(1 + (Vg-Vs)/|Vp|)^2.
+        // Project the small nonlinear residual around the exact linear ramp.
+        // Its zero endpoint jump avoids quadrature error at the reset step.
+        let high = follower_voltage(c, c.saw_high);
+        let low = follower_voltage(c, c.saw_low);
+        s.dc = 0.5 * (high + low);
         for h in 1..=HARMONICS {
-            s.sine[h - 1] = (c.saw_high - c.saw_low) / (PI * h as f64);
+            s.sine[h - 1] = (high - low) / (PI * h as f64);
+        }
+        const POINTS: usize = 1024;
+        for i in 0..POINTS {
+            let phase = (i as f64 + 0.5) / POINTS as f64;
+            let gate = c.saw_high - (c.saw_high - c.saw_low) * phase;
+            let linear = high - (high - low) * phase;
+            let residual = (follower_voltage(c, gate) - linear) / POINTS as f64;
+            s.dc += residual;
+            let (si, co) = libm::sincos(TAU * phase);
+            let (mut hs, mut hc) = (si, co);
+            for h in 0..HARMONICS {
+                s.cosine[h] += 2.0 * residual * hc;
+                s.sine[h] += 2.0 * residual * hs;
+                let next = hc * co - hs * si;
+                hs = hs * co + hc * si;
+                hc = next;
+            }
         }
         s
     }
@@ -497,19 +555,24 @@ impl Vco {
                 + self.c.posistor_temperature_coefficient
                     * (self.c.temperature_kelvin - n.temperature_kelvin));
         let cv_gain = 1.0 / (1.0 + rcv / ptc + rcv / self.c.tuning_input_resistance);
-        // Loaded linear VR2 wiper. Effective endpoint span is calibrated to the
-        // +/-700 cent specification because the pin-3 rail is unresolved (O3).
+        // A linear VR2 is loaded toward the R100 reference by R118, rather
+        // than toward its own midpoint. This produces the measured asymmetric
+        // endpoints without a polynomial knob law. TM4 absorbs centre offset.
+        // VERIFY: O3 pin-3 effective rail is inferred from the endpoint span;
+        // 5.402 V is close to, but does not establish, the 5.333 V reference.
         let load = self.c.tuning_input_resistance;
-        let wiper =
-            (tuning - 0.5) * load / (load + self.c.tuning_resistance * tuning * (1.0 - tuning));
         let tune_gain = cv_gain * rcv / load;
         let nominal_tune_gain = target * nominal_rcv / n.tuning_input_resistance;
-        let delta_vbe = cv_gain * (cv - 1.0)
-            + target * wiper * self.c.tuning_octaves * tune_gain / nominal_tune_gain;
+        let rail = target * self.c.tuning_octaves / nominal_tune_gain;
+        let source_r = self.c.tuning_resistance * tuning * (1.0 - tuning);
+        let centre_r = self.c.tuning_resistance * 0.25;
+        let wiper_voltage = (rail * tuning * load + (64.0 / 12.0) * source_r) / (load + source_r);
+        let centre_voltage = (rail * 0.5 * load + (64.0 / 12.0) * centre_r) / (load + centre_r);
+        let delta_vbe = cv_gain * (cv - 1.0) + tune_gain * (wiper_voltage - centre_voltage);
         self.reference_frequency * libm::exp((delta_vbe / vt).clamp(-80.0, 80.0))
     }
     /// Q26b collector sink current, amperes, from TM4 calibration and C33 charge.
-    /// At the printed A adjustment this is 7.15 uA (reset time neglected).
+    /// This uses C33 capacitor endpoints, before Q28 follower attenuation.
     pub fn charging_current_a(&self, cv: f64, tuning: f64) -> f64 {
         self.frequency_hz(cv, tuning) * cycle_charge(self.c)
     }
@@ -613,6 +676,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn follower_load_line_and_drain_compliance() {
+        let c = Components::NOMINAL;
+        for gate in [5.2, 8.35, 11.0, 11.5, 12.0] {
+            let source = follower_voltage(c, gate);
+            let overdrive = gate - source + c.follower_pinch_off_v;
+            let vds = c.square_supply - source;
+            let current = c.follower_idss_a / (c.follower_pinch_off_v * c.follower_pinch_off_v)
+                * if vds >= overdrive {
+                    overdrive * overdrive
+                } else {
+                    2.0 * overdrive * vds - vds * vds
+                };
+            assert!((current * c.follower_load_resistance - source).abs() < 1e-11);
+            assert!(source > 0.0 && source < c.square_supply);
+            let lighter_load = Components {
+                follower_load_resistance: 20_000.0,
+                ..c
+            };
+            assert!(follower_voltage(lighter_load, gate) > source);
+        }
+        let boundary = c.square_supply - c.follower_pinch_off_v;
+        assert!(
+            (follower_voltage(c, boundary + 1e-7) - follower_voltage(c, boundary - 1e-7)).abs()
+                < 2e-7
+        );
+    }
+
+    #[test]
     fn harmonic_counts_preserve_exact_band_edge_decisions() {
         for rate in [48_000.0, 96_000.0, 192_000.0] {
             for edge in [0.40, 0.48, 20_000.0 / rate, 24_000.0 / rate] {
@@ -662,11 +753,14 @@ mod tests {
             let mut s = SquareShaper::new(Components::NOMINAL);
             s.prepare(rate).unwrap();
             s.emitter = 6.0;
-            let n = (rate * 0.022) as usize;
+            let tau = s.c.square_emitter_resistance * s.c.square_emitter_capacitance;
+            let n = (rate * tau).round() as usize;
             for _ in 0..n {
                 s.tick(12.0);
             }
-            assert!((s.emitter - (12.0 - 6.0 * libm::exp(-1.0))).abs() < 0.0011);
+            assert!(
+                (s.emitter - (12.0 - 6.0 * libm::exp(-(n as f64) / (rate * tau)))).abs() < 0.0014
+            );
         }
     }
 
@@ -683,7 +777,7 @@ mod tests {
                 s.tick(20.0);
             }
             let expected = libm::exp(-(n as f64) / (rate * tau));
-            assert!((s.input_cap - expected).abs() < 0.004);
+            assert!((s.input_cap - expected).abs() < 0.0045);
         }
     }
 }

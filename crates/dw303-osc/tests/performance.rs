@@ -1,4 +1,4 @@
-//! Manual timing of the revision-2 circuit, independent of frozen waveforms.
+//! Manual timing of the fitted circuit, independent of frozen waveforms.
 use dw303_osc::{Components, Vco};
 
 #[test]
@@ -13,5 +13,5 @@ fn held_pitch_cost() {
         let out = black_box(vco.tick(black_box((n / 24_000 % 4) as f64), 0.5));
         assert!(out.saw.is_finite() && out.square.is_finite());
     }
-    println!("Revision-2 VCO, 384000 samples: {:?}", start.elapsed());
+    println!("Fitted VCO, 384000 samples: {:?}", start.elapsed());
 }
