@@ -65,11 +65,11 @@ pub fn oversampling_for(host_rate: f64) -> Option<RateRatio> {
 pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 
 /// Output node voltage that maps to digital full scale (1.0).
-/// Calibrated 2026-10-12 so VOLUME 10 matches a TD-3 at VOLUME 10 recorded
-/// through a UMC1820 line input at unity gain: saw notes at CUTOFF max /
-/// RES 0 were 19.7-20.6 dB too loud at 0.5 V, so 0.5 V x 10^(20.2/20).
+/// VERIFY: session1 overall-RMS fit to TD-3 / UMC1820 at unity gain.
+/// The replay baseline was 7.10 dB too loud: 5.12 * 10^(7.10/20).
+/// This calibrates the recording chain, not a TB-303 component value.
 /// VERIFY: absolute volts are unknown (no interface dBFS-per-volt calibration).
-pub const FULL_SCALE_VOLTS: f64 = 5.12;
+pub const FULL_SCALE_VOLTS: f64 = 11.595;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
