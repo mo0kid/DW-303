@@ -49,6 +49,9 @@ fn main() -> Result<(), Error> {
         }
         return Ok(());
     }
+    if args.first().map(String::as_str) == Some("levels") {
+        return levels(&args);
+    }
     match args.first().map(String::as_str) {
         Some("session" | "plan") => {
             return match measurement_session(&args) {
@@ -623,5 +626,89 @@ fn measurement_session(args: &[String]) -> Result<(), Error> {
         previous = Some(capture);
     }
     println!("Session finished. Preserve each WAV and JSON sidecar together.");
+    Ok(())
+}
+
+/// Routing check: play a repeating test note on every MIDI channel and print
+/// per-input-channel peak levels twice a second for `--seconds` (default 8).
+///
+///   dw303-capture levels --audio-device ID --midi-out NAME [--seconds 8]
+fn levels(args: &[String]) -> Result<(), Error> {
+    let seconds: f64 = if args.iter().any(|s| s == "--seconds") {
+        option(args, "--seconds")?.parse()?
+    } else {
+        8.0
+    };
+    let audio_id = option(args, "--audio-device")?;
+    let info = ravet_device::input_devices()?
+        .into_iter()
+        .find(|d| d.id == audio_id)
+        .ok_or("unknown audio ID")?;
+    let config = info
+        .configurations
+        .iter()
+        .find(|c| c.sample_format() == cpal::SampleFormat::F32)
+        .ok_or("device has no f32 input configuration")?;
+    let channels = usize::from(config.channels());
+    let rate = config.max_sample_rate();
+    let device = ravet_device::input_device(Some(audio_id))?.ok_or("device disappeared")?;
+    let (_stream, mut consumer) = ravet_device::open_input(
+        &device,
+        cpal::StreamConfig {
+            channels: channels as u16,
+            sample_rate: rate,
+            buffer_size: cpal::BufferSize::Default,
+        },
+        65536,
+    )?;
+    let midi_name = option(args, "--midi-out")?;
+    let port = ravet_midi_device::output_ports()?
+        .into_iter()
+        .find(|p| p.name == midi_name)
+        .ok_or("MIDI output not found")?;
+    let mut midi = ravet_midi_device::open_output(&port.id)?;
+    println!("{channels} input channels at {rate} Hz; peak dBFS per input every 0.5 s.");
+    println!("A C2 note (key 36, velocity 100) is sent on all 16 MIDI channels each second.");
+    let mut buffer = vec![0.0f32; channels * 4096];
+    let mut peaks = vec![0.0f32; channels];
+    let start = Instant::now();
+    let mut next_report = 0.5;
+    let mut next_note = 0.0;
+    let mut note_on = false;
+    while start.elapsed().as_secs_f64() < seconds {
+        let t = start.elapsed().as_secs_f64();
+        if t >= next_note {
+            for ch in 0..16u8 {
+                let status = if note_on { 0x80 } else { 0x90 } | ch;
+                midi.send(&[status, 36, if note_on { 0 } else { 100 }])?;
+            }
+            note_on = !note_on;
+            next_note += 0.5;
+        }
+        let count = consumer
+            .pop(&mut buffer)
+            .map_err(|e| format!("ring: {e:?}"))?;
+        for frame in buffer[..count * channels].chunks_exact(channels) {
+            for (peak, sample) in peaks.iter_mut().zip(frame) {
+                *peak = peak.max(sample.abs());
+            }
+        }
+        if t >= next_report {
+            let row: Vec<String> = peaks
+                .iter()
+                .enumerate()
+                .map(|(i, p)| format!("{}:{:>4.0}", i + 1, 20.0 * (p.max(1e-9)).log10()))
+                .collect();
+            println!("{:>4.1}s {}", t, row.join(" "));
+            peaks.iter_mut().for_each(|p| *p = 0.0);
+            next_report += 0.5;
+        }
+        if count == 0 {
+            thread::sleep(Duration::from_millis(2));
+        }
+    }
+    for ch in 0..16u8 {
+        let _ = midi.send(&[0xb0 | ch, 123, 0]);
+    }
     Ok(())
 }
