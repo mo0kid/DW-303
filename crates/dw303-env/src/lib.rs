@@ -134,8 +134,8 @@ components! {
     /// load is used as the junction reference pending device measurements.
     q36_reference_current = 1.18e-3;
     /// VERIFY: Q36 PNP Vbe at the gate-load reference current; generic
-    /// 0.65 V estimate → 0.60 V session1 gate-attack fit.
-    q36_vbe = 0.60;
+    /// 0.65 V estimate → 0.60 V round 2 → 0.55 V round 3 gate-attack fit.
+    q36_vbe = 0.55;
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
@@ -178,7 +178,8 @@ components! {
     /// R128, parallel with R127 + R129.
     r128 = 220e3;
     /// C38, BA662A buffer output to VR8 terminal 3.
-    c38 = 1e-6;
+    /// VERIFY: 1 µF nominal → 0.8 µF fitted output coupling tolerance.
+    c38 = 0.8e-6;
     /// VR8, 50 kΩ A VOLUME track.
     vr8 = 50e3;
     /// R153, mixer feedback from Q33 output to Q34 emitter.
@@ -188,11 +189,13 @@ components! {
     /// R156, MIX IN to C58 and mixer SUM.
     r156 = 100e3;
     /// C59, VOLUME path coupling to SUM.
-    c59 = 1e-6;
+    /// VERIFY: 1 µF nominal → 0.8 µF fitted mixer coupling tolerance.
+    c59 = 0.8e-6;
     /// C58, MIX IN coupling to SUM.
     c58 = 1e-6;
     /// C56, mixer output coupling to R161.
-    c56 = 1e-6;
+    /// VERIFY: 1 µF nominal → 0.8 µF fitted line coupling tolerance.
+    c56 = 0.8e-6;
     /// R161, output series resistance.
     r161 = 1e3;
     /// R165, output jack shunt to ground (unloaded jack).
@@ -211,6 +214,9 @@ components! {
     expo_is_ratio = 3.074_323_408_395_499;
     /// VERIFY: BA662A pin 1 bias voltage, absent from service-note transfer data.
     ota_control_voltage = 0.65;
+    /// VERIFY: Q31 PNP current gain for base current charging C42; generic
+    /// 2SA733-class estimate, not a printed or independently measured value.
+    q31_beta = 200.0;
     /// VERIFY: Q31 collector current at the reference Vbe; inferred device law,
     /// not a printed part parameter or internal-node measurement.
     q31_reference_current = 47e-6;
@@ -698,13 +704,15 @@ pub struct Veg {
     base: f64,
     gate: bool,
     gate_drive: f64,
+    collector_current: f64,
 }
 impl Veg {
     lifecycle!(
         capacitor = |s: &Circuit| s.c.supply,
         base = |_: &Circuit| 0.0,
         gate = |_: &Circuit| true,
-        gate_drive = |s: &Circuit| s.c.q36_vbe
+        gate_drive = |s: &Circuit| s.c.q36_vbe,
+        collector_current = |_: &Circuit| 0.0
     );
     /// Set Q37's digital gate drive before `tick`; C72/Q36 retain release charge.
     /// Default/reset is high so the contracted pulse-only interface exposes decay.
@@ -747,6 +755,12 @@ impl Veg {
                 self.circuit
                     .rc(3, self.capacitor, c.supply, self.circuit.dt, c.r123 * c.c42);
         }
+        // A PNP delivers base current into C42 in addition to R123's current.
+        // Use the previous circuit sample as a bounded explicit current source;
+        // this preserves charge without adding another nonlinear solve.
+        self.capacitor = (self.capacitor
+            + self.collector_current * self.circuit.dt / (c.q31_beta * c.c42))
+            .min(c.supply);
         // C72 stores the voltage across Q36's base-emitter junction. Q37
         // sinks through R143 while on; R142 and Q36 base current remove
         // charge after it turns off. Saturation clamps forward base drive.
@@ -769,7 +783,7 @@ impl Veg {
             (self.gate_drive + self.circuit.dt * (charge - discharge) / c.c72)
                 .clamp(0.0, c.q36_vbe),
         );
-        if gate_voltage > c.diode_drop {
+        self.collector_current = if gate_voltage > c.diode_drop {
             // Emitter degeneration plus the PNP junction equation. A fixed Vbe
             // truncates the physical low-current tail at an arbitrary voltage.
             // VERIFY: ideality one and Vbe at 47 µA require device validation.
@@ -791,7 +805,8 @@ impl Veg {
             flush(scale * y)
         } else {
             0.0
-        }
+        };
+        self.collector_current
     }
     /// C42 voltage at the Q31 base, rising toward +12 V during decay.
     pub fn capacitor_voltage(&self) -> f64 {

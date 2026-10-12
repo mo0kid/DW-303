@@ -36,6 +36,46 @@ fn q38_pulse_is_edge_triggered_and_derived_from_c54() {
 }
 
 #[test]
+fn real_q38_pulses_recharge_partly_charged_meg_and_reset_veg() {
+    let c = Components::NOMINAL;
+    for rate in rates() {
+        let mut pulse = TriggerPulse::new(c);
+        let mut meg = Meg::new(c);
+        let mut veg = Veg::new(c);
+        pulse.prepare(rate).unwrap();
+        meg.prepare(rate).unwrap();
+        veg.prepare(rate).unwrap();
+        let mut first_peak = 0.0_f64;
+        for attack in 0..4 {
+            if attack > 0 {
+                // Both storage nodes retain charge in a 125 ms note interval.
+                assert!((0.4..2.0).contains(&veg.capacitor_voltage()));
+                assert!((3.0..10.0).contains(&meg.capacitor_voltage()));
+            }
+            let mut peak = 0.0_f64;
+            veg.set_gate(true);
+            for sample in 0..(rate * 0.01).round() as usize {
+                let p = pulse.tick(sample == 0);
+                meg.tick(p, false, 0.5);
+                peak = peak.max(veg.tick(p));
+            }
+            if attack == 0 {
+                first_peak = peak;
+            } else {
+                near(peak, first_peak, first_peak * 0.01);
+            }
+            near(meg.capacitor_voltage(), 10.8, 0.15);
+            assert!(veg.capacitor_voltage() < 0.3);
+            for sample in 0..(rate * 0.115).round() as usize {
+                veg.set_gate(sample < (rate * 0.0525).round() as usize);
+                meg.tick(pulse.tick(false), false, 0.5);
+                veg.tick(0.0);
+            }
+        }
+    }
+}
+
+#[test]
 fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
     let c = Components::NOMINAL;
     let floor = 3.0 * c.diode_drop;
@@ -246,11 +286,17 @@ fn veg_c42_recharge_and_q31_junction_tail_are_rate_independent() {
         for _ in 0..n {
             v.tick(0.0);
         }
-        near(
-            v.capacitor_voltage(),
-            c.supply + (old - c.supply) * (-(n as f64) / rate / (c.r123 * c.c42)).exp(),
-            0.002,
-        );
+        // Independent linear-junction reduction: Q31's PNP base current
+        // adds (Vgate - VD35 - Vbe - V_C42)/(beta * R_E) to R123's current.
+        // The logarithmic junction correction stays below 2 mV here.
+        let conductance = 1.0 / c.r123 + 1.0 / (c.q31_beta * (c.r131 + c.r133));
+        let headroom = c.supply - c.saturation - c.diode_drop - c.vbe;
+        let target =
+            (c.supply / c.r123 + headroom / (c.q31_beta * (c.r131 + c.r133))) / conductance;
+        let expected = target + (old - target) * (-(n as f64) / rate * conductance / c.c42).exp();
+        near(v.capacitor_voltage(), expected, 0.002);
+        let unloaded = c.supply + (old - c.supply) * (-(n as f64) / rate / (c.r123 * c.c42)).exp();
+        assert!(v.capacitor_voltage() > unloaded + 0.08);
         v.set_gate(false);
         assert!(v.tick(0.0) > 0.0);
         for _ in 0..(rate * 0.03) as usize {
@@ -517,8 +563,8 @@ fn output_has_inverting_mixer_gains_volume_loading_and_independent_mix_input() {
         }
         assert!(y.abs() < 1e-12);
     }
-    near(1.0 / (TAU * (c.r161 + c.r165) * c.c56), 1.5758, 0.0001);
-    near(1.0 / (TAU * c.r155 * c.c59), 3.3863, 0.0001);
+    near(1.0 / (TAU * (c.r161 + c.r165) * c.c56), 1.9697, 0.0001);
+    near(1.0 / (TAU * c.r155 * c.c59), 4.2328, 0.0001);
     near(1.0 / (TAU * c.r156 * c.c58), 1.5915, 0.0001);
 }
 
