@@ -238,7 +238,10 @@ pub const PATTERNS: &[(u8, Section, u8, &str, &str)] = &[
 ];
 
 /// Factory tracks: chains of (group, section, slot) measures with no transpose.
-pub const TRACKS: &[(&str, &[(u8, Section, u8)])] = &[
+/// A pattern slot: (group 0..4, section, slot 0..8).
+pub type Slot = (u8, Section, u8);
+
+pub const TRACKS: &[(&str, &[Slot])] = &[
     (
         "Acid Set One",
         &[
