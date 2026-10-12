@@ -22,7 +22,8 @@ pub enum StageError {
 pub struct Components {
     /// R74–R90/R96 ladder Thevenin resistance (200k arms in parallel).
     pub slide_resistance: f64,
-    /// C35, 0.22 uF.
+    /// C35, printed 0.22 uF.
+    /// VERIFY: 0.22 → 0.232 uF fitted (+5.45%); assumed capacitor tolerance.
     pub slide_capacitance: f64,
     /// TM4 centre adjustment, expressed as lowest-C frequency at 1 V.
     /// VERIFY: 32.703195663 Hz service target → 32.577173 Hz session fit.
@@ -64,12 +65,12 @@ pub struct Components {
     /// R36 return, 5.333 V rail (exact 64/12 for DAC calibration).
     pub square_return: f64,
     /// R35, DC saw-to-Q8-base path, printed 100k.
-    /// VERIFY: 100k → 102.940k fitted (5% resistor tolerance).
+    /// VERIFY: 100k → 103.660k fitted (5% resistor tolerance).
     pub square_dc_resistance: f64,
     /// R34, series path from C10 to Q8 base, 10k.
     pub square_input_resistance: f64,
     /// C10, printed .01 uF.
-    /// VERIFY: 10 nF → 8.402 nF fitted (20% capacitor tolerance).
+    /// VERIFY: 10 nF → 8.455 nF fitted (20% capacitor tolerance).
     pub square_input_capacitance: f64,
     /// R36, collector return resistance, 10k.
     pub square_collector_resistance: f64,
@@ -79,11 +80,11 @@ pub struct Components {
     /// C11, emitter storage capacitor, printed 1 uF.
     /// VERIFY: 1 uF → 0.819 uF fitted (20% capacitor tolerance).
     pub square_emitter_capacitance: f64,
-    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation, fitted 0.55 V.
+    /// VERIFY: Q8 unprinted part/model (O6), constant forward Veb approximation, fitted 0.5425 V.
     pub transistor_vbe: f64,
-    /// VERIFY: Q8 forward beta, estimated 200 → fitted 362; no device curve supplied.
+    /// VERIFY: Q8 forward beta, estimated 200 → fitted 389.5; no device curve supplied.
     pub transistor_beta: f64,
-    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.08 V.
+    /// VERIFY: Q8 saturation emitter-to-collector voltage, estimated 0.2 V → fitted 0.08055 V.
     pub transistor_vce_sat: f64,
 }
 
@@ -92,7 +93,7 @@ impl Components {
     /// See the VERIFY register for every departure from printed nominals.
     pub const NOMINAL: Self = Self {
         slide_resistance: 100_000.0,
-        slide_capacitance: 0.22e-6,
+        slide_capacitance: 0.232e-6,
         reference_hz: 32.577_173_303_309_65,
         temperature_kelvin: 300.0,
         tuning_octaves: 1_978.472 / 1_200.0,
@@ -110,15 +111,15 @@ impl Components {
         follower_pinch_off_v: 1.0,
         square_supply: 12.0,
         square_return: 64.0 / 12.0,
-        square_dc_resistance: 102_940.0,
+        square_dc_resistance: 103_660.0,
         square_input_resistance: 10_000.0,
-        square_input_capacitance: 8.402e-9,
+        square_input_capacitance: 8.455e-9,
         square_collector_resistance: 10_000.0,
         square_emitter_resistance: 22_776.0,
         square_emitter_capacitance: 0.819e-6,
-        transistor_vbe: 0.55,
-        transistor_beta: 362.0,
-        transistor_vce_sat: 0.08,
+        transistor_vbe: 0.5425,
+        transistor_beta: 389.5,
+        transistor_vce_sat: 0.080_55,
     };
 
     fn valid(mut self) -> Self {

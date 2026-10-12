@@ -12,6 +12,9 @@ fn dac_and_slide_are_interval_and_rate_independent() {
     }
     let c = Components::NOMINAL;
     let tau = c.slide_resistance * c.slide_capacitance;
+    // C35 session fit stays within an assumed ±10% capacitor tolerance.
+    assert!((tau - 0.0232).abs() < 0.0001);
+    assert!((c.slide_capacitance / 0.22e-6 - 1.0).abs() < 0.10);
     for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
         for (from, to) in [(0, 12), (0, 60), (60, 0), (24, 25)] {
             let mut cv = PitchCv::new(c);
@@ -355,5 +358,45 @@ fn long_run_retains_finite_state_and_reset_is_deterministic() {
         let y = b.tick(2.0, 0.5);
         assert_eq!(x.saw, y.saw);
         assert_eq!(x.square, y.square);
+    }
+}
+
+/// Whole cycles distinguish source amplitude drift from sub-cycle RMS ripple.
+#[test]
+fn low_note_source_energy_has_no_long_decay_or_frequency_droop() {
+    for rate in [48_000.0, 96_000.0, 192_000.0] {
+        let mut energies = [0.0; 3];
+        for (note, energy) in energies.iter_mut().enumerate() {
+            let c = Components::NOMINAL;
+            let frequency = c.reference_hz * 2_f64.powf(note as f64 / 12.0);
+            let count = (rate / frequency).round() as usize;
+            let cv = 1.0 + (rate / count as f64 / c.reference_hz).log2();
+            let mut vco = Vco::new(c);
+            vco.prepare(rate).unwrap();
+            vco.set_band_limit(Some(20_000.0));
+            let mut first = 0.0;
+            for cycle in 0..32 {
+                let mut sum = 0.0;
+                let mut squares = 0.0;
+                for _ in 0..count {
+                    let saw = vco.tick(cv, 0.5).saw;
+                    sum += saw;
+                    squares += saw * saw;
+                }
+                let ac_rms = (squares / count as f64 - (sum / count as f64).powi(2)).sqrt();
+                if cycle == 0 {
+                    first = ac_rms;
+                }
+                assert!((ac_rms / first - 1.0).abs() < 1e-8);
+                *energy = ac_rms;
+            }
+            assert!(
+                (*energy - 1.69).abs() < 0.02,
+                "rate={rate}, note={note}, rms={energy}"
+            );
+        }
+        for energy in energies {
+            assert!((energy / energies[0] - 1.0).abs() < 0.001);
+        }
     }
 }
