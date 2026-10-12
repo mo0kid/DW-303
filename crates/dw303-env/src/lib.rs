@@ -266,7 +266,6 @@ struct Fixed {
     q31_scale: f64,
     q31_log_reference: f64,
     inverse_two_vt: f64,
-    output_tau: f64,
     line_tau: f64,
     line_gain: f64,
     mix_gain: f64,
@@ -287,7 +286,6 @@ impl Fixed {
                 c.q31_reference_current * (c.r131 + c.r133) / c.thermal_voltage,
             ),
             inverse_two_vt: 1.0 / (2.0 * c.thermal_voltage),
-            output_tau: c.vr8 * c.c38,
             line_tau: (c.r161 + c.r165) * c.c56,
             line_gain: c.r165 / (c.r161 + c.r165),
             mix_gain: -c.r153 / c.r156,
@@ -303,6 +301,8 @@ struct Circuit {
     input_g: [f64; 2],
     input_denominator: f64,
     input_step: [f64; 2],
+    output_g: [f64; 2],
+    output_inverse: [f64; 3],
     fixed: Fixed,
 }
 impl Circuit {
@@ -317,6 +317,8 @@ impl Circuit {
             input_g: [0.0; 2],
             input_denominator: 1.0,
             input_step: [0.0; 2],
+            output_g: [0.0; 2],
+            output_inverse: [0.0; 3],
             fixed: Fixed::new(c),
         };
         s.cache_inputs();
@@ -329,6 +331,15 @@ impl Circuit {
         ];
         self.input_denominator = 1.0 / (1.0 / self.c.r124 + self.input_g[0] + self.input_g[1]);
         self.input_step = [self.dt / self.c.c21, self.dt / self.c.c22_vca];
+        // Midpoint companions for the coupled C38/VR8/C59/R155 network.
+        // C59's branch loads the C38 node; treating both high passes as
+        // independent misses that current during attacks and releases.
+        self.output_g = [2.0 * self.c.c38 / self.dt, 2.0 * self.c.c59 / self.dt];
+        let b = 1.0 / self.c.r155;
+        let a = self.output_g[0] + 1.0 / self.c.vr8 + b;
+        let d = self.output_g[1] + b;
+        let inverse_det = 1.0 / ((self.output_g[0] + 1.0 / self.c.vr8) * d + b * self.output_g[1]);
+        self.output_inverse = [d * inverse_det, b * inverse_det, a * inverse_det];
     }
     fn prepare(&mut self, rate: f64) -> Result<(), StageError> {
         if !rate.is_finite() || !(44_100.0..=384_000.0).contains(&rate) {
@@ -893,17 +904,24 @@ pub struct Vca {
     circuit: Circuit,
     input_caps: [f64; 2],
     accent_cap: f64,
+    // C38 voltage relative to the buffer's quiescent reference. Using this
+    // origin keeps the silent network an exact floating-point fixed point.
     output_cap: f64,
+    output_load_cap: f64,
     current: f64,
 }
 impl Vca {
     lifecycle!(
         input_caps = |_: &Circuit| [0.0; 2],
         accent_cap = |_: &Circuit| 0.0,
-        output_cap = |s: &Circuit| s.c.reference,
+        output_cap = |_: &Circuit| 0.0,
+        output_load_cap = |_: &Circuit| 0.0,
         current = |_: &Circuit| 0.0
     );
-    /// Return the C38 negative-plate node in AC volts.
+    /// Return the C38 negative-plate node in AC volts, including C59 loading.
+    /// VERIFY: downstream loading uses full VOLUME, the capture setting.
+    /// The voltage-only contract supplies no VR8 position to this stage;
+    /// volume-dependent reciprocal loading still needs a shared-node interface.
     /// OTA law: `Iout = Iabc * mirror_ratio * tanh(Vdiff/(2*VT))`;
     /// small-signal gm is therefore `Iabc * mirror_ratio/(2*VT)`.
     pub fn tick(&mut self, vcf: VcfSignals, veg_current: f64, accent_wiper: f64) -> f64 {
@@ -974,12 +992,17 @@ impl Vca {
         let buffer = (c.reference + swing)
             .max(c.saturation)
             .min(c.supply - c.saturation);
-        self.circuit.high_pass(
-            2,
-            &mut self.output_cap,
-            buffer,
-            self.circuit.fixed.output_tau,
-        )
+        let buffer = buffer - c.reference;
+        let g = self.circuit.output_g;
+        let inverse = self.circuit.output_inverse;
+        let b = 1.0 / c.r155;
+        let rhs38 = g[0] * self.output_cap + (1.0 / c.vr8 + b) * buffer;
+        let rhs59 = g[1] * self.output_load_cap + b * buffer;
+        let mid38 = inverse[0] * rhs38 - inverse[1] * rhs59;
+        let mid59 = inverse[2] * rhs59 - inverse[1] * rhs38;
+        self.output_cap = flush(2.0 * mid38 - self.output_cap);
+        self.output_load_cap = flush(2.0 * mid59 - self.output_load_cap);
+        flush(buffer - mid38)
     }
     /// Last total BA662A Iabc, Q31 current plus the conducting accent path.
     pub fn control_current(&self) -> f64 {
