@@ -147,6 +147,7 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 | Source flag | Unprinted assumption / outstanding check |
 |---|---|
 | `r61` | VERIFY: printed 10 kΩ → 9.5 kΩ (−5% assumed tolerance) in the 2026-10-12 interaction fit. Output audio does not separate R61, VR5 track, Q9 bias and expo-ratio calibration. See the final investigation below. |
+| `r122` | VERIFY: printed 100 kΩ → 95 kΩ (−5% assumed tolerance), round-14 high-drive fit. OUTPUT cannot separate this resistor from C22, the resonance-tap source impedance and BA662A input/current transfer. See the round-14 evidence below. |
 | `meg_discharge_drop` | VERIFY: D27/D28 shared 0.60 V estimate → 0.45 V low-current reduction. D26 remains 0.60 V under R117 bias; effective C62 floor 1.50 V and buffered rest 0.20 V. Current-dependent diode law and buffer base loading remain unresolved. See round 9. |
 | `diode_drop` | Generic Si Vf = 0.6 V; per-designator types, Is, ideality, leakage and current dependence are unprinted. Fixed clamp drops omit R117 bias dependence and the logarithmic near-floor tail. |
 | `vbe` | Generic Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe = 0.65 V; individual Is/beta/matching/temperature are unprinted. Q39's 2SK30(Y) type is printed, but individual Idss and buffer sink dynamics are omitted. |
@@ -1372,4 +1373,247 @@ cargo test --offline -p dw303-osc -p dw303-vcf -p dw303-env \
   -p dw303-standalone -p dw303-render -p dw303-capture
 cargo clippy --offline -p dw303-env --all-targets -- -D warnings
 cargo --offline fmt -p dw303-env -- --check
+```
+
+
+## High-ENV / high-RES tail fit (round 14, Harness v7)
+
+The unmodified worktree rebuild reproduces round11.json exactly: renderer
+`dcb5e3c5ad9f207ea12590fb044469f8b3377ee7a50e78e5059286afb816c5d8`,
+overall **0.707084588011**, identical category distributions and zero failures.
+Both read-only capture sessions contain 620 sidecars. The scoring code, capture
+settings, VCF/oscillator and voice constants are unchanged by this round.
+Only files within ENV and this stage document are edited.
+
+### Ranked tail and physical drive bounds
+
+The full interaction tail has more than one cause. Its highest round-11 rows
+are `combo-c02-e00-r00-k36-phrase` **2.9460**, followed by
+`combo-c02-e00-r08-k48-phrase` **2.5830** and
+`combo-c02-e06-r00-k36-phrase` **2.5609**. A high-ENV-only fit cannot remove
+those ordinary low-ENV phrase distances.
+
+The worst maximum-ENV rows, ranked before any trial, are:
+
+| Capture | Before error | Before signed absolute level, model − TD-3 |
+|---|---:|---:|
+| combo-c06-e10-r00-k36-phrase | 2.5220 | +1.168 dB |
+| combo-c06-e10-r10-k36-phrase | 2.5153 | −2.605 dB |
+| combo-c02-e10-r08-k36-phrase | 2.2325 | +0.105 dB |
+| combo-c04-e10-r10-k36-phrase | 2.2183 | −2.231 dB |
+| combo-c06-e10-r10-k48-phrase | 2.2003 | −1.875 dB |
+| combo-c02-e10-r10-k36-phrase | 2.1558 | −1.182 dB |
+
+An offline, 192-kHz circuit-order probe ran the actual stages for eight normal
+62.5-ms gates at 125-ms intervals, keys 36/48, CUTOFF .2/.4/.6, ENV MOD 1,
+DECAY .5 and RES 0/.8/1. It reconstructed the two input capacitor companions
+at the OTA node without changing the renderer or scoring law:
+
+- C62 peaks at **11.19517 V**. Under the existing 0.65-V junction estimates,
+  Q41's collector is **0.80483 V above its base** and Q40 has still more
+  headroom. Those pulses do not reach Darlington saturation. Adding a guessed
+  rail clamp to suppress this tail is unsupported by this model's nodes.
+- VR5's loaded wiper already uses its complete Thevenin resistance, R61/R63,
+  R71 and R72. Its high-turn loading is not an omitted ideal pot divider.
+- Q11 peak current spans **74.677–119.448 µA**, well below the estimated
+  **530.227 µA** hard compliance limit. The fixed-Q12-bias reduction gives
+  minimum Q11 Vce **1.104–1.202 V**. Changing R69 compliance alone cannot
+  affect these unaccented combo rows.
+- High-RES peak OTA differential input is **13.856–15.448 mV**. The existing
+  ideal pair law's worst instantaneous gain ratio `tanh(z)/z` is about
+  **0.971–0.977**, with `z=Vdiff/(2*VT)`. At zero RES the larger source output
+  reaches **32.351 mV**, giving ratio **0.8875**. The model does not show a
+  uniquely stronger high-RES input overload.
+
+**VERIFY: these are model-derived bounds, not internal TD-3 measurements.**
+Q12 bias motion, transistor Vbe/current gain/Early effect, Q39 Idss, actual
+BA662A internals and reciprocal external loading remain uncertain. They may
+move the bounds. The probe uses the existing ideal boundary between stages;
+it does not resolve the missing shared analog nodes.
+
+### Retained change and rejected trials
+
+**R122 alone changes physically: printed 100 kΩ → fitted 95 kΩ.** This is the
+assumed −5% resistor-tolerance endpoint. R121 remains 220 kΩ and both input
+capacitors remain 10 nF. At high frequency the isolated resonance-tap divider
+changes **0.0213178 → 0.0224147**; with `R124 || R121` held as the shunt, its
+approximate coupling corner changes **155.762 → 163.776 Hz**. The implementation
+still solves both loaded capacitor branches together; those single-branch
+figures describe the direction of the fit rather than replace the network.
+
+**VERIFY: tolerance attribution.** Neither the hardware resistor nor its
+individual tolerance was measured. Audio constrains the combined tap gain,
+source impedance, C22 corner and OTA transfer. This is a modest TD-3 output fit
+within an assumed tolerance, not authentication of an original TB-303 resistor.
+The circuit transcription retains 100 kΩ as its nominal authority.
+
+The fixed diagnostic matrix contains 141 captures, including 68 interactions,
+all 22 envelopes, all gates and patterns, twelve repeat takes and endpoint
+accent references. It uses the unchanged v7 metrics. Its baseline weighted
+selected-category score is **0.887430551**; its distribution deliberately
+emphasizes maximum ENV/RES and is not the full-session objective.
+
+| Trial | Diagnostic evidence and disposition |
+|---|---|
+| Q11 finite base current | Unprinted beta **400**, plus EXP_E's ΔV reducing R73/TM3 headroom. Current reduction uses `ratio = Is_ratio*exp(ΔV/VT)`, `I11 = I_cutoff*ratio*(1−ΔV/headroom)/(1+ratio/beta11)`. Interaction aggregate improves 1.58%, but envelopes worsen **6.75%** and accent **9.64%**. Reverted both reductions; no beta is fitted or retained. Q10's current-dependent Vbe and base feedback were still approximate. |
+| R122 95 kΩ only | Diagnostic **0.875580679**, amplitude **−3.05%**, behavior **−1.00%**, interaction **−1.48%**; full check below passes the regression limit. Retained. |
+| R122 95 kΩ + C22 10.5 nF | C22 printed 10 nF → +5% trial. Diagnostic **0.878125449**, weaker behavior/interaction improvement than R122 alone. Reverted capacitor. |
+| R122 95 kΩ + C21 9.5 nF | C21 printed 10 nF → −5% trial. Diagnostic **0.878069204**, envelopes **+3.35%**. Reverted capacitor. |
+| R122 95 kΩ + R121 231 kΩ | R121 printed 220 kΩ → +5% trial. Diagnostic **0.883086348**, envelopes **+7.92%** despite interaction −2.15%. Reverted R121. |
+
+### OTA evaluation cost
+
+The retained OTA remains `Iout = Iabc*mirror_ratio*tanh(Vdiff/(2*VT))`.
+A bounded seventh Lambert continued-fraction convergent evaluates `tanh(z)`
+for `|z| <= 0.5`; the prior tiny-tail cubic remains below `1e-4`, and libm
+handles larger inputs. This is a numerical evaluation change, not a wider OTA
+linear range or fitted circuit coefficient. The seventh/eighth convergents
+bracket the exact real transfer within
+`|z|^15 / (135135*2027025) < 1.12e-16`; including f64 rounding, the dense test
+requires **<= 5e-16 absolute error** against libm. It checks 100,001 points,
+odd symmetry, monotonicity, both branch boundaries and large-signal fallback.
+There is no new state, allocation, lock, solver or unbounded iteration.
+
+Q31's positive Lambert-W reduction additionally uses a three-term asymptotic
+seed for `x >= 32`, followed by one Newton evaluation instead of two. The
+low-current branch and at-most-four-step fallback are unchanged. A 100,001-point
+independent junction-residual check covers x=32…1032 with error <=1e-10 in
+`y+ln(y)=x`, and the old four-step solve checks the branch boundary. At nominal
+VT this corresponds to <=2.59e-12 V junction residual. This saves one logarithm
+on strong retriggered notes without changing any device parameter or current law.
+
+### Consolidated remaining VERIFY register
+
+All previous registers remain applicable. For the current source, the complete
+set of retained fitted/unprinted component and device assumptions is:
+
+- **Pot/trim calibration:** VR3/VR5/VR6 electrical track tables, TM3/expo-ratio
+  identifiability, the voice's centre-ring/rest-voltage calibration, fitted R47
+  and VR3 track, VR8's generic A law and VR4 gang direction correlation.
+- **MEG/sweep tolerances:** C62 **1 → .95 µF**, R138 **68 → 71.4 kΩ**, VR6
+  **1 → .8 MΩ**, C13 **1 → .8 µF**, R61 **10 → 9.5 kΩ**, D27/D28 effective
+  **.60 → .45 V**. Current-dependent diode behavior, R117 clamp bias,
+  Q39's individual Idss, Darlington gain/Vbe/source and sink impedance,
+  base-current loading, saturation and IC12 supply/Ron remain unmeasured.
+- **VEG/gate tolerances and devices:** R142 **10 → 10.5 kΩ**, R143
+  **10 → 9.5 kΩ**, C72 **10 → 11 µF**, C42 **1 → 1.05 µF**; Q36 effective
+  **.50 V / 1.90 mA**, Q32/Q36 beta **200**, Q31 beta **200** and reference
+  **47 µA**. Fixed-beta storage, base-collector recombination, Q31/Q36
+  current laws and preceding-sample gate/base loads remain reductions.
+- **OTA/accent/output:** R119 **47 → 49.35 kΩ**, R120 **22 → 23.1 kΩ**, new
+  R122 **100 → 95 kΩ**, C38/C59/C56 each **1 → .8 µF**; BA662A control
+  voltage **.65 V**, mirror ratio **1**, zero input offset, ideal tanh
+  differential pair and clipped unity output buffer. Pin currents, gain,
+  feedthrough, output impedance/headroom, C36/D24 mutual accent loading,
+  VCF/tap reciprocal loading and the VCA's full-VOLUME load reduction remain
+  open. R121/C21/C22 are retained at their printed values.
+- **Shared estimates:** silicon diode drop **.60 V**, generic junction drop
+  **.65 V**, saturation drop **.20 V**, thermal voltage **25.9 mV**,
+  expo saturation-current matching/calibration and Q11 compliance. Device
+  assignments, temperature, Early effect, high-current gain and bias-rail
+  motion are not established by OUTPUT captures.
+- **Integration/measurement:** C54 gate-edge recovery and R150/C55 pulse
+  reservoir loading, accent source cross-loading, physical panel placement,
+  firmware/acoustic note-off timing, carrier-phase/quiet-gap sensitivity,
+  recording volts/gain and session offsets. No new MIDI delay or release law
+  follows from these trials. The transcription's duplicate D27/C22, optional
+  R147, TP6/CPU-strobe ambiguity and headphone/open-rail items remain unresolved.
+
+No rejected device or tolerance trial is an additional retained parameter.
+The remaining large high-ENV/high-RES phrase level/spectral differences exceed
+what this resistor fit explains. They remain coupled to ladder/output
+large-signal response, phase, shared-node loading and unmeasured device laws.
+
+
+### Final complete score and validation
+
+Both complete v7 runs contain **620 sidecars, 629 analysis rows, zero failures**.
+Overall **0.707084588011 → 0.699090882794 (−1.13052%)**. The final selected
+ENV-related objective is **0.913624307618 → 0.905622896758**. The two numerical
+fast paths preserve the R122-only category scores to floating-point rounding;
+no circuit transfer was relaxed to gain CPU.
+
+Category aggregate is `0.75*median + 0.25*p90`, before category weighting.
+
+| Category | Before aggregate | After aggregate | Change |
+|---|---:|---:|---:|
+| envelopes | 0.313170596 | 0.312998222 | -0.0550% |
+| amplitude | 1.048408111 | 1.028930141 | -1.8579% |
+| accent | 0.351948404 | 0.352001126 | +0.0150% |
+| gate | 0.467186265 | 0.467186265 | +0.0000% |
+| behavior | 1.554874527 | 1.539373561 | -0.9969% |
+| interaction | 1.542449255 | 1.529320231 | -0.8512% |
+
+No category worsens by >2%. The largest increase is waveform **+0.2075%**;
+VCF improves **3.7686%**. Interaction median/p90 moves
+**1.297507/2.277275 → 1.282496/2.269793**. The maximum-ENV/high-RES subset
+(ENV=1, RES>=.8; 24 captures) improves **1.386054/2.212932 →
+1.358875/2.170133**. Amplitude p90 moves **1.687182 → 1.683274**;
+behavior **1.523814/1.648055 → 1.504230/1.644803**. The take-to-take
+floor remains **1.202458/1.407178**, with zero score weight and no subtraction.
+
+All ten packages were tested with explicit offline `-p` selections:
+**141 passed, zero failed, five manual benchmarks ignored**. ENV has **22
+passing tests**, including the two new numerical/current-law checks and all
+existing 48/96/192-kHz physical, extreme-input and lifecycle checks. ENV/VOICE
+all-target Clippy with warnings denied, scoped rustfmt and diff whitespace
+checks pass. The sample path has no added allocation or lock, and all iterations
+remain bounded.
+
+A final-binary replay diagnostic uses the renderer's exact sidecar parser,
+event delivery and latency logic, with no WAV output. It audits **346+274=620
+captures**, with **zero VCF non-convergence**, **zero sanitized inputs**, and
+at most **four Newton evaluations**. This includes the retained fast paths;
+Q31's residual has its separate stage tests. No scoring or renderer source
+was edited to obtain the diagnostics.
+
+CPU measurements use 48-kHz host / 192-kHz Full Circuit. The actual renderer
+was run sequentially after replay workers completed, three 16-second MIDI holds
+per setting; its reported DSP wall time excludes WAV writing. The focused
+voice phrase measurements warm up for 2 seconds, then time 16 seconds, with
+normal 62.5-ms gates and 125-ms trigger intervals. All have zero solver faults.
+
+| Workload | Median CPU / one core | Maximum |
+|---|---:|---:|
+| Renderer, C1 default hold | 10.4% | 10.4% |
+| Renderer, C3 default hold | 10.3% | 10.3% |
+| Renderer, C3 CUTOFF/RES max, ENV min | 11.3% | 11.4% |
+| Voice, C2 CUTOFF=.6 / ENV=1 / RES=1 phrase | 12.980% | 13.068% |
+| Voice, C3 same phrase controls | 11.813% | 12.176% |
+
+**CPU limitation:** renderer holds meet 13%, and focused phrase medians meet
+13%, but one phrase measurement exceeds it by **0.068 percentage points**.
+Earlier shared-machine voice phrase passes varied as high as **18.28%**;
+those wall-time measurements do not establish a strict 13% worst-case ceiling.
+A renderer timing pass overlapping eight replay-audit workers was discarded
+and rerun after they finished. No CPU reduction is attributed solely to a
+noisy before/after wall-time comparison. The two retained numerical changes
+remove library evaluations with independently checked transfer accuracy;
+filter/oscillator runtime changes remain outside this assigned scope.
+
+Final renderer SHA-256:
+`c4642bf3126ff6126fe353bb9b08f0ced05eb11ca42e14d89289bfdcff7ea5f8`.
+Unchanged harness analysis SHA-256:
+`30ff76c5c5047125bebd78c932d8b493ba0583429a513612bc25d548a6cf2649`.
+Reports are `/tmp/env14-baseline.json`, `/tmp/env14-final-score.json` and
+`/tmp/env14-full-score.json`. Small diagnostic logs are
+`/tmp/env14-headroom.log`, `/tmp/env14-solver-final.log`,
+`/tmp/env14-cpu-focus.log` and `/tmp/env14-render-cpu-final.log`.
+All WAVs used the harness default cache or the single ENV scratch directory.
+Both generated directories and Python bytecode created by this round are
+removed before delivery. Changes remain in this worktree without a commit.
+
+```sh
+cargo build --offline --release -p dw303-render
+python3 -B tools/analysis/harness/score.py \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
+  --categories interaction,amplitude,behavior,envelopes,accent,gate \
+  --json /tmp/env14-final-score.json
+# Repeat without --categories for /tmp/env14-full-score.json.
+cargo test --offline -p dw303-osc -p dw303-vcf -p dw303-env \
+  -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
+  -p dw303-standalone -p dw303-render -p dw303-capture
+cargo clippy --offline -p dw303-env -p dw303-voice --all-targets -- -D warnings
+cargo --offline fmt -p dw303-env -p dw303-voice -- --check
 ```

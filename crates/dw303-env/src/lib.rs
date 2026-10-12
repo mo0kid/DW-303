@@ -178,7 +178,10 @@ components! {
     /// R121, VCF output to BA662A pin 3 via C21.
     r121 = 220e3;
     /// R122, resonance wiper to BA662A pin 3 via VCA C22.
-    r122 = 100e3;
+    /// VERIFY: 100 kΩ nominal → 95 kΩ fitted (−5% assumed tolerance).
+    /// Session1/2 high-RES level evidence does not identify R122 separately
+    /// from C22, the tap source impedance or the unmeasured BA662A transfer.
+    r122 = 95e3;
     /// R124, BA662A pin 3 bias resistance; R125 biases pin 2 equally.
     r124 = 2.2e3;
     /// C21, VCF output coupling capacitor.
@@ -273,6 +276,16 @@ struct Fixed {
     line_gain: f64,
     mix_gain: f64,
 }
+
+// Positive root of y + ln(y) = x. Large forward currents permit an
+// asymptotic seed followed by one Newton step, retaining the junction law.
+fn q31_forward_root(x: f64) -> f64 {
+    let log_x = libm::log(x);
+    let inverse = 1.0 / x;
+    let y = x - log_x + log_x * inverse + 0.5 * log_x * (log_x - 2.0) * inverse * inverse;
+    y - (y + libm::log(y) - x) * y / (y + 1.0)
+}
+
 impl Fixed {
     fn new(c: Components) -> Self {
         let r = parallel(c.r119, c.r120);
@@ -749,6 +762,46 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ota_pair_preserves_the_junction_law_and_branch_boundaries() {
+        let mut previous = -1.0;
+        for i in 0..=100_000 {
+            let z = f64::from(i) / 100_000.0 - 0.5;
+            let pair = ota_pair(z);
+            assert!((pair - libm::tanh(z)).abs() <= 5e-16);
+            assert!(pair >= previous);
+            assert_eq!(ota_pair(-z), -pair);
+            previous = pair;
+        }
+        for boundary in [-0.5, -1e-4, 1e-4, 0.5] {
+            for offset in [-f64::EPSILON, 0.0, f64::EPSILON] {
+                let z = boundary + offset;
+                assert!((ota_pair(z) - libm::tanh(z)).abs() <= 5e-16);
+            }
+        }
+        for z in [-100.0, -2.0, 2.0, 100.0] {
+            assert_eq!(ota_pair(z), libm::tanh(z));
+        }
+    }
+
+    #[test]
+    fn q31_forward_root_satisfies_the_current_equation() {
+        for i in 0..=100_000 {
+            let x = 32.0 + f64::from(i) * 0.01;
+            let y = q31_forward_root(x);
+            assert!(y > 0.0);
+            assert!((y + libm::log(y) - x).abs() <= 1e-10);
+        }
+        // Independently solve at the branch boundary with the original
+        // four-step reduction, rather than compare two asymptotic seeds.
+        let x = 32.0;
+        let mut y = x - libm::log(x);
+        for _ in 0..4 {
+            y -= (y + libm::log(y) - x) * y / (y + 1.0);
+        }
+        assert!((q31_forward_root(x) - y).abs() < 1e-10);
+    }
+
+    #[test]
     fn cached_rc_composes_and_rate_changes_preserve_charge() {
         let mut s = Circuit::new(Components::NOMINAL);
         let a = s.rc(0, 4.0, 1.0, 0.1, 0.2);
@@ -927,6 +980,8 @@ impl Veg {
                 // Retain the same exp(-80) floor and Q31 capacitor feedback.
                 let z = libm::exp(x.max(-80.0));
                 z * (1.0 + z * (-1.0 + 1.5 * z))
+            } else if x >= 32.0 {
+                q31_forward_root(x)
             } else {
                 let mut y = if x > 1.0 {
                     x - libm::log(x)
@@ -959,6 +1014,22 @@ pub struct VcfSignals {
     pub output: f64,
     /// Resonance gang A wiper, also feeding C22 (VCA).
     pub resonance_tap: f64,
+}
+
+// Seventh Lambert continued-fraction convergent of tanh. For |z| <= 1/2,
+// the seventh/eighth convergents bracket the exact transfer within
+// |z|^15 / (135135 * 2027025) < 1.12e-16, before f64 rounding.
+// Keep the cheap settled-tail cubic and the library's large-signal law.
+fn ota_pair(z: f64) -> f64 {
+    if z.abs() < 1e-4 {
+        z - z * z * z / 3.0
+    } else if z.abs() <= 0.5 {
+        let square = z * z;
+        z * (135_135.0 + square * (17_325.0 + square * (378.0 + square)))
+            / (135_135.0 + square * (62_370.0 + square * (3_150.0 + 28.0 * square)))
+    } else {
+        libm::tanh(z)
+    }
 }
 
 /// BA662A OTA, summed coupled inputs, accent-current network and C38 output.
@@ -1043,13 +1114,7 @@ impl Vca {
         self.input_caps[0] = flush(self.input_caps[0] + self.circuit.input_step[0] * i0);
         self.input_caps[1] = flush(self.input_caps[1] + self.circuit.input_step[1] * i1);
         let z = vdiff * self.circuit.fixed.inverse_two_vt;
-        // Cubic tanh is accurate to <1.4e-21 absolute in this tiny-signal
-        // interval; avoid a library call for settled coupling-capacitor tails.
-        let pair = if z.abs() < 1e-4 {
-            z - z * z * z / 3.0
-        } else {
-            libm::tanh(z)
-        };
+        let pair = ota_pair(z);
         let swing = self.circuit.fixed.ota_scale * self.current * pair;
         let buffer = (c.reference + swing)
             .max(c.saturation)
