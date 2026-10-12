@@ -88,6 +88,22 @@ pub struct Knobs {
     pub square: bool,
 }
 
+impl Knobs {
+    fn all_finite(self) -> bool {
+        [
+            self.tuning,
+            self.cutoff,
+            self.resonance,
+            self.env_mod,
+            self.decay,
+            self.accent,
+            self.volume,
+        ]
+        .into_iter()
+        .all(f64::is_finite)
+    }
+}
+
 impl Default for Knobs {
     fn default() -> Self {
         Self {
@@ -147,6 +163,7 @@ pub struct Voice {
     target: Knobs,
     knobs: Knobs,
     knob_coefficient: f64,
+    knobs_settled: bool,
 }
 
 impl Voice {
@@ -175,6 +192,7 @@ impl Voice {
             target: Knobs::default(),
             knobs: Knobs::default(),
             knob_coefficient: 0.0,
+            knobs_settled: true,
         }
     }
 
@@ -230,10 +248,12 @@ impl Voice {
         self.under_current = 0.0;
         self.under_trigger = false;
         self.knobs = self.target;
+        self.knobs_settled = self.target.all_finite();
     }
 
     pub fn set_knobs(&mut self, knobs: Knobs) {
         self.target = knobs;
+        self.knobs_settled = false;
     }
 
     pub fn set_quality(&mut self, quality: Quality) {
@@ -245,6 +265,12 @@ impl Voice {
     }
 
     fn smooth_knobs(&mut self) {
+        // The existing snap reaches the exact target. Until another setter,
+        // every remaining smoothing update would assign those same bits.
+        // Invalid targets retain the original sanitisation/smoothing path.
+        if self.knobs_settled {
+            return;
+        }
         let k = self.knob_coefficient;
         // Snap when settled so downstream coefficient caches see identical values.
         let s = |current: &mut f64, target: f64| {
@@ -263,6 +289,7 @@ impl Voice {
         s(&mut self.knobs.accent, self.target.accent);
         s(&mut self.knobs.volume, self.target.volume);
         self.knobs.square = self.target.square;
+        self.knobs_settled = self.knobs == self.target && self.target.all_finite();
     }
 
     /// One oversampled circuit tick, returning the OUTPUT jack voltage.
@@ -302,6 +329,28 @@ impl Voice {
     }
 
     fn tick_over(&mut self, input: VoiceInput, factor: usize) -> f64 {
+        // Common host rates need no 64-sample temporary or variable reduction
+        // loop. Decimator states are independent of the circuit states.
+        match factor {
+            4 => {
+                let a = self.tick_circuit(input, input.trigger);
+                let b = self.tick_circuit(input, false);
+                let lower = self.decimators[0].downsample([a, b]);
+                let c = self.tick_circuit(input, false);
+                let d = self.tick_circuit(input, false);
+                let upper = self.decimators[0].downsample([c, d]);
+                self.decimators[1].downsample([lower, upper]) / FULL_SCALE_VOLTS
+            }
+            2 => {
+                let a = self.tick_circuit(input, input.trigger);
+                let b = self.tick_circuit(input, false);
+                self.decimators[0].downsample([a, b]) / FULL_SCALE_VOLTS
+            }
+            _ => self.tick_over_generic(input, factor),
+        }
+    }
+
+    fn tick_over_generic(&mut self, input: VoiceInput, factor: usize) -> f64 {
         let mut x = [0.0; 1 << MAX_DECIMATION_STAGES];
         let mut count = factor;
         for (i, sample) in x[..count].iter_mut().enumerate() {
@@ -401,6 +450,81 @@ impl Default for Voice {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn direct_decimation_matches_generic_during_notes_and_knob_switches() {
+        for (rate, factor) in [(48_000.0, 4), (96_000.0, 2)] {
+            let mut direct = Voice::new();
+            let mut generic = Voice::new();
+            direct.prepare(rate).unwrap();
+            generic.prepare(rate).unwrap();
+            for n in 0..24_000 {
+                if n % 4096 == 0 {
+                    let knobs = Knobs {
+                        cutoff: (n / 4096 % 5) as f64 / 4.0,
+                        square: n / 4096 % 2 == 1,
+                        ..Knobs::default()
+                    };
+                    direct.set_knobs(knobs);
+                    generic.set_knobs(knobs);
+                }
+                let input = VoiceInput {
+                    note: (n / 3000 % 25) as u8,
+                    gate: n % 3000 < 2400,
+                    trigger: n % 3000 == 0,
+                    accent: n / 3000 % 2 == 0,
+                    slide: n / 3000 % 3 == 0,
+                };
+                assert_eq!(
+                    direct.tick(input).to_bits(),
+                    generic.tick_over_generic(input, factor).to_bits()
+                );
+            }
+            assert_eq!(direct.vcf_diagnostics(), generic.vcf_diagnostics());
+        }
+    }
+
+    #[test]
+    fn settled_smoothing_matches_unconditional_updates_and_invalid_targets() {
+        let mut cached = Voice::new();
+        let mut reference = Voice::new();
+        cached.prepare(48_000.0).unwrap();
+        reference.prepare(48_000.0).unwrap();
+        let bits = |k: Knobs| {
+            [
+                k.tuning,
+                k.cutoff,
+                k.resonance,
+                k.env_mod,
+                k.decay,
+                k.accent,
+                k.volume,
+            ]
+            .map(f64::to_bits)
+        };
+        for cutoff in [0.0, 1.0, 0.25, -0.0, f64::INFINITY, f64::NAN, 0.5] {
+            let knobs = Knobs {
+                cutoff,
+                square: cutoff == 1.0,
+                ..Knobs::default()
+            };
+            cached.set_knobs(knobs);
+            reference.set_knobs(knobs);
+            for _ in 0..20_000 {
+                cached.smooth_knobs();
+                reference.knobs_settled = false;
+                reference.smooth_knobs();
+                assert_eq!(bits(cached.knobs), bits(reference.knobs));
+                assert_eq!(cached.knobs.square, reference.knobs.square);
+            }
+            cached.reset();
+            reference.reset();
+            cached.smooth_knobs();
+            reference.knobs_settled = false;
+            reference.smooth_knobs();
+            assert_eq!(bits(cached.knobs), bits(reference.knobs));
+        }
+    }
 
     #[test]
     fn oversampling_covers_common_and_extreme_host_rates() {

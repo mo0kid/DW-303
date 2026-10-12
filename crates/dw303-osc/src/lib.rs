@@ -278,6 +278,13 @@ pub struct SquareShaper {
     emitter_cap_g: f64,
     collector_g: f64,
     junction_vt: f64,
+    inverse_base_g: f64,
+    inverse_emitter_g: f64,
+    inverse_saturated_g: f64,
+    inverse_collector_g: f64,
+    inverse_junction_vt: f64,
+    inverse_active_scale: f64,
+    saturation_limit_gain: f64,
     active_drive_offset: f64,
     active_current_scale: f64,
     saturated_drive_offset: f64,
@@ -321,7 +328,13 @@ fn junction_w(t: f64) -> f64 {
     };
     for _ in 0..4 {
         let f = u + junction_log(u) - t;
-        u -= f * u * (u + 1.0) / ((u + 1.0) * (u + 1.0) + 0.5 * f);
+        let next = u - f * u * (u + 1.0) / ((u + 1.0) * (u + 1.0) + 0.5 * f);
+        // Once the update rounds to the same root, every remaining fixed
+        // iteration would evaluate the same expression and state.
+        if next == u {
+            break;
+        }
+        u = next;
     }
     u
 }
@@ -341,6 +354,13 @@ impl SquareShaper {
             emitter_cap_g: 0.0,
             collector_g: 1.0 / c.square_collector_resistance,
             junction_vt: BOLTZMANN_OVER_Q * c.temperature_kelvin,
+            inverse_base_g: 0.0,
+            inverse_emitter_g: 0.0,
+            inverse_saturated_g: 0.0,
+            inverse_collector_g: 0.0,
+            inverse_junction_vt: 0.0,
+            inverse_active_scale: 0.0,
+            saturation_limit_gain: 0.0,
             active_drive_offset: 0.0,
             active_current_scale: 0.0,
             saturated_drive_offset: 0.0,
@@ -363,6 +383,14 @@ impl SquareShaper {
         let saturated_r = 1.0 / gb + 1.0 / (ge + self.collector_g);
         self.active_current_scale = self.junction_vt / active_r;
         self.saturated_current_scale = self.junction_vt / saturated_r;
+        self.inverse_base_g = 1.0 / gb;
+        self.inverse_emitter_g = 1.0 / ge;
+        self.inverse_saturated_g = 1.0 / (ge + self.collector_g);
+        self.inverse_collector_g = 1.0 / self.collector_g;
+        self.inverse_junction_vt = 1.0 / self.junction_vt;
+        self.inverse_active_scale = 1.0 / self.active_current_scale;
+        self.saturation_limit_gain =
+            1.0 / (self.c.transistor_beta / self.collector_g + (self.c.transistor_beta + 1.0) / ge);
         self.active_drive_offset = libm::log(reference / self.active_current_scale);
         self.saturated_drive_offset = libm::log(reference / self.saturated_current_scale);
     }
@@ -391,30 +419,44 @@ impl SquareShaper {
         let saw = sanitise(saw, &mut self.diagnostics.non_finite_inputs).clamp(-100.0, 100.0);
         let gb = self.base_dc_g + self.base_ac_g;
         let drive = gb * saw - self.base_ac_g * self.input_cap;
-        let ge = self.emitter_g + self.emitter_cap_g;
         let supply = self.emitter_g * self.c.square_supply + self.emitter_cap_g * self.emitter;
-        let off_emitter = supply / ge;
-        let off_base = drive / gb;
+        let off_emitter = supply * self.inverse_emitter_g;
+        let off_base = drive * self.inverse_base_g;
         // Eliminate Ve and Vb using the capacitor companion KCL equations.
         // Active: Ve=Voff-(beta+1)*ib/ge, Vb=Voff_base+ib/gb.
         let beta1 = self.c.transistor_beta + 1.0;
-        let delta = (off_emitter - off_base - self.c.transistor_vbe) / self.junction_vt;
-        let ib = self.active_current_scale * junction_w(delta + self.active_drive_offset);
-        let mut ve = (supply - beta1 * ib) / ge;
-        let mut vc = self.c.square_return + self.c.transistor_beta * ib / self.collector_g;
-        let mut base = (drive + ib) / gb;
-        if vc > ve - self.c.transistor_vce_sat {
+        let delta = (off_emitter - off_base - self.c.transistor_vbe) * self.inverse_junction_vt;
+        let active_drive = delta + self.active_drive_offset;
+        // The active solution saturates once its base current exceeds this
+        // load-line boundary. Compare in the monotone u + ln(u) domain before
+        // solving: saturated samples then need only the saturated root.
+        // Both C10 and C11 still update on every tick, for either waveform.
+        let limit = (off_emitter - self.c.transistor_vce_sat - self.c.square_return)
+            * self.saturation_limit_gain;
+        let limit_u = limit * self.inverse_active_scale;
+        let saturated = limit <= 0.0 || active_drive > limit_u + junction_log(limit_u);
+        let (ve, vc, base) = if saturated {
             // Saturated: ie=ib+ic, with the collector load entering the
             // emitter companion. This keeps C11 charge physically balanced.
-            let sat_ge = ge + self.collector_g;
             let sat_supply =
                 supply + self.collector_g * (self.c.square_return + self.c.transistor_vce_sat);
-            let delta = (sat_supply / sat_ge - off_base - self.c.transistor_vbe) / self.junction_vt;
+            let delta = (sat_supply * self.inverse_saturated_g - off_base - self.c.transistor_vbe)
+                * self.inverse_junction_vt;
             let ib = self.saturated_current_scale * junction_w(delta + self.saturated_drive_offset);
-            ve = (sat_supply - ib) / sat_ge;
-            vc = (ve - self.c.transistor_vce_sat).max(self.c.square_return);
-            base = (drive + ib) / gb;
-        }
+            let ve = (sat_supply - ib) * self.inverse_saturated_g;
+            (
+                ve,
+                (ve - self.c.transistor_vce_sat).max(self.c.square_return),
+                (drive + ib) * self.inverse_base_g,
+            )
+        } else {
+            let ib = self.active_current_scale * junction_w(active_drive);
+            (
+                (supply - beta1 * ib) * self.inverse_emitter_g,
+                self.c.square_return + self.c.transistor_beta * ib * self.inverse_collector_g,
+                (drive + ib) * self.inverse_base_g,
+            )
+        };
         let (emitter, collector) = (ve, vc);
         self.input_cap = clean_state(
             self.input_cap
@@ -449,6 +491,12 @@ pub struct VcoOut {
 pub struct Vco {
     c: Components,
     phase: f64,
+    phase_sine: f64,
+    phase_cosine: f64,
+    step_sine: f64,
+    step_cosine: f64,
+    phase_ticks: u8,
+    step_ready: bool,
     sample_rate: f64,
     dc: f64,
     reference_frequency: f64,
@@ -456,7 +504,8 @@ pub struct Vco {
     cosine: [f64; HARMONICS],
     sine: [f64; HARMONICS],
     cap_gain: [f64; HARMONICS],
-    gain: [f64; HARMONICS],
+    weighted_cosine: [f64; HARMONICS],
+    weighted_sine: [f64; HARMONICS],
     active_harmonics: usize,
     pass_harmonics: usize,
     cached_frequency: f64,
@@ -525,6 +574,12 @@ impl Vco {
         let mut s = Self {
             c,
             phase: 0.0,
+            phase_sine: 0.0,
+            phase_cosine: 1.0,
+            step_sine: 0.0,
+            step_cosine: 1.0,
+            phase_ticks: 0,
+            step_ready: false,
             sample_rate: 48_000.0,
             dc: 0.0,
             reference_frequency: c.reference_hz * cycle_charge(Components::NOMINAL)
@@ -533,7 +588,8 @@ impl Vco {
             cosine: [0.0; HARMONICS],
             sine: [0.0; HARMONICS],
             cap_gain,
-            gain: cap_gain,
+            weighted_cosine: [0.0; HARMONICS],
+            weighted_sine: [0.0; HARMONICS],
             active_harmonics: 0,
             pass_harmonics: 0,
             cached_frequency: f64::NAN,
@@ -583,6 +639,7 @@ impl Vco {
     /// Reset phase, capacitor states and counters.
     pub fn reset(&mut self) {
         self.phase = 0.0;
+        self.phase_ticks = 0;
         self.square.reset();
         self.diagnostics = OscDiagnostics::default();
     }
@@ -689,50 +746,92 @@ impl Vco {
             self.diagnostics.frequency_limited_samples =
                 self.diagnostics.frequency_limited_samples.saturating_add(1);
         }
-        let angle = TAU * self.phase;
-        let (si, co) = libm::sincos(angle);
+        let same_frequency = frequency.to_bits() == self.cached_frequency.to_bits();
+        if !same_frequency {
+            self.phase_ticks = 0;
+            self.step_ready = false;
+        }
+        // Held frequency: rotate between exact phase evaluations, resynchronising
+        // every 64 circuit samples to bound roundoff. Changing frequency uses
+        // sincos of the actual phase every sample; the step is built lazily.
+        let (si, co) = if self.phase_ticks == 0 {
+            libm::sincos(TAU * self.phase)
+        } else {
+            if !self.step_ready {
+                (self.step_sine, self.step_cosine) =
+                    libm::sincos(TAU * (frequency / self.sample_rate));
+                self.step_ready = true;
+            }
+            (
+                self.phase_sine * self.step_cosine + self.phase_cosine * self.step_sine,
+                self.phase_cosine * self.step_cosine - self.phase_sine * self.step_sine,
+            )
+        };
+        self.phase_sine = si;
+        self.phase_cosine = co;
+        self.phase_ticks = (self.phase_ticks + 1) & 63;
         let mut hc = co;
         let mut hs = si;
         let mut saw = self.dc;
         // Rebuild only for a bitwise frequency/rate/bandwidth change. Slides
         // still use their exact instantaneous frequency; no quantisation.
-        if frequency.to_bits() != self.cached_frequency.to_bits() {
+        if !same_frequency {
             let (pass, stop) = self.band_ratios();
             let pass_count = harmonics_in_band(frequency, self.sample_rate, pass, true);
             let active_count = harmonics_in_band(frequency, self.sample_rate, stop, false);
             // Restore only harmonics that have moved from the fade into the
             // flat passband; unchanged flat gains need no per-sample work.
             if pass_count > self.pass_harmonics {
-                self.gain[self.pass_harmonics..pass_count]
-                    .copy_from_slice(&self.cap_gain[self.pass_harmonics..pass_count]);
+                for i in self.pass_harmonics..pass_count {
+                    self.weighted_cosine[i] = self.cap_gain[i] * self.cosine[i];
+                    self.weighted_sine[i] = self.cap_gain[i] * self.sine[i];
+                }
             }
             for i in pass_count..active_count {
                 let ratio = (i + 1) as f64 * frequency / self.sample_rate;
                 let rate_gain = 0.5 + 0.5 * libm::cos(PI * (ratio - pass) / (stop - pass));
-                self.gain[i] = rate_gain * self.cap_gain[i];
+                let gain = rate_gain * self.cap_gain[i];
+                self.weighted_cosine[i] = gain * self.cosine[i];
+                self.weighted_sine[i] = gain * self.sine[i];
             }
             self.pass_harmonics = pass_count;
             self.active_harmonics = active_count;
             self.cached_frequency = frequency;
         }
         let count = self.active_harmonics;
-        let (cosine, cosine_tail) = self.cosine[..count].as_chunks::<4>();
-        let (sine, sine_tail) = self.sine[..count].as_chunks::<4>();
-        let (gain, gain_tail) = self.gain[..count].as_chunks::<4>();
-        for ((cosine, sine), gain) in cosine.iter().zip(sine).zip(gain) {
-            // Unroll without changing either recurrence or summation order.
-            for lane in 0..4 {
-                saw += gain[lane] * (cosine[lane] * hc + sine[lane] * hs);
-                let next = hc * co - hs * si;
-                hs = hs * co + hc * si;
-                hc = next;
-            }
-        }
-        for ((cosine, sine), gain) in cosine_tail.iter().zip(sine_tail).zip(gain_tail) {
-            saw += gain * (cosine * hc + sine * hs);
+        let (cosine, cosine_tail) = self.weighted_cosine[..count].as_chunks::<4>();
+        let (sine, sine_tail) = self.weighted_sine[..count].as_chunks::<4>();
+        // Four independent harmonic chains allow the compiler to use packed
+        // arithmetic. Seed h=1..4 with the original recurrence, then rotate
+        // each chain by four harmonics. Independent sums remove the serial
+        // accumulator dependency; only floating-point rounding order changes.
+        let mut cosines = [0.0; 4];
+        let mut sines = [0.0; 4];
+        for lane in 0..4 {
+            cosines[lane] = hc;
+            sines[lane] = hs;
             let next = hc * co - hs * si;
             hs = hs * co + hc * si;
             hc = next;
+        }
+        let step_cosine = cosines[3];
+        let step_sine = sines[3];
+        let mut sums = [0.0; 4];
+        for (cosine, sine) in cosine.iter().zip(sine) {
+            sums = core::array::from_fn(|lane| {
+                sums[lane] + (cosine[lane] * cosines[lane] + sine[lane] * sines[lane])
+            });
+            let next_cosines =
+                core::array::from_fn(|lane| cosines[lane] * step_cosine - sines[lane] * step_sine);
+            sines =
+                core::array::from_fn(|lane| sines[lane] * step_cosine + cosines[lane] * step_sine);
+            cosines = next_cosines;
+        }
+        for (lane, (cosine, sine)) in cosine_tail.iter().zip(sine_tail).enumerate() {
+            sums[lane] += cosine * cosines[lane] + sine * sines[lane];
+        }
+        for sum in sums {
+            saw += sum;
         }
         self.phase += frequency / self.sample_rate;
         if self.phase >= 1.0 {
@@ -748,6 +847,54 @@ impl Vco {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parallel_harmonics_match_serial_recurrence_during_pitch_and_band_changes() {
+        for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
+            let mut vco = Vco::new(Components::NOMINAL);
+            vco.prepare(rate).unwrap();
+            for n in 0..12_000 {
+                if n % 997 == 0 {
+                    vco.set_band_limit(if n % 2 == 0 { Some(20_000.0) } else { None });
+                }
+                let cv = if n % 256 < 128 {
+                    -1.0 + 18.0 * (n / 256) as f64 / 47.0
+                } else {
+                    -1.0 + 18.0 * n as f64 / 12_000.0
+                };
+                let tuning = (n / 512 % 5) as f64 / 4.0;
+                let frequency = vco.frequency_hz(cv, tuning).min(0.45 * rate);
+                let (si, co) = libm::sincos(TAU * vco.phase);
+                let mut hs = si;
+                let mut hc = co;
+                let mut expected = vco.dc;
+                let (pass, stop) = vco.band_ratios();
+                // Independent original serial recurrence and per-harmonic
+                // band decision, including empty bands and boundary tails.
+                for i in 0..HARMONICS {
+                    let ratio = (i + 1) as f64 * frequency / rate;
+                    if ratio >= stop {
+                        break;
+                    }
+                    let gain = if ratio <= pass {
+                        1.0
+                    } else {
+                        0.5 + 0.5 * libm::cos(PI * (ratio - pass) / (stop - pass))
+                    } * vco.cap_gain[i];
+                    expected += gain * (vco.cosine[i] * hc + vco.sine[i] * hs);
+                    let next = hc * co - hs * si;
+                    hs = hs * co + hc * si;
+                    hc = next;
+                }
+                let actual = vco.tick(cv, tuning);
+                assert!(
+                    (actual.saw - expected).abs() < 2e-11,
+                    "rate={rate} n={n} difference={}",
+                    actual.saw - expected
+                );
+            }
+        }
+    }
 
     #[test]
     fn exponential_junction_inverse_converges_across_bounded_drive() {

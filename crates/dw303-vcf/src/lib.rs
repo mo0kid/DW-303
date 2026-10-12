@@ -113,7 +113,17 @@ pub struct VcfDiagnostics {
 
 const N: usize = 10;
 const MAX_ITERATIONS: u8 = 8;
+// Capacitor-voltage residual: retain the original absolute limit in quiet
+// states, with a relative budget for driven ladder voltages. This changes
+// numerical stopping precision only; full replay equivalence and independent
+// small-signal AC/decay tests are required (docs/performance.md).
 const TOLERANCE: f64 = 1e-13;
+const RELATIVE_TOLERANCE: f64 = 4e-8;
+fn residual_tolerance(x: [f64; N]) -> f64 {
+    let scale = x[..4].iter().fold(0.0_f64, |a, b| a.max(b.abs()));
+    TOLERANCE + RELATIVE_TOLERANCE * if scale.is_finite() { scale } else { 0.0 }
+}
+type Matrix = [[f64; N]; N];
 
 /// Four ladder voltages plus C17, C25, C27, C14, C15 and C23 charges / capacitances.
 /// Constructed instances run at 192 kHz until prepared.
@@ -127,6 +137,8 @@ pub struct Vcf {
     previous_controls: [f64; 2],
     diagnostics: VcfDiagnostics,
     inverse_capacitance: [f64; 4],
+    inverse_coupling_capacitance: [f64; 3],
+    resonance_conductance: f64,
     input_rate: f64,
     input_gain: f64,
     output_rate: [f64; 2],
@@ -221,6 +233,8 @@ impl Vcf {
                     * c.input_beta
                     * c.coupling_capacitance[2]),
             inverse_capacitance: c.ladder_capacitance.map(|c| 1.0 / c),
+            inverse_coupling_capacitance: c.coupling_capacitance.map(|c| 1.0 / c),
+            resonance_conductance: 1.0 / c.resonance_resistance,
             input_rate: 1.0 / ((c.input_resistance[0] + c.input_resistance[1]) * c.c17),
             input_gain: c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]),
             output_rate: core::array::from_fn(|i| output_conductance[i] / c.output_capacitance[i]),
@@ -302,10 +316,13 @@ impl Vcf {
             used = iteration;
             let (r, jacobian, _, _) = evaluation;
             let norm = max_abs(r);
-            if norm <= TOLERANCE {
+            if norm <= residual_tolerance(x) {
                 converged = true;
                 break;
             }
+            let Some(jacobian) = jacobian else {
+                break;
+            };
             let Some(delta) = solve_ladder(jacobian, r) else {
                 break;
             };
@@ -323,18 +340,21 @@ impl Vcf {
             }
         }
         if !converged {
-            converged = max_abs(evaluation.0) <= TOLERANCE;
+            converged = max_abs(evaluation.0) <= residual_tolerance(x);
         }
+        let mut accepted_output = None;
         if converged {
             self.previous[2] = self.previous[1];
             self.previous[1] = self.previous[0];
             self.previous[0] = self.x;
             self.x = x.map(flush);
-            let f = if self.x == x {
-                evaluation.2
+            let (f, output) = if self.x == x {
+                (evaluation.2, evaluation.3)
             } else {
-                self.flow(self.x, input, current, feedback).0
+                let (f, _, output) = self.flow(self.x, input, current, feedback, true);
+                (f, output)
             };
+            accepted_output = Some(output);
             self.history = core::array::from_fn(|i| flush(self.x[i] + self.half_step * f[i]));
         } else {
             // Hold the previous physical solution rather than accept an unstable step.
@@ -345,7 +365,14 @@ impl Vcf {
         self.diagnostics.iterations = self.diagnostics.iterations.saturating_add(u64::from(used));
         self.diagnostics.last_iterations = used;
         self.diagnostics.max_iterations = self.diagnostics.max_iterations.max(used);
-        let (output, resonance_tap, _) = self.nodes(self.x, feedback);
+        // The accepted flow already evaluated Q21 at the same capacitor
+        // voltages. Reuse it; a held fallback still evaluates its own nodes.
+        let output = accepted_output
+            .unwrap_or_else(|| self.amplifier(self.x[3] + self.x[5] - self.x[6]).0 - self.x[7]);
+        let rt = self.c.resonance_resistance * feedback * (1.0 - feedback);
+        let i = (feedback * output - self.x[8])
+            / (rt + self.c.feedback_resistance[0] + self.c.feedback_resistance[1]);
+        let resonance_tap = feedback * output - rt * i;
         VcfOut {
             output,
             resonance_tap,
@@ -478,49 +505,47 @@ impl Vcf {
         )
     }
 
-    // Resistively loaded VR4A and C15 network, with ideal Q19/Q18 followers.
-    /// VERIFY: Q18/Q19 are ideal unity followers, with fixed bias, infinite beta
-    /// and no Early effect or parasitics; Q20 base loading is omitted.
-    /// Q21 base currents share its fixed-tail nonlinear collector law.
-    fn nodes(&self, x: [f64; N], p: f64) -> (f64, f64, f64) {
-        let out = self.amplifier(x[3] + x[5] - x[6]).0 - x[7];
-        let rt = self.c.resonance_resistance * p * (1.0 - p);
-        let i =
-            (p * out - x[8]) / (rt + self.c.feedback_resistance[0] + self.c.feedback_resistance[1]);
-        (out, p * out - rt * i, i)
-    }
-
+    #[inline(always)]
     fn residual(
         &self,
         x: [f64; N],
         input: f64,
         current: f64,
         feedback: f64,
-    ) -> ([f64; N], [[f64; N]; N], [f64; N], f64) {
-        let (f, mut j, out) = self.flow(x, input, current, feedback);
+    ) -> ([f64; N], Option<Matrix>, [f64; N], f64) {
+        let (f, j, out) = self.flow(x, input, current, feedback, true);
         let r = core::array::from_fn(|i| x[i] - self.history[i] - self.half_step * f[i]);
-        for (i, row) in j.iter_mut().enumerate() {
-            for value in row.iter_mut() {
-                *value *= -self.half_step;
+        let j = j.map(|mut j| {
+            for (i, row) in j.iter_mut().enumerate() {
+                for value in row.iter_mut() {
+                    *value *= -self.half_step;
+                }
+                row[i] += 1.0;
             }
-            row[i] += 1.0;
-        }
+            j
+        });
         (r, j, f, out)
     }
 
+    /// Resistively loaded VR4A and C15 network, with ideal Q19/Q18 followers.
+    /// VERIFY: Q18/Q19 are ideal unity followers, with fixed bias, infinite beta
+    /// and no Early effect or parasitics; Q20 base loading is omitted.
+    /// Q21 base currents share its fixed-tail nonlinear collector law.
     /// Q12 fixed-tail input; Q13/Q15, Q14/Q17, Q16/Q23 diode-connected
     /// rungs; Q22 common-base top termination at AC-grounded BIAS_Q22.
     /// Arm sums equal the tail current: rung capacitors carry opposite currents.
     /// Eliminating the common-mode voltage therefore gives tanh, not sinh.
     /// VERIFY: neglects base currents, Early effect, common-mode capacitance
     /// and Q21's common-mode loading; differential Q21 loading is retained.
+    #[inline(always)]
     fn flow(
         &self,
         x: [f64; N],
         input: f64,
         current: f64,
         feedback: f64,
-    ) -> ([f64; N], [[f64; N]; N], f64) {
+        skip_converged_jacobian: bool,
+    ) -> ([f64; N], Option<Matrix>, f64) {
         let inverse_scale = self.inverse_scale;
         let half_current = 0.5 * current * self.input_alpha;
         let current_over_scale = half_current * inverse_scale;
@@ -536,14 +561,6 @@ impl Vcf {
             degenerated_junction(u * inverse_scale, current_over_scale * self.input_base_drop);
         let injection = half_current * t;
         let injection_d = current_over_scale * derivative;
-        let mut out_d = [0.0; N];
-        out_d[3] = amp_d;
-        out_d[5] = amp_d;
-        out_d[6] = -amp_d;
-        out_d[7] = -1.0;
-        let fi_d: [f64; N] = core::array::from_fn(|i| {
-            conductance * (feedback * out_d[i] - if i == 8 { 1.0 } else { 0.0 })
-        });
         let mut edge = [0.0; 4];
         let mut edge_d = [0.0; 4];
         for i in 0..4 {
@@ -557,10 +574,57 @@ impl Vcf {
             edge_d[i] = current_over_scale * derivative;
         }
         let mut f = [0.0; N];
+        for i in 0..4 {
+            f[i] = (if i == 0 { injection } else { edge[i - 1] } - edge[i])
+                * self.inverse_capacitance[i];
+        }
+        // Q21's fixed tail gives complementary base currents, with the same
+        // tanh law as its collectors. Their DC sum is absorbed in the bias;
+        // the differential current and its derivative load C25/C27 and C26.
+        // VERIFY: constant beta, fixed tail and settled common-mode base bias.
+        let br = -0.5 * x[3] - x[5];
+        let bl = 0.5 * x[3] - x[6];
+        let gr = self.output_bias_conductance[0];
+        let gl = self.output_bias_conductance[1];
+        let base = amp * self.base_output_ratio;
+        let base_d = amp_d * self.base_output_ratio;
+        let ir = gr * br - base;
+        let il = gl * bl + base;
+        let ic = self.inverse_capacitance[3];
+        f[3] -= 0.5 * (il - ir) * ic;
+        // Complementary Q12 base currents also charge C17 and C23. Their
+        // settled DC sum is absorbed into the bias, as for Q21.
+        // VERIFY: matched, constant beta and stiff common-mode bias.
+        f[4] = (input - x[4]) * self.input_rate + self.input_base_rate * injection;
+        let cr = self.inverse_output_capacitance[0];
+        let cl = self.inverse_output_capacitance[1];
+        f[5] = ir * cr;
+        f[6] = il * cl;
+        f[7] = (out * self.resonance_conductance + feedback * fb_i)
+            * self.inverse_coupling_capacitance[0];
+        f[8] = fb_i * self.inverse_coupling_capacitance[1];
+        f[9] = (follower - x[9]) * self.feedback_rate - self.feedback_base_rate * injection;
+        // A converged evaluation is used only for capacitor history and
+        // output. Its Jacobian cannot be consumed by Newton, so omit that
+        // work after checking the unchanged residual/tolerance.
+        if skip_converged_jacobian
+            && max_abs(core::array::from_fn(|i| {
+                x[i] - self.history[i] - self.half_step * f[i]
+            })) <= residual_tolerance(x)
+        {
+            return (f, None, out);
+        }
+        let mut out_d = [0.0; N];
+        out_d[3] = amp_d;
+        out_d[5] = amp_d;
+        out_d[6] = -amp_d;
+        out_d[7] = -1.0;
+        let fi_d: [f64; N] = core::array::from_fn(|i| {
+            conductance * (feedback * out_d[i] - if i == 8 { 1.0 } else { 0.0 })
+        });
         let mut j = [[0.0; N]; N];
         for i in 0..4 {
             let inv_c = self.inverse_capacitance[i];
-            f[i] = (if i == 0 { injection } else { edge[i - 1] } - edge[i]) * inv_c;
             j[i][i] = -edge_d[i] * inv_c;
             if i > 0 {
                 j[i][i - 1] = edge_d[i - 1] * inv_c;
@@ -578,53 +642,27 @@ impl Vcf {
             injection_derivative[col] = injection_d * du;
             j[0][col] += injection_derivative[col] * self.inverse_capacitance[0];
         }
-        // Q21's fixed tail gives complementary base currents, with the same
-        // tanh law as its collectors. Their DC sum is absorbed in the bias;
-        // the differential current and its derivative load C25/C27 and C26.
-        // VERIFY: constant beta, fixed tail and settled common-mode base bias.
-        let br = -0.5 * x[3] - x[5];
-        let bl = 0.5 * x[3] - x[6];
-        let gr = self.output_bias_conductance[0];
-        let gl = self.output_bias_conductance[1];
-        let base = amp * self.base_output_ratio;
-        let base_d = amp_d * self.base_output_ratio;
-        let ir = gr * br - base;
-        let il = gl * bl + base;
-        let ic = self.inverse_capacitance[3];
-        f[3] -= 0.5 * (il - ir) * ic;
         j[3][3] -= (0.25 * (gl + gr) + base_d) * ic;
         j[3][5] -= (0.5 * gr + base_d) * ic;
         j[3][6] += (0.5 * gl + base_d) * ic;
-        // Complementary Q12 base currents also charge C17 and C23. Their
-        // settled DC sum is absorbed into the bias, as for Q21.
-        // VERIFY: matched, constant beta and stiff common-mode bias.
-        f[4] = (input - x[4]) * self.input_rate + self.input_base_rate * injection;
         j[4][4] = -self.input_rate;
-        let cr = self.inverse_output_capacitance[0];
-        let cl = self.inverse_output_capacitance[1];
-        f[5] = ir * cr;
         j[5][3] = (-0.5 * gr - base_d) * cr;
         j[5][5] = (-gr - base_d) * cr;
         j[5][6] = base_d * cr;
-        f[6] = il * cl;
         j[6][3] = (0.5 * gl + base_d) * cl;
         j[6][5] = base_d * cl;
         j[6][6] = (-gl - base_d) * cl;
-        f[7] =
-            (out / self.c.resonance_resistance + feedback * fb_i) / self.c.coupling_capacitance[0];
-        f[8] = fb_i / self.c.coupling_capacitance[1];
-        f[9] = (follower - x[9]) * self.feedback_rate - self.feedback_base_rate * injection;
         for col in 0..N {
             j[4][col] += self.input_base_rate * injection_derivative[col];
-            j[7][col] = (out_d[col] / self.c.resonance_resistance + feedback * fi_d[col])
-                / self.c.coupling_capacitance[0];
-            j[8][col] = fi_d[col] / self.c.coupling_capacitance[1];
+            j[7][col] = (out_d[col] * self.resonance_conductance + feedback * fi_d[col])
+                * self.inverse_coupling_capacitance[0];
+            j[8][col] = fi_d[col] * self.inverse_coupling_capacitance[1];
             j[9][col] = (self.c.feedback_resistance[1] * fi_d[col]
                 - if col == 9 { 1.0 } else { 0.0 })
                 * self.feedback_rate
                 - self.feedback_base_rate * injection_derivative[col];
         }
-        (f, j, out)
+        (f, Some(j), out)
     }
 }
 
@@ -687,6 +725,30 @@ fn junction(x: f64) -> (f64, f64) {
         // the derivative's omitted x^4 term is below 6.7e-17.
         let square = x * x;
         (x * (1.0 - square / 3.0), 1.0 - square)
+    } else if a < 0.1 {
+        // Degree-thirteen tanh series; the omitted x^15 term is < 1.5e-18
+        // on this interval. Use sech^2 = (1-tanh)*(1+tanh) as below.
+        let z = x * x;
+        let value = x
+            * (1.0
+                + z * (-1.0 / 3.0
+                    + z * (2.0 / 15.0
+                        + z * (-17.0 / 315.0
+                            + z * (62.0 / 2835.0
+                                + z * (-1382.0 / 155925.0 + z * (21844.0 / 6081075.0)))))));
+        (value, (1.0 - value) * (1.0 + value))
+    } else if a <= 1.0 {
+        // Lambert's tanh continued fraction, through denominator 19, folded
+        // into two polynomials. On |x| <= 1 its truncation is < 2e-19;
+        // floating-point roundoff dominates. Keep the exponential outside
+        // this interval, including large Newton backtracking trial points.
+        let z = x * x;
+        let numerator =
+            654_729_075.0 + z * (91_891_800.0 + z * (2_837_835.0 + z * (25_740.0 + z * 55.0)));
+        let denominator = 654_729_075.0
+            + z * (310_134_825.0 + z * (18_918_900.0 + z * (315_315.0 + z * (1_485.0 + z))));
+        let value = x * (numerator / denominator);
+        (value, (1.0 - value) * (1.0 + value))
     } else {
         // One bounded exponential supplies tanh and sech^2 together.
         let e = libm::exp(-2.0 * a);
@@ -874,6 +936,17 @@ mod tests {
     }
 
     #[test]
+    fn rational_junction_matches_exponential_across_interval_and_boundaries() {
+        for i in -20_001..=20_001 {
+            let x = f64::from(i) / 20_000.0;
+            let (value, derivative) = junction(x);
+            let exact = libm::tanh(x);
+            assert!((value - exact).abs() < 5e-16, "x={x}");
+            assert!((derivative - (1.0 - exact * exact)).abs() < 8e-16, "x={x}");
+        }
+    }
+
+    #[test]
     fn degenerated_pair_matches_implicit_law_and_derivative() {
         for a in [0.0, 0.001, 0.006, 0.15, 0.8] {
             for i in -200..=200 {
@@ -903,6 +976,7 @@ mod tests {
                             0.02, -0.008, 0.004, 0.003, 0.001, -0.001, 0.002, 0.003, 0.004, 0.005,
                         ];
                         let (r, j, _, _) = v.residual(x, 0.04, current, resonance);
+                        let j = j.unwrap();
                         let sparse = solve_ladder(j, r).unwrap();
                         let dense = solve(j, r).unwrap();
                         for i in 0..N {
@@ -928,6 +1002,22 @@ mod tests {
     }
 
     #[test]
+    fn converged_residual_omits_jacobian_without_omitting_physical_flow() {
+        let v = Vcf::new(Components::NOMINAL);
+        let x = [0.0; N];
+        let quiet = v.residual(x, 0.0, 10e-6, 0.5);
+        assert_eq!(quiet.0, [0.0; N]);
+        assert!(quiet.1.is_none());
+        let full = v.flow(x, 0.0, 10e-6, 0.5, false);
+        assert!(full.1.is_some());
+        assert_eq!(quiet.2, full.0);
+        assert_eq!(quiet.3, full.2);
+        let driven = v.residual(x, 1.0, 10e-6, 0.5);
+        assert!(max_abs(driven.0) > residual_tolerance(x));
+        assert!(driven.1.is_some());
+    }
+
+    #[test]
     fn analytic_jacobian_matches_differences() {
         for quality in [Quality::Full, Quality::Economy] {
             let mut v = Vcf::new(Components::NOMINAL);
@@ -935,14 +1025,14 @@ mod tests {
             let x = [
                 0.02, -0.008, 0.004, 0.003, 0.001, -0.001, 0.002, 0.003, 0.004, 0.005,
             ];
-            let j = v.flow(x, 0.04, 10e-6, 0.75).1;
+            let j = v.flow(x, 0.04, 10e-6, 0.75, false).1.unwrap();
             for col in 0..N {
                 let mut hi = x;
                 let mut lo = x;
                 hi[col] += 1e-7;
                 lo[col] -= 1e-7;
-                let f_hi = v.flow(hi, 0.04, 10e-6, 0.75).0;
-                let f_lo = v.flow(lo, 0.04, 10e-6, 0.75).0;
+                let f_hi = v.flow(hi, 0.04, 10e-6, 0.75, false).0;
+                let f_lo = v.flow(lo, 0.04, 10e-6, 0.75, false).0;
                 for row in 0..N {
                     let numeric = (f_hi[row] - f_lo[row]) / 2e-7;
                     assert!((numeric - j[row][col]).abs() < 1e-5 * (1.0 + numeric.abs()));

@@ -416,6 +416,11 @@ impl TriggerPulse {
     /// A rising trigger starts the Q38 pulse; a held trigger does not retrigger.
     /// Returns TRIG volts (about 11.8 V for about 1.4 ms), not a Boolean gate.
     pub fn tick(&mut self, trigger: bool) -> f64 {
+        // A discharged C54 is an exact fixed point until the next edge.
+        if self.drive == 0.0 && !(trigger && !self.previous) {
+            self.previous = trigger;
+            return 0.0;
+        }
         let c = self.circuit.c;
         if trigger && !self.previous {
             self.drive = c.supply - c.vbe;
@@ -476,6 +481,13 @@ impl Accent {
     /// Return the VR7 wiper voltage, zero when IC12 is open.
     /// The block boundary treats the wiper as a voltage source; see loading limits.
     pub fn tick(&mut self, accent: bool, meg: f64, accent_knob: f64) -> f64 {
+        // IC12's open accent gate returns zero. Retain input sanitisation
+        // counters even though neither voltage affects an inactive output.
+        if !accent {
+            self.circuit.input(meg);
+            self.circuit.input(accent_knob);
+            return 0.0;
+        }
         let meg = self.circuit.input(meg).max(0.0).min(self.circuit.c.supply);
         let k = self.circuit.knob(accent_knob);
         if accent { meg * k } else { 0.0 }
@@ -602,6 +614,7 @@ impl AccentSweep {
 pub struct FilterControl {
     circuit: Circuit,
     network: Option<(u64, u64, FilterNetwork)>,
+    cached_current: Option<([u64; 4], f64)>,
 }
 #[derive(Clone, Copy)]
 struct FilterNetwork {
@@ -642,7 +655,10 @@ impl FilterControl {
         self.network = Some((cutoff.to_bits(), env.to_bits(), n));
         n
     }
-    lifecycle!(network = |_: &Circuit| None);
+    lifecycle!(
+        network = |_: &Circuit| None,
+        cached_current = |_: &Circuit| None
+    );
     /// Return Q11 collector (total ladder tail) current in amperes.
     /// References are VQ9, not ground; R61 gives a residual ENV MOD feed at CCW.
     /// Q11 compliance is limited by R69 and the estimated Q12/Q11 junction drops.
@@ -655,6 +671,20 @@ impl FilterControl {
             .input(sweep_wiper)
             .max(0.0)
             .min(self.circuit.c.supply);
+        // Q10/Q11 have no dynamic state in this reduction. Once their four
+        // sanitized controls are bitwise identical, reuse the exact current.
+        // Sanitisation above still runs and retains every diagnostic count.
+        let key = [
+            cutoff.to_bits(),
+            env.to_bits(),
+            meg.to_bits(),
+            sweep.to_bits(),
+        ];
+        if let Some((previous, current)) = self.cached_current
+            && previous == key
+        {
+            return current;
+        }
         let reference = self.circuit.reference();
         let n = if let Some((kc, ke, n)) = self.network
             && kc == cutoff.to_bits()
@@ -665,8 +695,11 @@ impl FilterControl {
             self.update_network(cutoff, env)
         };
         let exponent = n.env_exponent * (meg - reference) + n.sweep_exponent * (sweep - reference);
-        (n.cutoff_current * libm::exp2(exponent.clamp(-80.0, 40.0) * core::f64::consts::LOG2_E))
-            .min(n.compliance)
+        let current = (n.cutoff_current
+            * libm::exp2(exponent.clamp(-80.0, 40.0) * core::f64::consts::LOG2_E))
+        .min(n.compliance);
+        self.cached_current = Some((key, current));
+        current
     }
     /// Q9 emitter reference, from the equal R64/R65 divider plus a PNP Vbe.
     pub fn reference_voltage(&self) -> f64 {
@@ -792,16 +825,25 @@ impl Veg {
                 + self.circuit.fixed.q31_log_reference;
             // Solve y + ln(y) = x (positive Lambert-W branch). At most four
             // Newton steps; asymptotic seeds avoid overflow and negative y.
-            let mut y = if x > 1.0 {
-                x - libm::log(x)
+            let y = if (-80.0..-16.0).contains(&x) {
+                // W(z) = z - z^2 + 3z^3/2 + O(z^4). Here z <= exp(-16)
+                // bounds the remainder by 4.3e-28, below normal f64 roundoff.
+                // Retain the same exp(-80) floor and Q31 capacitor feedback.
+                let z = libm::exp(x.max(-80.0));
+                z * (1.0 + z * (-1.0 + 1.5 * z))
             } else {
-                libm::exp(x.max(-80.0))
+                let mut y = if x > 1.0 {
+                    x - libm::log(x)
+                } else {
+                    libm::exp(x.max(-80.0))
+                };
+                let iterations = if x.abs() > 16.0 { 2 } else { 4 };
+                for _ in 0..iterations {
+                    y -= (y + libm::log(y) - x) * y / (y + 1.0);
+                    y = y.max(1e-36);
+                }
+                y
             };
-            let iterations = if x.abs() > 16.0 { 2 } else { 4 };
-            for _ in 0..iterations {
-                y -= (y + libm::log(y) - x) * y / (y + 1.0);
-                y = y.max(1e-36);
-            }
             flush(scale * y)
         } else {
             0.0
