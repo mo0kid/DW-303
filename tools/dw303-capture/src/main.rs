@@ -364,8 +364,31 @@ fn record(
     {
         return Err("capture invalid; inspect sidecar and repeat at calibrated level".into());
     }
+    // A capture that sent notes but recorded no onset is probably silent:
+    // wrong MIDI channel, routing or gain. Several in a row stop the session
+    // instead of recording an hour of silence.
+    let sent_notes = schedule.iter().any(|e| e.bytes[0] & 0xf0 == 0x90);
+    if sent_notes && onset.is_none() {
+        let silent = SILENT_RUN.fetch_add(1, Ordering::Relaxed) + 1;
+        println!(
+            "WARNING: no note onset detected in {id}; check MIDI channel, routing and input gain."
+        );
+        if silent >= MAX_SILENT_RUN {
+            return Err(format!(
+                "{silent} consecutive captures without a note onset; stopping. \
+                 Run `dw303-capture midi-scan` and `levels` to check the setup."
+            )
+            .into());
+        }
+    } else if sent_notes {
+        SILENT_RUN.store(0, Ordering::Relaxed);
+    }
     Ok(())
 }
+
+/// Consecutive note captures without a detected onset (see `record`).
+static SILENT_RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+const MAX_SILENT_RUN: usize = 3;
 
 // Terminal input without unsafe signal handlers or a new registry dependency.
 // Ctrl-C is read as a byte; it requests exit AFTER the current complete WAV.
