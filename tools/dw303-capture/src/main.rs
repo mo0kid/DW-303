@@ -694,6 +694,7 @@ fn levels(args: &[String]) -> Result<(), Error> {
         let count = consumer
             .pop(&mut buffer)
             .map_err(|e| format!("ring: {e:?}"))?;
+        received += count;
         for frame in buffer[..count * channels].chunks_exact(channels) {
             for (peak, sample) in peaks.iter_mut().zip(frame) {
                 *peak = peak.max(sample.abs());
