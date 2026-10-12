@@ -78,7 +78,7 @@ fn real_q38_pulses_recharge_partly_charged_meg_and_reset_veg() {
 #[test]
 fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
     let c = Components::NOMINAL;
-    let floor = 3.0 * c.diode_drop;
+    let floor = c.diode_drop + 2.0 * c.meg_discharge_drop;
     for rate in rates() {
         for (decay, accent, r) in [
             (0.0, false, c.r138),
@@ -88,7 +88,7 @@ fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
         ] {
             let mut m = Meg::new(c);
             m.prepare(rate).unwrap();
-            near(m.tick(0.0, false, decay), 0.5, 1e-12);
+            near(m.tick(0.0, false, decay), floor - 2.0 * c.vbe, 1e-12);
             for _ in 0..(rate * 0.002) as usize {
                 m.tick(11.8, accent, decay);
             }
@@ -119,6 +119,46 @@ fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
     near((c.r138 + c.vr6) * c.c62, 0.82783, 0.001);
     near((c.r138 + c.vr6_taper[5] * c.vr6) * c.c62, 0.1908, 0.001);
     near(c.r138 * c.c62, 0.06783, 0.001);
+}
+
+#[test]
+fn low_current_clamp_preserves_d37_peak_and_c62_time_constant() {
+    let fitted = Components::NOMINAL;
+    let mut shared_drop = fitted;
+    shared_drop.meg_discharge_drop = shared_drop.diode_drop;
+    for rate in rates() {
+        let mut current_clamp = Meg::new(fitted);
+        let mut old_clamp = Meg::new(shared_drop);
+        current_clamp.prepare(rate).unwrap();
+        old_clamp.prepare(rate).unwrap();
+        for _ in 0..(rate * 0.002).round() as usize {
+            current_clamp.tick(11.8, false, 0.0);
+            old_clamp.tick(11.8, false, 0.0);
+        }
+        // D37/R152 still set the attack. Changing low-current discharge
+        // junctions must not reduce the charged peak by a diode-sized step.
+        near(current_clamp.capacitor_voltage(), 11.2, 0.02);
+        near(
+            current_clamp.capacitor_voltage(),
+            old_clamp.capacitor_voltage(),
+            0.001,
+        );
+        let rest = fitted.diode_drop + 2.0 * fitted.meg_discharge_drop - 2.0 * fitted.vbe;
+        let start = current_clamp.capacitor_voltage() - 2.0 * fitted.vbe;
+        for _ in 0..(rate * fitted.r138 * fitted.c62).round() as usize {
+            current_clamp.tick(0.0, false, 0.0);
+            old_clamp.tick(0.0, false, 0.0);
+        }
+        let at_tau = current_clamp.tick(0.0, false, 0.0);
+        near((at_tau - rest) / (start - rest), (-1.0_f64).exp(), 0.001);
+        for _ in 0..(rate * 10.0 * fitted.r138 * fitted.c62).round() as usize {
+            current_clamp.tick(0.0, false, 0.0);
+            old_clamp.tick(0.0, false, 0.0);
+        }
+        let tail = current_clamp.tick(0.0, false, 0.0);
+        assert!((0.18..0.37).contains(&tail), "fitted MEG tail: {tail}");
+        assert!(old_clamp.tick(0.0, false, 0.0) > tail + 0.14);
+    }
 }
 
 #[test]
@@ -398,9 +438,9 @@ fn q36_gate_storage_has_a_short_monotone_release_at_all_rates() {
         assert!(crossed);
         assert_eq!(previous, 0.0);
         // The joint C72/R142/Q36 fit extends the electrical 20%-current
-        // release to about 7 ms. Audible crossings also include output phase.
+        // release to about 10 ms. Audible crossings also include output phase.
         assert!(
-            (0.006..0.008).contains(&crossings[index]),
+            (0.009..0.011).contains(&crossings[index]),
             "fitted release at {rate} Hz: {} s",
             crossings[index]
         );

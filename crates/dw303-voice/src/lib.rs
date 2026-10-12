@@ -395,7 +395,9 @@ pub const CALIBRATION_RING_HZ: f64 = 535.0;
 
 /// VERIFY: rest MEG and accent-sweep voltages from the present envelope/device
 /// reduction, not measured internal TD-3 voltages. Used with all knobs at minimum.
-const CALIBRATION_MEG_REST: f64 = 0.5;
+const CALIBRATION_MEG_REST: f64 = dw303_env::Components::NOMINAL.diode_drop
+    + 2.0 * dw303_env::Components::NOMINAL.meg_discharge_drop
+    - 2.0 * dw303_env::Components::NOMINAL.vbe;
 /// VERIFY: computed Q9 rest/reference voltage; no internal-node capture calibration.
 const CALIBRATION_SWEEP_REST: f64 = 3.3165;
 

@@ -146,6 +146,7 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 
 | Source flag | Unprinted assumption / outstanding check |
 |---|---|
+| `meg_discharge_drop` | VERIFY: D27/D28 shared 0.60 V estimate → 0.45 V low-current reduction. D26 remains 0.60 V under R117 bias; effective C62 floor 1.50 V and buffered rest 0.20 V. Current-dependent diode law and buffer base loading remain unresolved. See round 9. |
 | `diode_drop` | Generic Si Vf = 0.6 V; per-designator types, Is, ideality, leakage and current dependence are unprinted. Fixed clamp drops omit R117 bias dependence and the logarithmic near-floor tail. |
 | `vbe` | Generic Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe = 0.65 V; individual Is/beta/matching/temperature are unprinted. Q39's 2SK30(Y) type is printed, but individual Idss and buffer sink dynamics are omitted. |
 | `saturation` | Q36/Q38/Q32 Vsat and buffer headroom = 0.2 V; output resistances and rail-dependent clipping need device validation. |
@@ -158,8 +159,8 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 | A-pot law | VR3 retains the preceding VCF fit; VR5/VR6 now have separate measured electrical track tables below. VR8 retains `(81^rotation−1)/80`, 10% at half rotation. A markings are printed; exact tracks are not. |
 | VR4 gang direction | Assume both move toward terminal 3 clockwise; VCF open item 3 does not establish correlation. |
 | VR7 steady-load reduction | The printed 50 kΩ track now loads R119/R120/D27. C36's transient current and D24 mutual loading are not exchanged across the voltage-only API. Full-turn source impedance is zero, so this correction cannot explain the full-ACCENT residual by itself. |
-| C72 / R142 / R143 | Printed 10 µF / 10 kΩ / 10 kΩ → current fit 10 µF / 10.5 kΩ / 9.5 kΩ. Earlier C72 fit was 8 µF. Resistors are at assumed ±5% tolerance bounds; only their combined gate response is constrained by output audio. |
-| Q36 junction reference | Generic 0.65 V; earlier fit 0.55 V → current effective 0.46 V at 1.18 mA. Joint gate attack/release fit with C72 and both resistors, not a measured transistor Vbe or Is. Constant beta 200 and the saturation clamp remain reductions. |
+| C72 / R142 / R143 | Printed 10 µF / 10 kΩ / 10 kΩ → current fit 12 µF / 10.5 kΩ / 9.5 kΩ. Earlier C72 fit was 8 µF. Resistors are at assumed ±5% tolerance bounds; only their combined gate response is constrained by output audio. |
+| Q36 junction reference | Generic 0.65 V; earlier fits 0.55/0.46 V → current effective 0.40 V at 1.18 mA. Joint gate attack/release fit with C72 and both resistors, not a measured transistor Vbe or Is. Constant beta 200 and the saturation clamp remain reductions. |
 
 Other transcription open items remain explicit: duplicate C22/D27 are block
 qualified; R147's optional/selected notation is neglected against the assumed
@@ -862,7 +863,7 @@ Three sequential warmed eight-second Full Circuit renders at 48 kHz measured
 
 ## Session-1 fitting round 7 (Harness v4, 2026-10-12)
 
-The current fit adds the printed VR7 source resistance to the VCA accent load
+Round 7 added the printed VR7 source resistance to the VCA accent load
 and jointly refits Q36/C72/R142/R143 for attack and release. All earlier VERIFY
 items remain applicable; the three new register rows above describe the added
 reduction and nominal→fitted values. Full category, solver and CPU evidence,
@@ -874,3 +875,21 @@ Each processed **1,536,000** VCF samples, maximum Newton count **3**,
 **zero non-convergence** and zero sanitized inputs. These are isolated wall-clock
 observations after scoring completed, not a hard scheduling guarantee.
 Reproduce with `target/release/dw303-render /tmp/env4-cpu.wav --seconds 8 --rate 48000`.
+
+
+## Session-1+2 interaction fit (round 9)
+
+The accepted current fit and complete scores/VERIFY inventory are in
+[round 9](vcf-env-fitting-round9-2026-10-12.md). C72 is **12 µF** (+20% assumed
+tolerance), effective Q36 reference is **0.40 V**, and the two low-current
+MEG discharge drops are separately **0.45 V**. D26 remains **0.60 V** under
+R117 bias; C62 floor is **1.50 V**, buffered MEG rest **0.20 V**. The voice's
+rest calibration is derived from those same component fields. The earlier
+transcribed-nominal equations and preceding round tables are historical
+evidence, rather than the current fitted defaults.
+
+The gate electrical 20%-current release is about **10 ms** at 48/96/192 kHz.
+C62's decay times and D37 charge peak are retained. All fitted values are
+output-audio identifications; low Q36 reference voltage, fixed diode drops,
+MIDI off-latency and saturation/storage reduction prevent a device-authenticity
+claim. D24/C36 cross-loading and the excess accented peaks remain open.

@@ -82,6 +82,10 @@ components! {
     /// C62, MEG storage to ground.
     /// VERIFY: 1 µF nominal → 0.95 µF fitted electrolytic tolerance.
     c62 = 0.95e-6;
+    /// VERIFY: effective D27/D28 forward drop at the low MEG discharge current.
+    /// D26 retains the shared drop because R117 biases it at about 0.2 mA.
+    /// Generic 0.6 V → 0.45 V; the full current-dependent diode law is reduced.
+    meg_discharge_drop = 0.45;
     /// R138, fixed MEG discharge resistance.
     /// VERIFY: 68 kΩ nominal → 71.4 kΩ fitted (+5%) to preserve accent decay.
     r138 = 71.4e3;
@@ -130,16 +134,16 @@ components! {
     /// R145, Q36 collector load to ground.
     r145 = 10e3;
     /// C72, Q36 base-emitter storage (+ at the +12 V rail).
-    /// VERIFY: 10 µF nominal, restored from the earlier 8 µF latency-biased fit.
+    /// VERIFY: 10 µF printed → 12 µF joint session1/2 release fit (+20%).
     /// R142/R143 and Q36's junction law are not separately identified by audio.
-    c72 = 10e-6;
+    c72 = 12e-6;
     /// VERIFY: Q36 collector current at the reference Vbe; the saturated gate
     /// load is used as the junction reference pending device measurements.
     q36_reference_current = 1.18e-3;
     /// VERIFY: Q36 PNP Vbe at the gate-load reference current; generic
-    /// 0.65 V estimate → 0.55 V earlier fit → 0.46 V joint attack/release fit.
+    /// 0.65 V estimate → 0.55/0.46 V earlier fits → 0.40 V release fit.
     /// Effective reduced-model junction parameter, not an internal measurement.
-    q36_vbe = 0.46;
+    q36_vbe = 0.40;
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
@@ -444,7 +448,7 @@ pub struct Meg {
     capacitor: f64,
 }
 impl Meg {
-    lifecycle!(capacitor = |s: &Circuit| 3.0 * s.c.diode_drop);
+    lifecycle!(capacitor = |s: &Circuit| s.c.diode_drop + 2.0 * s.c.meg_discharge_drop);
     /// Buffered ENV_OUT voltage; DECAY is the VR6 rotation and accent shorts VR6.
     /// D26–D28 are a fixed-drop clamp in this device reduction.
     pub fn tick(&mut self, pulse: f64, accent: bool, decay: f64) -> f64 {
@@ -457,7 +461,7 @@ impl Meg {
         let track = track_fraction(self.circuit.c.vr6_taper, decay);
         let c = self.circuit.c;
         let r = c.r138 + if accent { 0.0 } else { track * c.vr6 };
-        let floor = 3.0 * c.diode_drop;
+        let floor = c.diode_drop + 2.0 * c.meg_discharge_drop;
         let source = pulse - c.diode_drop;
         let (target, tau, slot) = if source > self.capacitor {
             let rth = parallel(r, c.r152);

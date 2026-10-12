@@ -247,3 +247,16 @@ external VCA input loading and follower clipping are not dynamic modelled.
 Consequently strong damping, large-signal fidelity and absolute levels need
 SPICE / hardware checks. No claim of original-unit amplitude fidelity is made.
 Aliasing relies on voice oversampling; trapezoidal warping remains near Nyquist.
+
+
+## Session-1+2 interaction fit (round 9)
+
+[Round 9](vcf-env-fitting-round9-2026-10-12.md) changes the ENV gate/clamp fit
+and derives the corresponding voice rest constant. Accepted VCF components,
+tracks, capacitor states and solver are unchanged. VCF category error is
+**0.704223885 → 0.704232636** under the full combined v5 score. The downstream
+VCA C21/C22/R121/R122/R124 load was tested explicitly, including shared-node
+and VR4A wiper loading, and rejected after **2.80%** VCF regression; a modest
+VR4A track fit regressed further. Omitted downstream loading remains VERIFY
+and requires joint response/device fitting plus independent AC verification.
+VR4B gang direction and accent cross-loading remain ENV/control open items.
