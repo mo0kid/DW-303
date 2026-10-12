@@ -52,7 +52,7 @@ fn schematic_component_changes_affect_expo_divider() {
             < 550.0
     );
     assert!(
-        (cents(nominal.frequency_hz(1.0, 1.0) / nominal.frequency_hz(1.0, 0.5)) - 891.852).abs()
+        (cents(nominal.frequency_hz(1.0, 1.0) / nominal.frequency_hz(1.0, 0.5)) - 700.0).abs()
             < 0.01
     );
     assert_eq!(cv_for_note(0), 1.0);
@@ -62,61 +62,22 @@ fn schematic_component_changes_affect_expo_divider() {
 }
 
 #[test]
-fn fitted_b_taper_vr2_is_monotonic_with_asymmetric_endpoints() {
+fn roland_tuning_spans_700_cents_with_a_at_110_hz() {
+    // Service notes: TUNING approx. ±700 cents (p. 1); A key = 110 Hz at the
+    // centre of TUNING (p. 7 calibration). DAC: normal-octave A = 2.75 V.
     let vco = Vco::new(Components::NOMINAL);
-    let centre = vco.frequency_hz(1.0, 0.5);
-    assert!((cents(vco.frequency_hz(1.0, 0.0) / centre) + 1086.62).abs() < 1.0);
-    assert!((cents(vco.frequency_hz(1.0, 1.0) / centre) - 891.852).abs() < 1.0);
+    assert!((vco.frequency_hz(cv_for_note(21), 0.5) - 110.0).abs() < 1e-9);
+    for cv in [1.0, 2.0, 3.0, 4.0] {
+        let centre = vco.frequency_hz(cv, 0.5);
+        for (rotation, expected) in [(0.0, -700.0), (0.25, -350.0), (0.75, 350.0), (1.0, 700.0)] {
+            assert!((cents(vco.frequency_hz(cv, rotation) / centre) - expected).abs() < 0.01);
+        }
+    }
     let mut previous = vco.frequency_hz(1.0, 0.0);
     for i in 1..=100 {
         let frequency = vco.frequency_hz(1.0, i as f64 / 100.0);
         assert!(frequency > previous);
         previous = frequency;
-    }
-    for cv in [1.0, 2.0, 3.0, 4.0] {
-        assert!(
-            (cents(vco.frequency_hz(cv, 0.0) / vco.frequency_hz(cv, 0.5)) + 1086.62).abs() < 1.0
-        );
-    }
-}
-
-#[test]
-fn intermediate_tuning_matches_both_sessions_without_retrimming_pitch() {
-    let c = Components::NOMINAL;
-    let mut fitted = Vco::new(c);
-    let mut linear = Vco::new(Components {
-        tuning_track_bow: 0.0,
-        tuning_track_skew: 0.0,
-        ..c
-    });
-    for rate in [44_100.0, 48_000.0, 96_000.0, 192_000.0, 384_000.0] {
-        fitted.prepare(rate).unwrap();
-        linear.prepare(rate).unwrap();
-        for cv in [1.0, 3.0, 5.0] {
-            let centre = fitted.frequency_hz(cv, 0.5);
-            // Session-2 same-key offsets: median of MIDI 24/48/72. Allow
-            // estimator/key/session variation, rather than pinning coefficients.
-            for (rotation, measured_cents) in [(0.25, -502.8), (0.75, 447.3)] {
-                assert!(
-                    (cents(fitted.frequency_hz(cv, rotation) / centre) - measured_cents).abs()
-                        < 1.5
-                );
-            }
-            for rotation in [0.0, 0.5, 1.0] {
-                assert_eq!(
-                    fitted.frequency_hz(cv, rotation),
-                    linear.frequency_hz(cv, rotation)
-                );
-            }
-        }
-        fitted.reset();
-        linear.reset();
-        for _ in 0..1024 {
-            let a = fitted.tick(3.0, 0.5);
-            let b = linear.tick(3.0, 0.5);
-            assert_eq!(a.saw, b.saw);
-            assert_eq!(a.square, b.square);
-        }
     }
 }
 
@@ -204,14 +165,16 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
             assert!(cents(f / vco.frequency_hz(2.0, tuning)).abs() < 1.0);
         }
         assert!(
-            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1978.472).abs()
+            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1400.0).abs()
                 < 1e-9
         );
     }
     let nominal = Vco::new(Components::NOMINAL);
-    assert!((nominal.frequency_hz(1.0, 0.5) - 32.577).abs() < 0.004);
-    assert!((nominal.frequency_hz(2.75, 0.5) - 109.576).abs() < 0.001);
-    assert!((nominal.charging_current_a(2.75, 0.5) - 6.903e-6).abs() < 1e-9);
+    // Roland calibration: C1 = 32.7032 Hz, A = 110 Hz at centre TUNING.
+    assert!((nominal.frequency_hz(1.0, 0.5) - 32.7032).abs() < 0.0001);
+    assert!((nominal.frequency_hz(2.75, 0.5) - 110.0).abs() < 1e-9);
+    // Charging current scales with frequency (previously 6.903 µA at 109.576 Hz).
+    assert!((nominal.charging_current_a(2.75, 0.5) / 6.903e-6 - 110.0 / 109.576).abs() < 2e-4);
     for temp in [280.0, 300.0, 320.0] {
         let v = Vco::new(Components {
             temperature_kelvin: temp,

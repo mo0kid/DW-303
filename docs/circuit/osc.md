@@ -734,3 +734,21 @@ internal-node measurement, manufacturer pot law, thermal sweep or SPICE
 validation is claimed. Remaining tuning error is limited chiefly by upper-stop
 key variation and sparse/inter-session angle references; resolving them needs
 measured pot resistance/angle and denser repeated same-session tuning captures.
+
+## Decision 2026-10-13: Roland tuning specification over the TD-3 unit
+
+The TUNING control now follows the TB-303 service notes instead of the measured
+TD-3, at the owner's request:
+
+| | TD-3 fit (previous) | Now |
+|---|---|---|
+| A at centre (normal octave) | 109.576 Hz, 6.6 cents flat (`reference_hz` 32.577173) | **110.000 Hz** (p. 7 calibration; `reference_hz` 32.703196 = 12-TET C1) |
+| TUNING range | −1086.6 / +891.9 cents (VR2 44.945 kΩ, bow 0.1025, skew −0.0383) | **±700 cents** (p. 1 specification) |
+| VR2 model | Loaded resistive track | Ideal unloaded linear control (`tuning_resistance` 1 Ω, bow and skew 0) |
+
+The TD-3 measurements stay in the session data and the harness, and the
+pitch/tuning categories now measure the deliberate difference from that unit.
+The reason, from the project decisions: the original schematic and
+specification are authoritative, and TD-3 deviations are not adopted silently.
+The TD-3's flat calibration and wider TUNING range are properties of that unit
+or its design, not of the TB-303.
