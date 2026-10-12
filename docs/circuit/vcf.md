@@ -6,8 +6,9 @@ The Revision 2 contract is implemented by `tick(input, ladder_current,
 resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
-printed designators. No provisional gain, attenuation or effective feedback
-RC parameters remain.
+printed designators. The current fitted device/loading parameters and
+validation are in [vcf-fitting-2026-10-12.md](vcf-fitting-2026-10-12.md);
+printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
 
@@ -50,23 +51,29 @@ Crossed C25/C27 (each 0.1µF) feed Q21R/Q21L respectively:
 ```
 b_right = -v[3]/2 - h25
 b_left  = +v[3]/2 - h27
-dh25/dt = b_right / (R114 C25)
-dh27/dt = b_left  / (R113 C27)
-C26 dv[3]/dt additionally subtracts (b_left/R113 - b_right/R114)/2
+g_right = 1/R114 + 1/r_pi
+g_left  = 1/R113 + 1/r_pi
+dh25/dt = b_right g_right / C25
+dh27/dt = b_left  g_left  / C27
+C26 dv[3]/dt additionally subtracts (b_left g_left - b_right g_right)/2
 ```
 
-R113/R114=100K yield the printed-netlist 10 ms / 15.915 Hz corners.
-Their currents also load the ladder top; they are not post-filter effects.
+R113/R114=100K alone yield 10 ms / 15.915 Hz corners. The current reduction
+also includes Q21 base loading, `r_pi = beta VT / Ic`; the fitted loaded
+corner is about 60.87 Hz. Both currents load the ladder top.
 Q20 tail current is derived from R116/R112/R109's three-resistor divider,
 R108=2.2K and the estimated Vbe:
 
 ```
 I20 = max(0, (5.333 R109/(R116+R112+R109) - Vbe)/R108)
-Q19_E_AC = (I20 R110/2) tanh((b_left-b_right)/(2 VT))
+Ic = (I20/2) beta/(beta+1)
+Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 ```
 
-R110=2.2K, nominal I20≈0.5126 mA, single-ended gain≈10.907 and
-maximum collector swing≈0.564 V. Q19 is an ideal emitter follower of Q21R's
+For the printed-only gain with infinite beta and correction one,
+R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
+The current fitted gain correction and finite beta give 89.17 V/V and
+4.61 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
 
@@ -186,8 +193,12 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 3. `Vcf::flow`: fixed arm common-mode reduction omits large-signal
    common-mode redistribution, finite β, Early effect and junction capacitance.
 4. `Vcf::nodes`: Q18/Q19 are ideal unity followers with fixed settled bias,
-   infinite β and no Early effect/parasitics. Q20/Q21 base-current loading
-   is neglected. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
+   infinite β and no Early effect/parasitics. Q20 base loading is omitted;
+   Q21 includes fixed-bias linear r_pi but omits nonlinear base current. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
+
+5. `Components::output_beta`: fitted Q21 beta 350 is unprinted and unmeasured.
+6. `Components::output_gain_correction`: fitted gain multiplier 8.2 remains
+   unresolved against the printed Q20/R108/R110 gain; see the current fit register.
 
 Additional transcription open items: TP6's attachment / printed DC levels
 remain unresolved and are excluded from level calibration. Gang-B direction

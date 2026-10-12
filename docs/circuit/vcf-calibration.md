@@ -1,5 +1,11 @@
 # VCF calibration against TD-3 session1
 
+Historical first fit. Applied gain/coupling values, validation and the
+high-current instability warning are superseded by
+[vcf-fitting-2026-10-12.md](vcf-fitting-2026-10-12.md). VR3/TM3 and ENV
+calibration assumptions remain inherited; the current fit restores printed
+C25/C27 values and includes Q21 differential base loading.
+
 2026-10-12. This measurement fit supersedes the transcription-only calibration
 and resonance conclusions in [vcf.md](vcf.md) and
 [vcf-resonance.md](vcf-resonance.md). The [contract](contracts.md) remains binding.

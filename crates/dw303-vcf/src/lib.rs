@@ -1,7 +1,7 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-calibration.md` for the superseding measurement fit.
+//! `docs/circuit/vcf-fitting-2026-10-12.md` for the current measurement fit.
 
 /// Solver quality; switching preserves capacitor voltages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,12 +46,15 @@ pub struct Components {
     pub thermal_voltage: f64,
     /// VERIFY: Q20 Vbe used to derive Q21 tail current; not printed.
     pub vbe: f64,
+    /// VERIFY: Q21 common-emitter current gain at its approximately 0.26 mA
+    /// collector bias. Fitted base loading; no internal current measurement.
+    pub output_beta: f64,
     /// VERIFY: effective Q21 collector gain, fitted to TD-3 ring captures.
     /// Preserves the printed resistors; multiplies Q21 collector swing and gm.
     /// The excess gain is provisional pending Q21/feedback reconciliation.
     pub output_gain_correction: f64,
-    /// VERIFY: effective C25/C27 capacitance multiplier from sustained spectra;
-    /// printed 0.1 µF values remain above, pending scan/topology reconciliation.
+    /// Optional C25/C27 multiplier for reproducing the earlier empirical fit.
+    /// Default 1.0 retains the printed capacitors; Q21 base loading sets their corner.
     pub output_coupling_scale: f64,
 }
 impl Components {
@@ -69,8 +72,9 @@ impl Components {
         bias_supply: 5.333,
         thermal_voltage: 0.02585,
         vbe: 0.65,
-        output_gain_correction: 9.5,
-        output_coupling_scale: 0.18,
+        output_beta: 350.0,
+        output_gain_correction: 8.2,
+        output_coupling_scale: 1.0,
     };
 }
 
@@ -156,6 +160,7 @@ impl Vcf {
         c.bias_supply = positive(c.bias_supply, Components::NOMINAL.bias_supply);
         c.thermal_voltage = positive(c.thermal_voltage, Components::NOMINAL.thermal_voltage);
         c.vbe = positive(c.vbe, Components::NOMINAL.vbe);
+        c.output_beta = positive(c.output_beta, Components::NOMINAL.output_beta).clamp(1.0, 1e9);
         c.output_gain_correction = positive(
             c.output_gain_correction,
             Components::NOMINAL.output_gain_correction,
@@ -171,6 +176,12 @@ impl Vcf {
         }
         let ar = c.amplifier_resistance;
         let tail = ((c.bias_supply * ar[2] / (ar[0] + ar[1] + ar[2]) - c.vbe) / ar[3]).max(0.0);
+        // Differential excitation leaves the matched pair's common emitter
+        // stationary. Each base therefore draws through r_pi = beta * VT / Ic.
+        let alpha = c.output_beta / (c.output_beta + 1.0);
+        let collector_current = 0.5 * tail * alpha;
+        let base_conductance = collector_current / (c.output_beta * c.thermal_voltage);
+        let output_conductance = c.output_bias_resistance.map(|r| 1.0 / r + base_conductance);
         Self {
             c,
             quality: Quality::Full,
@@ -184,16 +195,14 @@ impl Vcf {
             inverse_capacitance: c.ladder_capacitance.map(|c| 1.0 / c),
             input_rate: 1.0 / ((c.input_resistance[0] + c.input_resistance[1]) * c.c17),
             input_gain: c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]),
-            output_rate: core::array::from_fn(|i| {
-                1.0 / (c.output_bias_resistance[i] * c.output_capacitance[i])
-            }),
-            output_conductance: c.output_bias_resistance.map(|r| 1.0 / r),
+            output_rate: core::array::from_fn(|i| output_conductance[i] / c.output_capacitance[i]),
+            output_conductance,
             feedback_rate: 1.0
                 / ((c.feedback_resistance[2] + c.feedback_resistance[3])
                     * c.coupling_capacitance[2]),
             feedback_gain: c.feedback_resistance[3]
                 / (c.feedback_resistance[2] + c.feedback_resistance[3]),
-            amplifier_swing: c.output_gain_correction * 0.5 * tail * ar[4],
+            amplifier_swing: c.output_gain_correction * collector_current * ar[4],
         }
     }
 
@@ -313,7 +322,7 @@ impl Vcf {
     }
 
     /// Q21 effective single-ended small-signal gain: Q20/R108/R110 derivation
-    /// multiplied by the explicitly fitted `output_gain_correction`.
+    /// including finite-beta collector current, then the fitted `output_gain_correction`.
     pub fn output_gain(&self) -> f64 {
         self.amplifier_swing * self.inverse_scale
     }
@@ -377,11 +386,11 @@ impl Vcf {
     fn characteristic(&self, s: Complex, current: f64) -> Complex {
         let c = self.c;
         let g = current / (4.0 * c.thermal_voltage);
-        let h25 = s.highpass(c.output_capacitance[0] * c.output_bias_resistance[0]);
-        let h27 = s.highpass(c.output_capacitance[1] * c.output_bias_resistance[1]);
+        let h25 = s.highpass(1.0 / self.output_rate[0]);
+        let h27 = s.highpass(1.0 / self.output_rate[1]);
         let load = h25
-            .scale(0.25 / c.output_bias_resistance[0])
-            .add(h27.scale(0.25 / c.output_bias_resistance[1]));
+            .scale(0.25 * self.output_conductance[0])
+            .add(h27.scale(0.25 * self.output_conductance[1]));
         let rf = c.feedback_resistance[0] + c.feedback_resistance[1];
         let y15 = s.highpass(rf * c.coupling_capacitance[1]).scale(1.0 / rf);
         let y14 = Complex(1.0 / c.resonance_resistance, 0.0).add(y15);
@@ -424,7 +433,8 @@ impl Vcf {
 
     // Resistively loaded VR4A and C15 network, with ideal Q19/Q18 followers.
     /// VERIFY: Q18/Q19 are ideal unity followers, with fixed bias, infinite beta
-    /// and no Early effect or parasitics; Q20/Q21 neglect base-current loading.
+    /// and no Early effect or parasitics; Q20 base loading is omitted.
+    /// Q21 uses a fixed-bias linear r_pi; nonlinear base current is omitted.
     fn nodes(&self, x: [f64; N], p: f64) -> (f64, f64, f64) {
         let out = self.amplifier(x[3] + x[5] - x[6]).0 - x[7];
         let rt = self.c.resonance_resistance * p * (1.0 - p);
@@ -516,7 +526,7 @@ impl Vcf {
                 + if col == 9 { self.feedback_gain } else { 0.0 };
             j[0][col] += injection_d * self.inverse_capacitance[0] * du;
         }
-        // C25/C27 also draw current from Q22 emitter nodes, loading C26.
+        // C25/C27 supply both R113/R114 and Q21 base currents, loading C26.
         let br = -0.5 * x[3] - x[5];
         let bl = 0.5 * x[3] - x[6];
         let gr = self.output_conductance[0];
