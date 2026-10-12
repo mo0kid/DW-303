@@ -1,7 +1,9 @@
 //! Factory pattern memory: original acid bass lines written in the classic
 //! TB-303 idioms (driving 16ths, octave jumps, accent/slide grooves, minor and
-//! Phrygian lines, tie/rest rhythms, triplets). They are original material,
-//! not transcriptions of recorded riffs.
+//! Phrygian lines, tie/rest rhythms, triplets) and, in group III, in broader
+//! 1990s styles (braindance, filtered house, hypnotic acid, big beat). All are
+//! original material, not transcriptions of recorded riffs, and none is named
+//! after an artist or track.
 //!
 //! Notation, one token per time step:
 //! - note: `C C# D D# E F F# G G# A A# B C'` (C' is the upper C of the
@@ -234,6 +236,122 @@ pub const PATTERNS: &[(u8, Section, u8, &str, &str)] = &[
         7,
         "Sparse Accent",
         "C! . . . C . ^C! . . C . . D#! . C .",
+    ),
+    // Group III, section A: restless braindance-style lines (chromatic runs,
+    // stop-start rhythms, odd accents).
+    (
+        2,
+        Section::A,
+        0,
+        "Twitch Logic",
+        "C C# ^C! . D# C~ F#! C ^C# . C G#! C~ ^D C# F!",
+    ),
+    (
+        2,
+        Section::A,
+        1,
+        "Clockwork Glitch",
+        "E ^E! F ^F . E G#~ A ^E! . E F E~ ^C E! .",
+    ),
+    (
+        2,
+        Section::A,
+        2,
+        "Detuned Toy",
+        "G A# ^C# G! . G ^G A#~ ^C! G F# . G! ^A# G ^D#",
+    ),
+    (
+        2,
+        Section::A,
+        3,
+        "Run And Stop",
+        "C D D# F# G! G# A# ^C! . . C . ^C! _ . A#",
+    ),
+    (
+        2,
+        Section::A,
+        4,
+        "Prepared Wire",
+        "D# ^D# D#! E . D# A ^D#~ D#! . F# D# ^E! D# . A~",
+    ),
+    (
+        2,
+        Section::A,
+        5,
+        "Knotted Line",
+        "T C ^C! C# G C~ ^F# C! G# ^C C# F! ^C",
+    ),
+    (
+        2,
+        Section::A,
+        6,
+        "Analogue Bubbles",
+        "A ^A! ^A# A E~ F A! ^A ^A# A! C~ ^C A ^A! G# A",
+    ),
+    (
+        2,
+        Section::A,
+        7,
+        "Calculator Dub",
+        "F . F! ^F . F C! . F ^F! . D# F . ^C! .",
+    ),
+    // Group III, section B: filtered-house octave grooves, hypnotic one-note
+    // acid builds and big-beat stabs.
+    (
+        2,
+        Section::B,
+        0,
+        "Filter Funk",
+        "G . ^G G! . G ^G~ ^A# G . ^G! G F . ^G~ G!",
+    ),
+    (
+        2,
+        Section::B,
+        1,
+        "Disco Octaves",
+        "A ^A A ^A! A ^A A ^A! G ^G G ^G! G ^G G ^G!",
+    ),
+    (
+        2,
+        Section::B,
+        2,
+        "Robot Strut",
+        "E . E ^E! . E G A! . A ^A! G . E D E!",
+    ),
+    (
+        2,
+        Section::B,
+        3,
+        "Hypnotic Rise",
+        "C C C! C C C~ C C C! C C ^C~ C C! C C",
+    ),
+    (
+        2,
+        Section::B,
+        4,
+        "Endless Pulse",
+        "A! A A A! A A A A~ A! A A A! A A ^A~ A",
+    ),
+    (
+        2,
+        Section::B,
+        5,
+        "Breakbeat Stab",
+        "E! . . E! . . ^E! . E! . E! . G! . . A!",
+    ),
+    (
+        2,
+        Section::B,
+        6,
+        "Rave Siren",
+        "D ^D! D ^D! D# ^D#! D# ^D#! F ^F! F ^F! D# ^D#~ D C!",
+    ),
+    (
+        2,
+        Section::B,
+        7,
+        "Warehouse Hammer",
+        "C! C C ^C! C! C D# C! C! C ^C C! F! C D#~ C!",
     ),
 ];
 
