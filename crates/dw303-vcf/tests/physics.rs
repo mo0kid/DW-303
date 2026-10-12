@@ -34,17 +34,20 @@ fn hp(w: f64, t: f64) -> Complex {
 fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
     let w = TAU * f;
     let g = current / (4.0 * c.thermal_voltage);
-    let gain = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3]
-        * c.amplifier_resistance[4]
-        / (4.0 * c.thermal_voltage)
+    let tail = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3];
+    let alpha = c.output_beta / (c.output_beta + 1.0);
+    let conductance = c
+        .output_bias_resistance
+        .map(|r| 1.0 / r + 0.5 * tail * alpha / (c.output_beta * c.thermal_voltage));
+    let gain = tail * alpha * c.amplifier_resistance[4] / (4.0 * c.thermal_voltage)
         * c.output_gain_correction;
     let h25 = hp(
         w,
-        c.output_capacitance[0] * c.output_bias_resistance[0] * c.output_coupling_scale,
+        c.output_capacitance[0] / conductance[0] * c.output_coupling_scale,
     );
     let h27 = hp(
         w,
-        c.output_capacitance[1] * c.output_bias_resistance[1] * c.output_coupling_scale,
+        c.output_capacitance[1] / conductance[1] * c.output_coupling_scale,
     );
     let amp = h25.add(h27).scale(0.5 * gain);
     let rt = c.resonance_resistance * p * (1.0 - p);
@@ -63,8 +66,8 @@ fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
             (c.feedback_resistance[2] + c.feedback_resistance[3]) * c.coupling_capacitance[2],
         ));
     let load = h25
-        .scale(0.25 / c.output_bias_resistance[0])
-        .add(h27.scale(0.25 / c.output_bias_resistance[1]));
+        .scale(0.25 * conductance[0])
+        .add(h27.scale(0.25 * conductance[1]));
     let mut prev = Complex(1.0, 0.0);
     let mut det = Complex(g, w * c.ladder_capacitance[0]);
     for i in 1..4 {
@@ -89,7 +92,9 @@ fn response(rate: f64, current: f64, f: f64, p: f64, q: Quality) -> f64 {
     let mut v = Vcf::new(Components::NOMINAL);
     v.prepare(rate).unwrap();
     v.set_quality(q);
-    let settle = (rate * 2.0) as usize;
+    // The loaded output/feedback network has slower coupled modes than its
+    // individual RC corners; wait for those before measuring steady AC gain.
+    let settle = (rate * 5.0) as usize;
     let count = (rate * (f * 0.2).ceil().max(2.0) / f).round() as usize;
     let mut sin = 0.0;
     let mut cos = 0.0;
@@ -117,10 +122,8 @@ fn printed_values_gains_and_corners() {
 #[test]
 fn response_matches_netlist_and_rates() {
     let c = Components::NOMINAL;
-    // The hardware fit is near critical damping at the maximum captured tail
-    // current (about 37 uA). Above that range, a linear stable AC response is
-    // not guaranteed; the separate nonlinear extreme test checks boundedness.
-    for current in [1e-6, 10e-6, 30e-6] {
+    // Include envelope/accent currents beyond the settled capture sweep.
+    for current in [1e-6, 10e-6, 30e-6, 100e-6] {
         for p in [0.0, 0.5, 1.0] {
             for f in [10.0, 100.0, 500.0, 1500.0] {
                 let expected = analytic(c, current, f, p);
@@ -282,5 +285,52 @@ fn fitted_centre_has_a_sharp_peak_in_both_solver_modes() {
         assert!(20.0 * (peak / below).log10() > 5.0);
         assert!(20.0 * (peak / above).log10() > 5.0);
         assert!((20.0 * (peak / analytic(c, current, 535.0, 1.0)).log10()).abs() < 0.15);
+    }
+}
+
+#[test]
+fn resonance_decays_across_the_complete_control_current_range() {
+    // Cover ENV MOD/accent excursions as well as the settled ring sweep.
+    // A charge-balanced, small differential excitation avoids mistaking
+    // nonlinear limiting for stable poles. The 1 nV floor allows residual
+    // integration error in otherwise silent coupling states.
+    for quality in [Quality::Full, Quality::Economy] {
+        for rate in [48_000.0, 192_000.0, 384_000.0] {
+            for current in [1e-6, 4e-6, 8e-6, 20e-6, 40e-6, 60e-6, 100e-6, 300e-6, 1e-3] {
+                for resonance in [0.0, 0.5, 0.9, 1.0] {
+                    let mut v = Vcf::new(Components::NOMINAL);
+                    v.prepare(rate).unwrap();
+                    v.set_quality(quality);
+                    let mut early = 0.0_f64;
+                    let mut late = 0.0_f64;
+                    for n in 0..(rate * 2.0) as usize {
+                        let y = v
+                            .tick(
+                                if n == 0 {
+                                    0.1
+                                } else if n == 1 {
+                                    -0.1
+                                } else {
+                                    0.0
+                                },
+                                current,
+                                resonance,
+                            )
+                            .output;
+                        if n < (rate * 0.03) as usize {
+                            early = early.max(y.abs());
+                        }
+                        if n > (rate * 1.8) as usize {
+                            late = late.max(y.abs());
+                        }
+                    }
+                    assert!(
+                        late < early * 0.01 + 1e-9,
+                        "{quality:?} rate={rate} I={current:e} res={resonance} early={early:e} late={late:e}"
+                    );
+                    assert_eq!(v.diagnostics().non_convergence, 0);
+                }
+            }
+        }
     }
 }
