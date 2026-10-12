@@ -65,8 +65,11 @@ pub fn oversampling_for(host_rate: f64) -> Option<RateRatio> {
 pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 
 /// Output node voltage that maps to digital full scale (1.0).
-/// VERIFY: calibrate against the TD-03 line level captures.
-pub const FULL_SCALE_VOLTS: f64 = 0.5;
+/// Calibrated 2026-10-12 so VOLUME 10 matches a TD-3 at VOLUME 10 recorded
+/// through a UMC1820 line input at unity gain: saw notes at CUTOFF max /
+/// RES 0 were 19.7-20.6 dB too loud at 0.5 V, so 0.5 V x 10^(20.2/20).
+/// VERIFY: absolute volts are unknown (no interface dBFS-per-volt calibration).
+pub const FULL_SCALE_VOLTS: f64 = 5.12;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -329,19 +332,25 @@ impl Voice {
     }
 }
 
-/// Page-7 VCF calibration: CUTOFF centre, RES max, ENV MOD/DECAY/ACCENT min
-/// ring at 500 Hz (2 ms). The service procedure trims TM3. Here TM3 keeps its
-/// nominal value and the unknown Q10 (PNP) / Q11 (NPN) saturation-current ratio
-/// absorbs the difference, because TM3 alone cannot reach the VCF's required
-/// current in the current device models.
-/// VERIFY: calibrate the cutoff range against TD-03 knob sweeps.
-pub const CALIBRATION_RING_HZ: f64 = 500.0;
+/// Centre-cutoff small-signal ring pole used to normalise the fitted VR3 law.
+/// VERIFY: 535 Hz gives a settled C1 harmonic-response peak at 523 Hz, compared
+/// with session1 TD-3 page-7's 520 Hz (early-window peak approximately 552 Hz).
+/// The service-note 500 Hz / 2 ms procedure remains the sanity check, rather
+/// than an assertion that this measured clone or its damped pole is exactly 500 Hz.
+/// See `docs/circuit/vcf-calibration.md` for the fitting evidence and limits.
+pub const CALIBRATION_RING_HZ: f64 = 535.0;
 
-/// Rest MEG and accent-sweep voltages used for the calibration point, as
-/// produced by `dw303-env` after settling with all knobs at minimum.
+/// VERIFY: rest MEG and accent-sweep voltages from the present envelope/device
+/// reduction, not measured internal TD-3 voltages. Used with all knobs at minimum.
 const CALIBRATION_MEG_REST: f64 = 0.5;
+/// VERIFY: computed Q9 rest/reference voltage; no internal-node capture calibration.
 const CALIBRATION_SWEEP_REST: f64 = 3.3165;
 
+/// Return fitted cutoff components with the expo ratio normalised at centre.
+/// TM3 and VR3 retain the measurement fit in `dw303_env::Components`; the bounded
+/// continuous pole search adjusts only Is(Q11)/Is(Q10), on the control thread.
+/// VERIFY: the effective ratio is approximately 3.134 (nominal fitted ratio 3.074);
+/// audio identifies its product with TM3's reference current, not either alone.
 pub fn calibrated_env_components() -> dw303_env::Components {
     let mut c = dw303_env::Components::NOMINAL;
     let vcf = Vcf::new(dw303_vcf::Components::NOMINAL);

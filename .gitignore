@@ -7,3 +7,6 @@ __pycache__/
 /reference/schematic/pages/
 # Regenerate with: python3 reference/spice/run.py (99 MB of CSV)
 /reference/golden/**/*.csv
+/reference/captures/2026-10-12-essentials-silent/
+/reference/captures/2026-10-12-probe/
+/reference/captures/2026-10-12-test*/

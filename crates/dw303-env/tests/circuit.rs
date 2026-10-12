@@ -146,8 +146,11 @@ fn converter_has_vq9_reference_loaded_pots_and_netlist_sensitivities() {
     let r = f.reference_voltage();
     near(r, 3.3165, 1e-12);
     let neutral = f.ladder_current(0.5, 0.0, r, r);
-    let vw = r + (c.supply - r) * 0.25;
-    let expected = (vw - r - c.vbe) / (c.r73 + c.tm3 + 11_250.0);
+    let low = c.r47 + c.vr3_taper[5] * c.vr3;
+    let high = (1.0 - c.vr3_taper[5]) * c.vr3;
+    let vw = r + (c.supply - r) * low / (low + high);
+    let rw = low * high / (low + high);
+    let expected = c.expo_is_ratio * (vw - r - c.vbe) / (c.r73 + c.tm3 + rw);
     near(neutral, expected, 1e-15);
     let base = f.ladder_current(0.5, 1.0, r, r);
     let env_octave = f.ladder_current(0.5, 1.0, r + 1.79, r);
@@ -171,9 +174,6 @@ impl Z {
     fn add(self, b: Self) -> Self {
         Self(self.0 + b.0, self.1 + b.1)
     }
-    fn sub(self, b: Self) -> Self {
-        Self(self.0 - b.0, self.1 - b.1)
-    }
     fn mul(self, b: Self) -> Self {
         Self(self.0 * b.0 - self.1 * b.1, self.0 * b.1 + self.1 * b.0)
     }
@@ -193,31 +193,35 @@ fn hp(w: f64, tau: f64) -> Z {
 }
 
 #[test]
-fn page_seven_trim_sets_500_hz_ladder_loop_phase() {
+fn fitted_cutoff_track_reproduces_identified_tail_currents() {
     let c = Components::NOMINAL;
     let mut f = FilterControl::new(c);
     let reference = f.reference_voltage();
-    let current = f.ladder_current(0.5, 0.0, 3.0 * c.diode_drop - 2.0 * c.vbe, reference);
-    near(current, 7.372454385731738e-6, 1e-15);
-    // Cross-ladder small-signal conductance is I/(4VT). The unequal rung
-    // capacitors load neighbouring nodes: determinant of the tridiagonal Y.
-    let g = current / (4.0 * c.thermal_voltage);
-    let w = TAU * 500.0;
-    let mut older = Z(1.0, 0.0);
-    let mut last = Z(g, w * 18e-9);
-    for cap in [33e-9, 33e-9, 33e-9] {
-        let next = Z(2.0 * g, w * cap).mul(last).sub(Z(g * g, 0.0).mul(older));
-        older = last;
-        last = next;
+    // Independently identified from session1 ring/grid spectra, rounded to
+    // avoid pinning the implementation's exact interpolation arithmetic.
+    let targets = [
+        3.58, 4.13, 5.13, 6.10, 6.81, 7.59, 8.12, 12.95, 23.56, 35.80, 36.58,
+    ];
+    for rate in rates() {
+        f.prepare(rate).unwrap();
+        for (i, target) in targets.into_iter().enumerate() {
+            let current = f.ladder_current(i as f64 / 10.0, 0.0, 0.5, reference);
+            near(current, target * 1e-6, 0.02e-6);
+        }
     }
-    let mut loop_transfer = Z(g.powi(4), 0.0).div(last);
-    // C15/R67/R99, C23/R97/R98, C25/C27 and C14 load reductions.
-    for tau in [0.1022, 0.0122, 0.01, 0.0407] {
-        loop_transfer = loop_transfer.mul(hp(w, tau));
+    let mut previous = 0.0;
+    for i in 0..=100 {
+        let current = f.ladder_current(i as f64 / 100.0, 0.0, 0.5, reference);
+        assert!(current >= previous);
+        previous = current;
     }
-    assert!(loop_transfer.0 < 0.0);
-    near(loop_transfer.1 / loop_transfer.norm(), 0.0, 1e-12);
-    assert!((0.0015..=0.0025).contains(&(1.0 / 500.0)));
+    let mut invalid = c;
+    invalid.vr3_taper[3] = f64::NAN;
+    near(
+        FilterControl::new(invalid).ladder_current(0.5, 0.0, 0.5, reference),
+        f.ladder_current(0.5, 0.0, 0.5, reference),
+        1e-15,
+    );
 }
 
 #[test]

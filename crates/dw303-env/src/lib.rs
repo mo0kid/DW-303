@@ -14,10 +14,20 @@ macro_rules! components {
     ($( $(#[$doc:meta])* $name:ident = $value:expr; )*) => {
         /// Schematic components in ohms, farads and volts, plus device estimates.
         #[derive(Clone, Copy, Debug)]
-        pub struct Components { $( $(#[$doc])* pub $name: f64, )* }
+        pub struct Components {
+            $( $(#[$doc])* pub $name: f64, )*
+            /// VERIFY: VR3 wiper fractions at 0.1 panel increments, fitted to
+            /// session1 ring/grid spectra; see vcf-calibration.md.
+            pub vr3_taper: [f64; 11],
+        }
         impl Components {
             /// Reconciled service-note values; device assumptions remain flagged.
-            pub const NOMINAL: Self = Self { $( $name: $value, )* };
+            pub const NOMINAL: Self = Self {
+                $( $name: $value, )*
+                vr3_taper: [0.0, 0.016988877, 0.048210059, 0.078453452,
+                            0.100557131, 0.124966812, 0.1415,
+                            0.292831010, 0.621164626, 0.978428507, 1.0],
+            };
             fn guarded(mut self) -> Self {
                 let zero_trim = self.tm3 == 0.0;
                 $( self.$name = if self.$name.is_finite() && self.$name > 0.0 {
@@ -25,6 +35,11 @@ macro_rules! components {
                 } else { Self::NOMINAL.$name }; )*
                 self.tm3 = self.tm3.min(470e3);
                 if zero_trim { self.tm3 = 0.0; }
+                if self.vr3_taper[0] != 0.0 || self.vr3_taper[10] != 1.0
+                    || self.vr3_taper.windows(2).any(|p| !p[0].is_finite()
+                        || !p[1].is_finite() || p[0] > p[1]) {
+                    self.vr3_taper = Self::NOMINAL.vr3_taper;
+                }
                 self
             }
         }
@@ -70,9 +85,9 @@ components! {
     /// R73, cutoff wiper to Q10 emitter through TM3.
     r73 = 100e3;
     /// TM3, 470 kΩ FREQ rheostat setting (not its full track value).
-    /// VERIFY: 62.918 kΩ gives 500 Hz loop phase using the documented ladder
-    /// current; final nonlinear VCF ring calibration awaits voice integration.
-    tm3 = 62_917.604_900_680_02;
+    /// VERIFY: fitted 470 kΩ endpoint with expo ratio; these two parameters are
+    /// not separately identifiable from audio. See vcf-calibration.md.
+    tm3 = 470e3;
     /// VR5, 50 kΩ A ENV MOD divider.
     vr5 = 50e3;
     /// R61, VR5 terminal 1 to VQ9.
@@ -149,8 +164,8 @@ components! {
     beta = 200.0;
     /// VERIFY: Q10/Q11 and IC15 junction thermal voltage at about 300 K.
     thermal_voltage = 0.0259;
-    /// VERIFY: Is(Q11)/Is(Q10) matching ratio, not printed.
-    expo_is_ratio = 1.0;
+    /// VERIFY: Is(Q11)/Is(Q10) effective ratio fitted to session1 ring/grid.
+    expo_is_ratio = 3.074_323_408_395_499;
     /// VERIFY: BA662A pin 1 bias voltage, absent from service-note transfer data.
     ota_control_voltage = 0.65;
     /// VERIFY: BA662A current-mirror factor in Iout = factor*Iabc*tanh(Vdiff/2VT).
@@ -517,6 +532,8 @@ impl AccentSweep {
 }
 
 /// Loaded cutoff/ENV MOD dividers and complementary Q10/Q11 expo converter.
+/// VR3 uses the fitted resistive track in `Components::vr3_taper`; all other
+/// stages retain their own pot laws. See `docs/circuit/vcf-calibration.md`.
 pub struct FilterControl {
     circuit: Circuit,
     network: Option<(u64, u64, FilterNetwork)>,
@@ -534,7 +551,12 @@ impl FilterControl {
     fn update_network(&mut self, cutoff: f64, env: f64) -> FilterNetwork {
         let c = self.circuit.c;
         let reference = self.circuit.reference();
-        let kc = self.circuit.audio(0, cutoff);
+        // Linear interpolation of a monotone measured resistive track law.
+        // Eleven fixed knots; no allocation, search or envelope state.
+        let position = cutoff * 10.0;
+        let index = (position as usize).min(9);
+        let kc = c.vr3_taper[index]
+            + (c.vr3_taper[index + 1] - c.vr3_taper[index]) * (position - index as f64);
         let ke = self.circuit.audio(1, env);
         let low_c = c.r47 + kc * c.vr3;
         let high_c = (1.0 - kc) * c.vr3;

@@ -1,6 +1,7 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
-//! See `docs/circuit/vcf.md` for the reduced netlist and calibration limits.
+//! See `docs/circuit/vcf.md` for the reduced netlist and
+//! `docs/circuit/vcf-calibration.md` for the superseding measurement fit.
 
 /// Solver quality; switching preserves capacitor voltages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,9 +46,16 @@ pub struct Components {
     pub thermal_voltage: f64,
     /// VERIFY: Q20 Vbe used to derive Q21 tail current; not printed.
     pub vbe: f64,
+    /// VERIFY: effective Q21 collector gain, fitted to TD-3 ring captures.
+    /// Preserves the printed resistors; multiplies Q21 collector swing and gm.
+    /// The excess gain is provisional pending Q21/feedback reconciliation.
+    pub output_gain_correction: f64,
+    /// VERIFY: effective C25/C27 capacitance multiplier from sustained spectra;
+    /// printed 0.1 µF values remain above, pending scan/topology reconciliation.
+    pub output_coupling_scale: f64,
 }
 impl Components {
-    /// Printed passives and supplies; estimated semiconductor parameters.
+    /// Printed passives/supplies with explicitly marked device and fit estimates.
     pub const NOMINAL: Self = Self {
         ladder_capacitance: [18e-9, 33e-9, 33e-9, 33e-9],
         c17: 1e-6,
@@ -61,6 +69,8 @@ impl Components {
         bias_supply: 5.333,
         thermal_voltage: 0.02585,
         vbe: 0.65,
+        output_gain_correction: 9.5,
+        output_coupling_scale: 0.18,
     };
 }
 
@@ -146,6 +156,19 @@ impl Vcf {
         c.bias_supply = positive(c.bias_supply, Components::NOMINAL.bias_supply);
         c.thermal_voltage = positive(c.thermal_voltage, Components::NOMINAL.thermal_voltage);
         c.vbe = positive(c.vbe, Components::NOMINAL.vbe);
+        c.output_gain_correction = positive(
+            c.output_gain_correction,
+            Components::NOMINAL.output_gain_correction,
+        )
+        .clamp(0.1, 100.0);
+        c.output_coupling_scale = positive(
+            c.output_coupling_scale,
+            Components::NOMINAL.output_coupling_scale,
+        )
+        .clamp(0.001, 100.0);
+        for capacitance in &mut c.output_capacitance {
+            *capacitance *= c.output_coupling_scale;
+        }
         let ar = c.amplifier_resistance;
         let tail = ((c.bias_supply * ar[2] / (ar[0] + ar[1] + ar[2]) - c.vbe) / ar[3]).max(0.0);
         Self {
@@ -170,7 +193,7 @@ impl Vcf {
                     * c.coupling_capacitance[2]),
             feedback_gain: c.feedback_resistance[3]
                 / (c.feedback_resistance[2] + c.feedback_resistance[3]),
-            amplifier_swing: 0.5 * tail * ar[4],
+            amplifier_swing: c.output_gain_correction * 0.5 * tail * ar[4],
         }
     }
 
@@ -289,7 +312,8 @@ impl Vcf {
         }
     }
 
-    /// Q21 single-ended small-signal gain, derived from Q20 divider and R108/R110.
+    /// Q21 effective single-ended small-signal gain: Q20/R108/R110 derivation
+    /// multiplied by the explicitly fitted `output_gain_correction`.
     pub fn output_gain(&self) -> f64 {
         self.amplifier_swing * self.inverse_scale
     }

@@ -36,9 +36,16 @@ fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
     let g = current / (4.0 * c.thermal_voltage);
     let gain = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3]
         * c.amplifier_resistance[4]
-        / (4.0 * c.thermal_voltage);
-    let h25 = hp(w, c.output_capacitance[0] * c.output_bias_resistance[0]);
-    let h27 = hp(w, c.output_capacitance[1] * c.output_bias_resistance[1]);
+        / (4.0 * c.thermal_voltage)
+        * c.output_gain_correction;
+    let h25 = hp(
+        w,
+        c.output_capacitance[0] * c.output_bias_resistance[0] * c.output_coupling_scale,
+    );
+    let h27 = hp(
+        w,
+        c.output_capacitance[1] * c.output_bias_resistance[1] * c.output_coupling_scale,
+    );
     let amp = h25.add(h27).scale(0.5 * gain);
     let rt = c.resonance_resistance * p * (1.0 - p);
     let rf = rt + c.feedback_resistance[0] + c.feedback_resistance[1];
@@ -105,12 +112,15 @@ fn printed_values_gains_and_corners() {
     assert!((fc(222_200.0, c.c17) - 0.7163).abs() < 0.001);
     assert!((fc(12_200.0, c.coupling_capacitance[2]) - 13.0455).abs() < 0.001);
     assert!((fc(100_000.0, c.output_capacitance[0]) - 15.9155).abs() < 0.001);
-    assert!((Vcf::new(c).output_gain() - 10.85).abs() < 0.1);
+    assert!((Vcf::new(c).output_gain() / c.output_gain_correction - 10.85).abs() < 0.1);
 }
 #[test]
 fn response_matches_netlist_and_rates() {
     let c = Components::NOMINAL;
-    for current in [1e-6, 10e-6, 50e-6] {
+    // The hardware fit is near critical damping at the maximum captured tail
+    // current (about 37 uA). Above that range, a linear stable AC response is
+    // not guaranteed; the separate nonlinear extreme test checks boundedness.
+    for current in [1e-6, 10e-6, 30e-6] {
         for p in [0.0, 0.5, 1.0] {
             for f in [10.0, 100.0, 500.0, 1500.0] {
                 let expected = analytic(c, current, f, p);
@@ -170,7 +180,7 @@ fn extreme_grid_and_long_run() {
                         for n in 0..256 {
                             let y = v.tick(amp * (TAU * n as f64 / 37.0).sin(), current, p);
                             assert!(y.output.is_finite() && y.resonance_tap.is_finite());
-                            assert!(y.output.abs() < 2.0);
+                            assert!(y.output.abs() < 2.0 * Components::NOMINAL.bias_supply);
                         }
                     }
                 }
@@ -231,7 +241,7 @@ fn stage_timing() {
 #[test]
 fn page7_ring_calibration() {
     let current = Vcf::new(Components::NOMINAL)
-        .calibration_current(500.0)
+        .calibration_current(535.0)
         .expect("calibration pole");
     eprintln!("page7 current {current:e} A");
     for rate in [48_000.0, 96_000.0, 192_000.0] {
@@ -251,7 +261,7 @@ fn page7_ring_calibration() {
         eprintln!("rate {rate} peaks {peaks:?}");
         assert!(peaks.len() >= 2);
         let period = (peaks[1].0 - peaks[0].0) as f64 / rate;
-        assert!((0.0015..=0.0025).contains(&period), "period={period}");
+        assert!((period * 535.0 - 1.0).abs() < 0.02, "period={period}");
         assert_eq!(v.diagnostics().non_convergence, 0);
     }
     assert!(
@@ -259,4 +269,18 @@ fn page7_ring_calibration() {
             .calibration_current(f64::NAN)
             .is_none()
     );
+}
+
+#[test]
+fn fitted_centre_has_a_sharp_peak_in_both_solver_modes() {
+    let c = Components::NOMINAL;
+    let current = Vcf::new(c).calibration_current(535.0).unwrap();
+    for quality in [Quality::Full, Quality::Economy] {
+        let peak = response(192_000.0, current, 535.0, 1.0, quality);
+        let below = response(192_000.0, current, 400.0, 1.0, quality);
+        let above = response(192_000.0, current, 700.0, 1.0, quality);
+        assert!(20.0 * (peak / below).log10() > 5.0);
+        assert!(20.0 * (peak / above).log10() > 5.0);
+        assert!((20.0 * (peak / analytic(c, current, 535.0, 1.0)).log10()).abs() < 0.15);
+    }
 }
