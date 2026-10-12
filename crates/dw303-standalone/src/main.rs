@@ -202,7 +202,9 @@ impl Host {
             self.status = "Offline fixture prepared".into();
             return Ok(());
         }
-        let device = ravet_device::output_device(Some(output))?.ok_or("Output unavailable")?;
+        // "default" = the system's current default output (used for first launch).
+        let device = ravet_device::output_device((output != "default").then_some(output))?
+            .ok_or("Output unavailable")?;
         let channels = device.default_output_config()?.channels();
         let mask = channel_mask(&m["output_pairs"], usize::from(channels))?;
         let supported = device.supported_output_configs()?.any(|r| {
@@ -249,8 +251,52 @@ impl Host {
         self.idle = None;
         self.midi = streams;
         self.stream = Some(stream);
-        self.status = "Audio running".into();
+        self.status = format!("Audio running at {rate} Hz");
+        // Remember the working configuration so the next launch starts audio
+        // automatically (best effort: a failed save only loses auto-start).
+        if let Ok(path) = audio_settings_path() {
+            let _ = std::fs::create_dir_all(path.parent().unwrap_or(&path));
+            let _ = std::fs::write(&path, m.to_string());
+        }
         Ok(())
+    }
+
+    /// Start audio at launch: the last working settings if their device is
+    /// still present, otherwise the system default output at its current
+    /// nominal sample rate (so no rate change is requested). Failures leave
+    /// the app running with the reason in the status line.
+    fn auto_start(&mut self) {
+        let saved = audio_settings_path()
+            .and_then(|path| Ok(std::fs::read_to_string(path)?))
+            .ok()
+            .and_then(|text| json::parse(&text).ok());
+        if let Some(saved) = saved
+            && self.start(&saved).is_ok()
+        {
+            return;
+        }
+        let default_rate = ravet_device::output_device(None)
+            .ok()
+            .flatten()
+            .and_then(|d| d.default_output_config().ok())
+            .map(|c| c.sample_rate());
+        let Some(rate) = default_rate else {
+            self.status = "No default audio output; choose Audio/MIDI settings".into();
+            return;
+        };
+        let message = object([
+            ("type", "action".into()),
+            ("action", "start".into()),
+            ("output", "default".into()),
+            ("sample_rate", Value::Number(f64::from(rate))),
+            ("buffer_size", Value::Number(0.)),
+            ("output_pairs", Value::Array(vec![Value::Number(0.)])),
+            ("midis", Value::Array(Vec::new())),
+        ]);
+        if let Err(e) = self.start(&message) {
+            self.status =
+                format!("Audio did not start automatically: {e}. Open Audio/MIDI settings.");
+        }
     }
     fn handle(&mut self, text: &str) -> Result<()> {
         let m = json::parse(text)?;
@@ -319,6 +365,10 @@ impl Host {
         );
         object([("params",params),("leds",Value::Object(protocol::panel_lamps(d))),("selection",object([("mode",d.mode.into()),("group",d.group.into()),("track",d.track.into()),("section",if d.section_b{"B"}else{"A"}.into()),("pattern",(d.pattern+1).into()),("step",(d.step+1).into()),("editMode",d.edit_mode.into())])),("error",self.error.clone().map(Value::from).unwrap_or(Value::Null)),("pending",self.shared.pending().into()),("running",self.stream.is_some().into()),("status",self.status.clone().into()),("io",object([("audio",true.into()),("input",false.into()),("midi",true.into()),("outputs",Value::Array(self.outputs.clone())),("inputs",Value::Array(Vec::new())),("midis",Value::Array(self.midis.clone())),("note","Stop audio to change settings. Notes play when RUN is stopped; SYNC 2 follows MIDI clock.".into())]))])
     }
+}
+/// Last working Audio/MIDI settings (the exact Start message), beside state.bin.
+fn audio_settings_path() -> Result<std::path::PathBuf> {
+    Ok(state::path()?.with_file_name("audio.json"))
 }
 fn channel_mask(pairs: &Value, channels: usize) -> Result<u64> {
     let pairs = pairs
@@ -398,6 +448,7 @@ fn main() -> Result<()> {
         window.request_close();
         println!("Hidden editor, settings, parameter and RUN fixture passed (no devices opened).");
     } else {
+        host.borrow_mut().auto_start();
         while window.state().is_some_and(|s| !s.closed) {
             window.pump(0.01);
             host.borrow_mut().render_idle();

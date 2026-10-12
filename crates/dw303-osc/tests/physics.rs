@@ -165,8 +165,7 @@ fn measured_pitch_octaves_and_tuning_follow_expo_law() {
             assert!(cents(f / vco.frequency_hz(2.0, tuning)).abs() < 1.0);
         }
         assert!(
-            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1400.0).abs()
-                < 1e-9
+            (cents(vco.frequency_hz(0.0, 1.0) / vco.frequency_hz(0.0, 0.0)) - 1400.0).abs() < 1e-9
         );
     }
     let nominal = Vco::new(Components::NOMINAL);

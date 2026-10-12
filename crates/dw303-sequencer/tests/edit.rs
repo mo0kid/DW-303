@@ -440,3 +440,31 @@ fn panel_triplet_midi_requires_eight_received_pulses() {
         assert_eq!(c.trigger, pulse == 8);
     }
 }
+
+/// Turning PATT.GROUP during pattern playback must not restart the sequence;
+/// a group change is queued for the next pattern boundary. In track modes the
+/// same knob selects a track and restarts track playback.
+#[test]
+fn patt_group_knob_queues_in_pattern_play_and_restarts_only_in_track_modes() {
+    let mut e = Editor::new();
+    let mut m = Memory::default();
+    let mut s = Sequencer::default();
+    s.prepare(48_000.0).unwrap();
+    mode(&mut e, &mut m, Mode::PatternPlay);
+    start(&mut e, &mut m, &mut s);
+    assert!(e.running());
+    for detent in [0u8, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1, 0] {
+        let out = e.action(&mut m, PanelAction::Track(detent)).unwrap();
+        assert_eq!(out.transport, TransportCommand::None, "detent {detent}");
+        assert_eq!(e.selection().pattern.group, detent / 2);
+    }
+    // Leaving the knob on group II queues group II for the next boundary.
+    e.action(&mut m, PanelAction::Track(2)).unwrap();
+    assert_eq!(e.queued_chain().map(|c| c.first.group), Some(1));
+    assert!(e.running());
+
+    mode(&mut e, &mut m, Mode::TrackPlay);
+    let out = e.action(&mut m, PanelAction::Track(3)).unwrap();
+    assert_eq!(out.transport, TransportCommand::Reset);
+    assert_eq!(e.selection().track, 3);
+}

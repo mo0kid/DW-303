@@ -423,14 +423,25 @@ impl Editor {
                 if n >= 7 {
                     return Err(EditError::InvalidAction);
                 }
-                self.selection.track = n;
-                self.selection.measure = 0;
                 // Original track pairs share a pattern group: 1/2=I, 3/4=II, 5/6=III, 7=IV.
+                let group_changed = self.selection.pattern.group != n / 2;
+                self.selection.track = n;
                 self.selection.pattern.group = n / 2;
-                self.transpose = 0;
-                self.select_chain();
-                self.restart = true;
-                out.transport = TransportCommand::Reset;
+                if matches!(self.mode, Mode::TrackWrite | Mode::TrackPlay) {
+                    // Selecting a track restarts track playback from measure 1.
+                    self.selection.measure = 0;
+                    self.transpose = 0;
+                    self.select_chain();
+                    self.restart = true;
+                    out.transport = TransportCommand::Reset;
+                } else if group_changed {
+                    // In pattern modes the knob is PATT.GROUP: the new group's
+                    // pattern is queued for the next pattern boundary while
+                    // running (select_chain), without restarting playback.
+                    // Previously every detent restarted the sequence (user-
+                    // reported hesitation).
+                    self.select_chain();
+                }
             }
             PanelAction::Section(section) => {
                 self.selection.pattern.section = section;
