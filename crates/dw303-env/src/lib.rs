@@ -122,20 +122,24 @@ components! {
     /// R69, Q12 emitters to Q11 collector; limits Q11 compliance.
     r69 = 2.2e3;
     /// R142, Q36 base return to +12 V.
-    r142 = 10e3;
+    /// VERIFY: 10 kΩ nominal → 10.5 kΩ release fit (+5% tolerance).
+    r142 = 10.5e3;
     /// R143, Q37 collector to Q36 base.
-    r143 = 10e3;
+    /// VERIFY: 10 kΩ nominal → 9.5 kΩ attack fit (−5% tolerance).
+    r143 = 9.5e3;
     /// R145, Q36 collector load to ground.
     r145 = 10e3;
     /// C72, Q36 base-emitter storage (+ at the +12 V rail).
-    /// VERIFY: 10 µF nominal → 8 µF fitted gate-storage tolerance.
-    c72 = 8e-6;
+    /// VERIFY: 10 µF nominal, restored from the earlier 8 µF latency-biased fit.
+    /// R142/R143 and Q36's junction law are not separately identified by audio.
+    c72 = 10e-6;
     /// VERIFY: Q36 collector current at the reference Vbe; the saturated gate
     /// load is used as the junction reference pending device measurements.
     q36_reference_current = 1.18e-3;
     /// VERIFY: Q36 PNP Vbe at the gate-load reference current; generic
-    /// 0.65 V estimate → 0.60 V round 2 → 0.55 V round 3 gate-attack fit.
-    q36_vbe = 0.55;
+    /// 0.65 V estimate → 0.55 V earlier fit → 0.46 V joint attack/release fit.
+    /// Effective reduced-model junction parameter, not an internal measurement.
+    q36_vbe = 0.46;
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
@@ -472,14 +476,18 @@ impl Meg {
     }
 }
 
-/// IC12 1/2 accent gate and linear VR7 divider.
+/// IC12 1/2 accent gate and loaded linear VR7 divider.
 pub struct Accent {
     circuit: Circuit,
 }
 impl Accent {
     lifecycle!();
-    /// Return the VR7 wiper voltage, zero when IC12 is open.
-    /// The block boundary treats the wiper as a voltage source; see loading limits.
+    /// Return the loaded VR7 wiper voltage, zero when IC12 is open.
+    /// The printed track supplies `VR7*k*(1-k)` Thevenin resistance into
+    /// R119/R120 and D27's conducting threshold.
+    /// VERIFY: uses the fast C36 branch's steady load; omits its transient
+    /// back-current and the simultaneous D24/sweep branch load. The contracted
+    /// voltage-only stage boundary cannot exchange those branch currents.
     pub fn tick(&mut self, accent: bool, meg: f64, accent_knob: f64) -> f64 {
         // IC12's open accent gate returns zero. Retain input sanitisation
         // counters even though neither voltage affects an inactive output.
@@ -490,7 +498,15 @@ impl Accent {
         }
         let meg = self.circuit.input(meg).max(0.0).min(self.circuit.c.supply);
         let k = self.circuit.knob(accent_knob);
-        if accent { meg * k } else { 0.0 }
+        let resistance = self.circuit.c.vr7 * k * (1.0 - k);
+        let source = meg * k;
+        let threshold = self.circuit.c.diode_drop + self.circuit.c.ota_control_voltage;
+        let load = self.circuit.c.r119 + self.circuit.c.r120;
+        if source > threshold {
+            (source * load + threshold * resistance) / (load + resistance)
+        } else {
+            source
+        }
     }
 }
 

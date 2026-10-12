@@ -59,8 +59,15 @@ Ordinary decay spans 68 ms–1.068 s. The printed 100%→10% times derive as
 157 ms and 2.459 s. MAX 2.5 s agrees within 2%; MIN 200 ms is 27% above the
 nominal RC result and is not substituted for the printed components.
 
-**Accent:** IC12 gates ENV_OUT onto linear VR7. The wiper is
-`accent_latch ? ENV_OUT*rotation : 0`.
+**Accent:** IC12 gates ENV_OUT onto linear VR7. Its unloaded voltage is
+`ENV_OUT*rotation`, with source resistance `VR7*rotation*(1−rotation)`.
+When that voltage exceeds `T = V_D27 + V_pin1`, the fast VCA accent branch
+loads the wiper: `Vw = (Vunloaded*(R119+R120) + T*Rsource) /
+(R119+R120+Rsource)`. Below T the steady branch is open; an inactive accent
+returns zero. This retains the printed 50 kΩ track rather than an arbitrary
+accent gain. VERIFY: C36 transient back-current and D24 branch cross-loading
+remain omitted at the voltage-only stage boundary. See the
+[round-7 fit](vcf-env-fitting-round7-2026-10-12.md).
 
 **Sweep (transcribed nominal values):** D24 feeds R46, then VR4B terminal 1; C13 is at terminal 3.
 R72 loads the wiper through R71 into the stiff Q9 reference. C13 therefore
@@ -150,6 +157,9 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 | `tm3` | Historical 62.918K analytical trim superseded by preceding VCF 470K/expo-ratio fit; see vcf-calibration.md for assembled ring/grid evidence. |
 | A-pot law | VR3 retains the preceding VCF fit; VR5/VR6 now have separate measured electrical track tables below. VR8 retains `(81^rotation−1)/80`, 10% at half rotation. A markings are printed; exact tracks are not. |
 | VR4 gang direction | Assume both move toward terminal 3 clockwise; VCF open item 3 does not establish correlation. |
+| VR7 steady-load reduction | The printed 50 kΩ track now loads R119/R120/D27. C36's transient current and D24 mutual loading are not exchanged across the voltage-only API. Full-turn source impedance is zero, so this correction cannot explain the full-ACCENT residual by itself. |
+| C72 / R142 / R143 | Printed 10 µF / 10 kΩ / 10 kΩ → current fit 10 µF / 10.5 kΩ / 9.5 kΩ. Earlier C72 fit was 8 µF. Resistors are at assumed ±5% tolerance bounds; only their combined gate response is constrained by output audio. |
+| Q36 junction reference | Generic 0.65 V; earlier fit 0.55 V → current effective 0.46 V at 1.18 mA. Joint gate attack/release fit with C72 and both resistors, not a measured transistor Vbe or Is. Constant beta 200 and the saturation clamp remain reductions. |
 
 Other transcription open items remain explicit: duplicate C22/D27 are block
 qualified; R147's optional/selected notation is neglected against the assumed
@@ -180,9 +190,10 @@ absolute error for |Vdiff/(2VT)| < 1e-4; otherwise the OTA uses libm tanh.
 Circuit reductions still requiring SPICE/hardware validation: Q38's saturation
 pulse omits R150/C55 reservoir sag and gradual collector turn-off. MEG uses
 fixed junction drops and an ideal Darlington. Q32 is a beta-limited reduction,
-not Ebers–Moll. VR7 source impedance (up to 12.5K), cross-loading between the
-VCA/VCF accent branches, and modulation-induced movement of EXP_B at the sweep
-termination are not fed back across voltage-only block boundaries. Q9 is stiff.
+not Ebers–Moll. VR7's steady VCA load is retained, but its C36 transient current,
+cross-loading between the VCA/VCF accent branches, and modulation-induced
+movement of EXP_B at the sweep termination are not fed back across voltage-only
+block boundaries. Q9 is stiff.
 C38 sees the full VR8 track; frequency/volume-dependent C59 loading is handled
 downstream without feedback into C38. Bias-filter supply dynamics, discrete
 mixer open-loop dynamics and headphone output are omitted. No full SPICE or
@@ -848,6 +859,17 @@ Final analysis SHA-256:
 
 Three sequential warmed eight-second Full Circuit renders at 48 kHz measured
 **1.349 / 1.347 / 1.345 s**, **16.9 / 16.8 / 16.8% of one core**.
+
+## Session-1 fitting round 7 (Harness v4, 2026-10-12)
+
+The current fit adds the printed VR7 source resistance to the VCA accent load
+and jointly refits Q36/C72/R142/R143 for attack and release. All earlier VERIFY
+items remain applicable; the three new register rows above describe the added
+reduction and nominal→fitted values. Full category, solver and CPU evidence,
+rejected trials and the noise-sensitive pattern centroid audit are in the
+[round-7 report](vcf-env-fitting-round7-2026-10-12.md). The VCF topology, resonance
+gang direction, cutoff/ENV MOD/DECAY tracks, OTA transfer and output calibration
+retain their preceding fits.
 Each processed **1,536,000** VCF samples, maximum Newton count **3**,
 **zero non-convergence** and zero sanitized inputs. These are isolated wall-clock
 observations after scoring completed, not a hard scheduling guarantee.
