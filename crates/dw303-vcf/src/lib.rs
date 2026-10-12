@@ -1,7 +1,7 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-fitting-2026-10-12.md` for the current measurement fit.
+//! `docs/circuit/vcf-fitting-round3-2026-10-12.md` for the current measurement fit.
 
 /// Solver quality; switching preserves capacitor voltages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,7 +73,7 @@ impl Components {
         thermal_voltage: 0.02585,
         vbe: 0.65,
         output_beta: 350.0,
-        output_gain_correction: 8.2,
+        output_gain_correction: 8.5,
         output_coupling_scale: 1.0,
     };
 }
@@ -124,6 +124,9 @@ pub struct Vcf {
     input_gain: f64,
     output_rate: [f64; 2],
     output_conductance: [f64; 2],
+    output_bias_conductance: [f64; 2],
+    inverse_output_capacitance: [f64; 2],
+    base_output_ratio: f64,
     feedback_rate: f64,
     feedback_gain: f64,
     amplifier_swing: f64,
@@ -177,7 +180,8 @@ impl Vcf {
         let ar = c.amplifier_resistance;
         let tail = ((c.bias_supply * ar[2] / (ar[0] + ar[1] + ar[2]) - c.vbe) / ar[3]).max(0.0);
         // Differential excitation leaves the matched pair's common emitter
-        // stationary. Each base therefore draws through r_pi = beta * VT / Ic.
+        // stationary. The zero-signal base conductance is 1/r_pi = Ic/(beta VT).
+        // Tick uses the complementary large-signal base currents instead.
         let alpha = c.output_beta / (c.output_beta + 1.0);
         let collector_current = 0.5 * tail * alpha;
         let base_conductance = collector_current / (c.output_beta * c.thermal_voltage);
@@ -197,6 +201,9 @@ impl Vcf {
             input_gain: c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]),
             output_rate: core::array::from_fn(|i| output_conductance[i] / c.output_capacitance[i]),
             output_conductance,
+            output_bias_conductance: c.output_bias_resistance.map(|r| 1.0 / r),
+            inverse_output_capacitance: c.output_capacitance.map(|c| 1.0 / c),
+            base_output_ratio: 1.0 / (c.output_beta * c.output_gain_correction * ar[4]),
             feedback_rate: 1.0
                 / ((c.feedback_resistance[2] + c.feedback_resistance[3])
                     * c.coupling_capacitance[2]),
@@ -424,17 +431,17 @@ impl Vcf {
     }
 
     fn amplifier(&self, voltage: f64) -> (f64, f64) {
-        let t = libm::tanh(voltage * self.inverse_scale);
+        let (t, derivative) = junction(voltage * self.inverse_scale);
         (
             self.amplifier_swing * t,
-            self.amplifier_swing * self.inverse_scale * (1.0 - t * t),
+            self.amplifier_swing * self.inverse_scale * derivative,
         )
     }
 
     // Resistively loaded VR4A and C15 network, with ideal Q19/Q18 followers.
     /// VERIFY: Q18/Q19 are ideal unity followers, with fixed bias, infinite beta
     /// and no Early effect or parasitics; Q20 base loading is omitted.
-    /// Q21 uses a fixed-bias linear r_pi; nonlinear base current is omitted.
+    /// Q21 base currents share its fixed-tail nonlinear collector law.
     fn nodes(&self, x: [f64; N], p: f64) -> (f64, f64, f64) {
         let out = self.amplifier(x[3] + x[5] - x[6]).0 - x[7];
         let rt = self.c.resonance_resistance * p * (1.0 - p);
@@ -463,8 +470,10 @@ impl Vcf {
 
     /// Q12 fixed-tail input; Q13/Q15, Q14/Q17, Q16/Q23 diode-connected
     /// rungs; Q22 common-base top termination at AC-grounded BIAS_Q22.
-    /// VERIFY: fixed arm common-mode reduction omits common-mode redistribution,
-    /// transistor beta, Early effect and junction capacitance.
+    /// Arm sums equal the tail current: rung capacitors carry opposite currents.
+    /// Eliminating the common-mode voltage therefore gives tanh, not sinh.
+    /// VERIFY: neglects base currents, Early effect, common-mode capacitance
+    /// and Q21's common-mode loading; differential Q21 loading is retained.
     fn flow(
         &self,
         x: [f64; N],
@@ -483,9 +492,9 @@ impl Vcf {
         let fb_i = (feedback * out - x[8]) * conductance;
         let follower = self.c.feedback_resistance[1] * fb_i;
         let u = self.input_gain * (input - x[4]) - self.feedback_gain * (follower - x[9]);
-        let t = libm::tanh(u * inverse_scale);
+        let (t, derivative) = junction(u * inverse_scale);
         let injection = half_current * t;
-        let injection_d = current_over_scale * (1.0 - t * t);
+        let injection_d = current_over_scale * derivative;
         let mut out_d = [0.0; N];
         out_d[3] = amp_d;
         out_d[5] = amp_d;
@@ -526,24 +535,35 @@ impl Vcf {
                 + if col == 9 { self.feedback_gain } else { 0.0 };
             j[0][col] += injection_d * self.inverse_capacitance[0] * du;
         }
-        // C25/C27 supply both R113/R114 and Q21 base currents, loading C26.
+        // Q21's fixed tail gives complementary base currents, with the same
+        // tanh law as its collectors. Their DC sum is absorbed in the bias;
+        // the differential current and its derivative load C25/C27 and C26.
+        // VERIFY: constant beta, fixed tail and settled common-mode base bias.
         let br = -0.5 * x[3] - x[5];
         let bl = 0.5 * x[3] - x[6];
-        let gr = self.output_conductance[0];
-        let gl = self.output_conductance[1];
+        let gr = self.output_bias_conductance[0];
+        let gl = self.output_bias_conductance[1];
+        let base = amp * self.base_output_ratio;
+        let base_d = amp_d * self.base_output_ratio;
+        let ir = gr * br - base;
+        let il = gl * bl + base;
         let ic = self.inverse_capacitance[3];
-        f[3] -= 0.5 * (gl * bl - gr * br) * ic;
-        j[3][3] -= 0.25 * (gl + gr) * ic;
-        j[3][5] -= 0.5 * gr * ic;
-        j[3][6] += 0.5 * gl * ic;
+        f[3] -= 0.5 * (il - ir) * ic;
+        j[3][3] -= (0.25 * (gl + gr) + base_d) * ic;
+        j[3][5] -= (0.5 * gr + base_d) * ic;
+        j[3][6] += (0.5 * gl + base_d) * ic;
         f[4] = (input - x[4]) * self.input_rate;
         j[4][4] = -self.input_rate;
-        f[5] = br * self.output_rate[0];
-        j[5][3] = -0.5 * self.output_rate[0];
-        j[5][5] = -self.output_rate[0];
-        f[6] = bl * self.output_rate[1];
-        j[6][3] = 0.5 * self.output_rate[1];
-        j[6][6] = -self.output_rate[1];
+        let cr = self.inverse_output_capacitance[0];
+        let cl = self.inverse_output_capacitance[1];
+        f[5] = ir * cr;
+        j[5][3] = (-0.5 * gr - base_d) * cr;
+        j[5][5] = (-gr - base_d) * cr;
+        j[5][6] = base_d * cr;
+        f[6] = il * cl;
+        j[6][3] = (0.5 * gl + base_d) * cl;
+        j[6][5] = base_d * cl;
+        j[6][6] = (-gl - base_d) * cl;
         f[7] =
             (out / self.c.resonance_resistance + feedback * fb_i) / self.c.coupling_capacitance[0];
         f[8] = fb_i / self.c.coupling_capacitance[1];
@@ -610,15 +630,24 @@ fn max_abs(x: [f64; N]) -> f64 {
         }
     })
 }
-// Exponential continuation avoids overflow for rejected Newton trial points.
+// For a matched pair of exponential junctions with fixed total current,
+// (I_right - I_left) / (I_right + I_left) = tanh(delta_v / (2 VT)).
 fn junction(x: f64) -> (f64, f64) {
-    let a = x.abs().min(20.0);
-    // One exponential supplies both sinh and cosh (same junction law).
-    let e = libm::exp(a);
-    let inverse = 1.0 / e;
-    let s = 0.5 * (e - inverse);
-    let d = 0.5 * (e + inverse);
-    ((s + d * (x.abs() - a)).copysign(x), d)
+    let a = x.abs();
+    if a < 1e-4 {
+        // Avoid cancellation at zero. The omitted x^5 term is below 1.4e-21;
+        // the derivative's omitted x^4 term is below 6.7e-17.
+        let square = x * x;
+        (x * (1.0 - square / 3.0), 1.0 - square)
+    } else {
+        // One bounded exponential supplies tanh and sech^2 together.
+        let e = libm::exp(-2.0 * a);
+        let inverse = 1.0 / (1.0 + e);
+        (
+            ((1.0 - e) * inverse).copysign(x),
+            4.0 * e * inverse * inverse,
+        )
+    }
 }
 // Schur reduction: all coupling states are affine in the top rung correction.
 // C14/C15 form a 2x2 block because VR4A is loaded by the feedback branch.
@@ -626,19 +655,23 @@ fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
     let mut rhs = [0.0; N];
     let mut gain = [0.0; N];
     rhs[4] = b[4] / a[4][4];
-    for i in [5, 6] {
-        rhs[i] = b[i] / a[i][i];
-        gain[i] = a[i][3] / a[i][i];
-    }
+    // Q21's complementary base currents couple C25 and C27.
+    let det_base = a[5][5] * a[6][6] - a[5][6] * a[6][5];
+    let inverse_base = 1.0 / det_base;
+    rhs[5] = (b[5] * a[6][6] - a[5][6] * b[6]) * inverse_base;
+    rhs[6] = (a[5][5] * b[6] - a[6][5] * b[5]) * inverse_base;
+    gain[5] = (a[5][3] * a[6][6] - a[5][6] * a[6][3]) * inverse_base;
+    gain[6] = (a[5][5] * a[6][3] - a[6][5] * a[5][3]) * inverse_base;
     let r7 = b[7] - a[7][5] * rhs[5] - a[7][6] * rhs[6];
     let r8 = b[8] - a[8][5] * rhs[5] - a[8][6] * rhs[6];
     let g7 = a[7][3] - a[7][5] * gain[5] - a[7][6] * gain[6];
     let g8 = a[8][3] - a[8][5] * gain[5] - a[8][6] * gain[6];
     let det = a[7][7] * a[8][8] - a[7][8] * a[8][7];
-    rhs[7] = (r7 * a[8][8] - a[7][8] * r8) / det;
-    rhs[8] = (a[7][7] * r8 - r7 * a[8][7]) / det;
-    gain[7] = (g7 * a[8][8] - a[7][8] * g8) / det;
-    gain[8] = (a[7][7] * g8 - g7 * a[8][7]) / det;
+    let inverse_coupling = 1.0 / det;
+    rhs[7] = (r7 * a[8][8] - a[7][8] * r8) * inverse_coupling;
+    rhs[8] = (a[7][7] * r8 - r7 * a[8][7]) * inverse_coupling;
+    gain[7] = (g7 * a[8][8] - a[7][8] * g8) * inverse_coupling;
+    gain[8] = (a[7][7] * g8 - g7 * a[8][7]) * inverse_coupling;
     rhs[9] = b[9];
     gain[9] = a[9][3];
     for i in 5..9 {
@@ -670,7 +703,7 @@ fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
     let inv2 = 1.0 / d2;
     let t3 = a[3][2] * inv2;
     let d3 = d3 - t3 * c2;
-    if [a[0][0], d1, d2, d3, det, a[9][9]]
+    if [a[0][0], d1, d2, d3, det, det_base, a[9][9]]
         .iter()
         .any(|v| !v.is_finite() || v.abs() < 1e-20)
     {
@@ -730,6 +763,28 @@ fn solve(mut a: [[f64; N]; N], mut b: [f64; N]) -> Option<[f64; N]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn junction_current_is_tail_limited() {
+        // A fixed-tail rung cannot create arm current when its differential
+        // voltage grows: the opposing arm cuts off instead. Check a voltage
+        // sweep well outside the small-signal region, including overflow-sized
+        // rejected Newton trial points.
+        for voltage in [
+            -1000.0, -1.0, -0.2, -0.01, -5.17e-6, -1e-12, 0.0, 1e-12, 5.17e-6, 0.01, 0.2, 1.0,
+            1000.0,
+        ] {
+            let (fraction, derivative) = junction(voltage / (2.0 * 0.02585));
+            assert!(fraction.is_finite() && fraction.abs() <= 1.0);
+            assert!((0.0..=1.0).contains(&derivative));
+            let expected = libm::tanh(voltage / (2.0 * 0.02585));
+            assert!((fraction - expected).abs() < 2e-15);
+            assert!((derivative - (1.0 - expected * expected)).abs() < 2e-15);
+            assert_eq!(junction(-voltage / (2.0 * 0.02585)).0, -fraction);
+        }
+        assert!(junction(0.2 / (2.0 * 0.02585)).0 > 0.999);
+        assert!(junction(1.0 / (2.0 * 0.02585)).1 < 1e-12);
+    }
+
     #[test]
     fn sparse_solve_matches_pivoted_system() {
         for quality in [Quality::Full, Quality::Economy] {
