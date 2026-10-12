@@ -36,7 +36,8 @@ output = OutputStage.tick(vca, volume, mix_in)
 The additional `Veg::set_gate(bool)` represents D35/Q31's emitter supply:
 `tick(pulse)` cannot infer gate duration from a 1.4 ms pulse. Set it before each
 VEG tick. Default/reset is gate high, allowing the contracted pulse-only method
-to expose decay. A low gate removes envelope current while C42 keeps recharging.
+to expose decay. A low gate lets C72/Q36 discharge; Q31 current falls over a few milliseconds
+while C42 keeps recharging.
 Tied/slid notes preserve C42 by suppressing triggers. Accent arguments are the
 already latched IC13 state; CPU/strobe timing is outside this block.
 
@@ -101,7 +102,8 @@ phase-derived current boundary, not the final nonlinear VCF ring period or
 amplitude. The integrator must check those with the assembled VCF and may adjust
 TM3. TP6's ambiguous 5.2/5.8 V levels are not used for calibration.
 
-**VEG:** physical state is C41 at Q32's base and C42 at Q31's base. D36/R134
+**VEG:** physical state is C72 across Q36 base–emitter, C41 at Q32's base
+and C42 at Q31's base. D36/R134
 charges C41, unloaded tau 2.2 ms; estimated beta and R130 limit Q32 sink current.
 C42 discharges through R132/Q32/R130, approximately 200 us saturated tau, with
 C41 stretching the reset. The transcribed C42 recharges toward 12 V through R123, nominal tau 1.5 s;
@@ -140,7 +142,7 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 | `diode_drop` | Generic Si Vf = 0.6 V; per-designator types, Is, ideality, leakage and current dependence are unprinted. Fixed clamp drops omit R117 bias dependence and the logarithmic near-floor tail. |
 | `vbe` | Generic Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe = 0.65 V; individual Is/beta/matching/temperature are unprinted. Q39's 2SK30(Y) type is printed, but individual Idss and buffer sink dynamics are omitted. |
 | `saturation` | Q36/Q38/Q32 Vsat and buffer headroom = 0.2 V; output resistances and rail-dependent clipping need device validation. |
-| `beta` | Q32 beta = 200; C41 loading/reset stretch needs SPICE/device data. |
+| `beta` | Q32/Q36 beta = 200; C41 reset stretch and C72 release need SPICE/device data. |
 | `thermal_voltage` | VT = 25.9 mV, approximately 300 K; no measured temperature/tempco calibration. |
 | `expo_is_ratio` | Nominal matching estimate 1; preceding VCF fit uses 3.074, with voice calibration around 3.134. Matching is unprinted and inseparable from TM3 in these output captures. See vcf-calibration.md. |
 | `ota_control_voltage` | BA662A pin 1 = 0.65 V; determines accent diode current and source headroom. |
@@ -161,7 +163,7 @@ triangle supply and LA4140 gain are outside the line-output model.
 The frozen provisional reference and old regression tests were removed.
 Netlist tests check trigger width, MEG charging/buffer/clamp/decay, accent gating,
 sweep loading/discharge/accumulation, expo reference/sensitivities/compliance,
-TM3 analytical phase, VEG recharge/gate removal, C36 current, OTA gm/compression,
+TM3 analytical phase, VEG recharge/C72 gate release, C36 current, OTA gm/compression,
 both input AC responses, mixer gains/volume loading/independent MIX IN, and DC
 rejection. RC/AC checks cover 48/96/192 kHz. One million extreme/non-finite
 samples cover 44.1/48/96/192/384 kHz, checking finite/non-subnormal outputs.
@@ -340,3 +342,137 @@ and `git commit` failed creating
 with `Operation not permitted`. The external Git directory is outside the
 writable roots. The four scoped files remain uncommitted on `fit1/env`;
 no other branch or Git history was changed.
+
+
+## Session-1 fitting round 2 (2026-10-12)
+
+The starting worktree reproduces round1.json: **1.7143** overall. Changes are
+confined to ENV, its circuit tests, the voice full-scale constant and these
+stage/sequencer notes. The VCF-owned cutoff law is unchanged.
+
+### Gate circuit and MIDI evidence
+
+The reconciled ENV transcription identifies R142 10 kΩ in parallel with C72
+10 µF from +12 V to Q36's base, R143 10 kΩ to Q37, and R145 10 kΩ at the
+collector. The previous direct Boolean gate omitted this stored charge. It
+ended Q31 current instantly, while the TD-3 gate captures release their audible
+20%-peak crossings about **3–6 ms** later than the model. Pattern gaps also
+retained inappropriate output-capacitor transients.
+
+VEG now stores the positive voltage `v` across C72. The reduced Q36 circuit is:
+
+```text
+Ic = Iref * exp((v - Vbe_ref)/VT)
+Vgate = min(R145*Ic, 12 - Vsat)
+C72 * dv/dt = gate ? (12 - Vsat - v)/R143 : 0
+             - v/R142 - Ic/beta
+```
+
+The capacitor is advanced explicitly at the prepared circuit clock and clamped
+to the forward-junction voltage in saturation. Q31's existing bounded junction
+solver uses `Vgate`, rather than a Boolean current switch. Reset/default gate
+is high and C72 charged; the voice's silent pre-roll discharges it. The gate-on
+and gate-off paths share the same capacitor and device law. There is no added
+MIDI delay or audio fade envelope. Rate tests check monotone current release,
+20% crossing within 3–6 ms and agreement within two 48 kHz samples at
+48/96/192 kHz. Existing hard-zero note-off assertions now wait for this physical
+release.
+
+The classic, accent-slide and rests-ties sidecars were examined note by note.
+Their MIDI gates are reproduced by `MonoNoteInput`; overlaps stay legato and
+suppress retriggers. The rests-ties capture schedules actual rests/gates, not
+internal-sequencer tie commands. No evidence warrants changing MIDI priority,
+accent threshold, retrigger or slide semantics. The pattern-classic brightness
+fit penalty disappears after adding the analog gate circuit. That improvement
+comes from the release spectrum rather than a MIDI rule change.
+
+### New/updated VERIFY register
+
+| VERIFY item | Nominal / previous → fitted | Evidence and residual |
+|---|---|---|
+| C72 | printed **10 → 8 µF** | Assumed −20% electrolytic tolerance. A 10 µF trial improves release but adds excessive attack delay; 8 µF is the fitted tolerance endpoint. Gate audio crossings include 3 ms measurement quantization, capture latency and Q32/VCF/VCA response. Internal C72 charge was not measured. |
+| Q36 junction | generic **0.65 → 0.60 V at 1.18 mA**, ideality 1 | Separate PNP junction estimate; changing shared Q31/Q32 Vbe would disturb their fitted laws. 1.18 mA is the 11.8 V / 10 kΩ saturated-load reference, not a measured transistor Is. Constant **beta=200** reuses the generic device estimate. Full saturation/base-charge dynamics, Q31 collector loading of GATE_HI and R147 emitter sag remain reduced. These device assumptions are not uniquely identifiable from output audio. |
+| R119 | printed **47 → 49.35 kΩ** | +5% assumed resistor tolerance reduces excess high-accent Iabc. |
+| R120 | printed **22 → 23.1 kΩ** | +5% assumed resistor tolerance; total accent path **69 → 72.45 kΩ**. C36 remains 33 nF. The conducting/off time constants become **0.519/1.629 ms**, versus 0.495/1.551 ms. A targeted 88-capture trial reduces accent level-increase p90 from about 2.98 to 2.73 dB; several middle-knob captures trade a small amount of error. Neither resistor is independently identified. |
+| FULL_SCALE_VOLTS | original 5.12; round-1 **11.595 → 10.334 V** | A **+1.00 dB** recording-chain adjustment after the source/filter fits. Selection uses aggregate absolute-level errors, not per-capture gains. Absolute dBFS per volt remains unknown. |
+
+All earlier VERIFY items remain applicable: diode drops, generic junction Vbe,
+saturation/headroom, Q32/Q36 beta, thermal voltage, Q31 reference current/law,
+BA662A pin-1 voltage and mirror gain, VR4 gang direction, fitted C13/C42/C62,
+R138/VR6 tolerance and VR5/VR6/VR8 tracks, and the VCF-owned VR3/TM3/expo
+calibration. This round does not reinterpret their values as measured parts.
+
+### Low-note amplitude mechanism and remaining limits
+
+On the starting executable, `wave-saw-k24` normalized RMS distance over the
+3.5-second gate is **16.26 dB** with 10 ms windows, **2.38 dB** with 50 ms
+windows and **1.40 dB** with 100 ms windows. `pitch-k24-t0` gives
+**23.95 / 4.27 / 3.15 dB** respectively; key 48 gives **1.26 / 1.16 / 1.12 dB**.
+The harness's 10 ms window resolves portions of individual bass cycles:
+key 24 has a roughly 30 ms period, and tuning fully down lengthens it further.
+Its saw is sharpened by the existing coupling high-pass network, with deep
+inter-pulse troughs. The waveform need not be wrong by 15 dB for those troughs
+to land in different windows.
+
+A read-only phase diagnostic over 0.1–3.0 s lowers key-24 saw's 10 ms RMS
+error from **16.44 to 4.13 dB** with an **11.77 ms** cycle shift; key 25 lowers
+**15.45 to 4.08 dB** with **10.31 ms**. These are diagnostic comparisons only:
+no shifted audio is used in fitting/scoring. Residual pitch drift, source shape
+and coupling still matter; this is evidence for oscillator phase as the main
+extreme bass metric mechanism, not proof that all bass discrepancy is VCO.
+The oscillator free-running phase/initial state belongs to the oscillator
+agent. No phase reset, coupling corner change or pitch-dependent gain was added.
+
+High-accent level error cannot be removed by ordinary R119/R120 tolerance.
+BA662A transfer/headroom, accent-source impedance/cross-loading and the TD-3's
+output circuitry remain unmeasured. Gate attack latency, output-capacitor
+tails, capture MIDI jitter and noise also limit the short-pattern metrics.
+
+
+### Round-2 final scoring and validation
+
+Full-session overall error **1.7143 → 1.2297** (**28.3% reduction**),
+**346/346** analysed, **zero analysis failures**. Requested subset error is
+**3.1588 → 1.8338**; it uses a different weight normalization from the full
+score. Category contribution below means `0.75*median + 0.25*p90` before
+multiplying the category weight.
+
+| Category | Median before → after | p90 before → after | Contribution before → after | Change |
+|---|---:|---:|---:|---:|
+| amplitude | 2.1973 → 1.9446 | 5.6355 → 5.4646 | 3.0568 → 2.8246 | -7.60% |
+| behavior | 5.1122 → 3.1127 | 13.5298 → 3.1861 | 7.2166 → 3.1310 | -56.61% |
+| accent | 0.2385 → 0.2452 | 0.9681 → 0.9055 | 0.4209 → 0.4103 | -2.52% |
+| gate | 0.6567 → 0.5174 | 0.7192 → 0.8480 | 0.6723 → 0.6001 | -10.75% |
+
+No category contribution worsens by >2%. Envelopes improve **4.83%**;
+pitch, tuning, waveform, VCF and slide are unchanged within rounding.
+Gate off-timing median/p90 improve **3.969/3.969 → 1.500/2.379 ms**;
+on-timing worsens **2.598/3.459 → 3.674/6.101 ms**, a remaining physical
+attack/alignment tradeoff. The combined gate contribution improves 10.75%.
+Behavior band/RMS-envelope medians improve **6.580/8.111 → 3.287/6.093 dB**.
+Accent level-increase p90 improves **2.978 → 2.735 dB**; its category median
+rises slightly while the p90 and specified contribution improve.
+
+Reports: `/tmp/env-score.json`, `/tmp/env-full-score.json` (plus their generated
+Markdown companions). Final renderer SHA-256:
+`0f83e48d305760a1d4e973b9c2a7342cd2d8d5cc3a23eb46a611118443ac9420`.
+Analysis SHA-256:
+`40c5b9e78b7da6fa0015099413f1cb4ed950867633254a0bfa2175cbbd2f1cc4`.
+
+All ten workspace packages were tested offline with explicit `-p` selections:
+**115 passed, zero failures, four manual tests ignored**. ENV has **14 passing
+tests**, including the new C72 release/rate check, updated physical release
+assertions, Q31 residual/tail, OTA/network laws and million-sample extreme
+coverage. ENV/voice all-target Clippy with `-D warnings`, scoped rustfmt checks
+and `git diff --check` pass. No dependencies or tick allocations/locks were
+introduced. The existing Q31 solver retains its two/four bounded iterations.
+
+Sequential warmed eight-second renderer measurements: **16.1%** of one core
+at 48 kHz; **17.1/16.2%** at 96 kHz for the default pattern; **13.9%** at
+96 kHz for a held key-48 full-resonance/full-envelope/full-decay case. Each
+processed 1,536,000 VCF ticks with **zero non-convergence or sanitized inputs**,
+and maximum Newton count 3. Wall-clock timing varies: an initial 48 kHz run
+measured 27.9%, and an earlier 96 kHz run 18.9%; these results do not establish
+a hard scheduling bound. Measurements made during batch rendering are excluded
+from the warmed CPU figures. The audio path remains deterministic and contains
+no added allocation, lock or unbounded iteration. No commit was created.

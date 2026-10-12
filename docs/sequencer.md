@@ -305,3 +305,21 @@ lamp timing are not implemented. BAR addressing is limited to the model's 64
 measures. Semantic secondary-key inputs are preferable until panel legend mapping
 is verified. Memory edits and editor transients require host-side coherent
 publication; undo/redo and persistent front-panel selection remain host concerns.
+
+
+### Session-1 fitting round 2: MIDI versus analog release
+
+The three replay patterns were inspected against their exact note-on/off
+schedules. Last-note priority, velocity >=100 accent and overlap-driven slide
+remain consistent with the available evidence, so `MonoNoteInput` is unchanged.
+The rests-ties capture contains explicit MIDI note gates/rests; it does not
+independently test the internal sequencer's tie-state interpretation.
+
+The gate captures' audible release occurs roughly 3–6 ms after the former
+instantaneous model release. The schematic's C72/Q36 gate-supply state now
+accounts for that interval in `dw303-env`; digital note-off remains at its
+scheduled sample. Pattern-classic's brightness-decay fit becomes reliable after
+this analog change. See [ENV round-2 evidence](circuit/env.md) for the fit,
+remaining gate-attack error and unverified device parameters. Output-only audio
+and sidecar send times do not establish internal MIDI gate/CPU timing, so no
+extra sequencer delay, overlap retrigger or velocity rule was inferred.

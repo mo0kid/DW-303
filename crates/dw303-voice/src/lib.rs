@@ -66,10 +66,11 @@ pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 
 /// Output node voltage that maps to digital full scale (1.0).
 /// VERIFY: session1 overall-RMS fit to TD-3 / UMC1820 at unity gain.
-/// The replay baseline was 7.10 dB too loud: 5.12 * 10^(7.10/20).
+/// Round 1 used 11.595 V after a +7.10 dB baseline correction; round 2
+/// reduces the divisor by 1.00 dB after the source/filter fits.
 /// This calibrates the recording chain, not a TB-303 component value.
 /// VERIFY: absolute volts are unknown (no interface dBFS-per-volt calibration).
-pub const FULL_SCALE_VOLTS: f64 = 11.595;
+pub const FULL_SCALE_VOLTS: f64 = 10.334;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
