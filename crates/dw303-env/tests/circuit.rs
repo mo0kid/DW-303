@@ -252,8 +252,15 @@ fn veg_c42_recharge_and_q31_junction_tail_are_rate_independent() {
             0.002,
         );
         v.set_gate(false);
+        assert!(v.tick(0.0) > 0.0);
+        for _ in 0..(rate * 0.03) as usize {
+            v.tick(0.0);
+        }
         assert_eq!(v.tick(0.0), 0.0);
         v.set_gate(true);
+        for _ in 0..(rate * 0.01) as usize {
+            v.tick(0.0);
+        }
         assert!(v.tick(0.0) > 0.0);
         for _ in 0..(rate * 2.0) as usize {
             v.tick(0.0);
@@ -296,10 +303,52 @@ fn q31_current_obeys_junction_equation_and_has_a_smooth_low_current_tail() {
             }
         }
         v.set_gate(false);
+        for _ in 0..(rate * 0.03) as usize {
+            v.tick(0.0);
+        }
         assert_eq!(v.tick(0.0), 0.0);
     }
     for tail in tails {
         near(tail, tails[2], tails[2] * 0.01);
+    }
+}
+
+#[test]
+fn q36_gate_storage_has_a_short_monotone_release_at_all_rates() {
+    let mut crossings = [0.0; 3];
+    for (index, rate) in rates().into_iter().enumerate() {
+        let mut v = Veg::new(Components::NOMINAL);
+        v.prepare(rate).unwrap();
+        for _ in 0..(rate * 0.005).round() as usize {
+            v.tick(11.8);
+        }
+        let peak = v.tick(0.0);
+        v.set_gate(false);
+        let mut previous = peak;
+        let mut crossed = false;
+        for sample in 0..(rate * 0.03).round() as usize {
+            let current = v.tick(0.0);
+            assert!(current <= previous + 1e-12);
+            if !crossed && current < peak * 0.2 {
+                crossings[index] = sample as f64 / rate;
+                crossed = true;
+            }
+            previous = current;
+        }
+        assert!(crossed);
+        assert_eq!(previous, 0.0);
+        // TD-3 gate captures place the audible release a few ms after MIDI off.
+        assert!((0.003..0.006).contains(&crossings[index]));
+        // Reopening an uncharged C72 takes a finite interval, without a trigger.
+        v.set_gate(true);
+        assert_eq!(v.tick(0.0), 0.0);
+        for _ in 0..(rate * 0.01).round() as usize {
+            v.tick(0.0);
+        }
+        assert!(v.tick(0.0) > peak * 0.9);
+    }
+    for crossing in crossings {
+        near(crossing, crossings[2], 2.0 / 48_000.0);
     }
 }
 

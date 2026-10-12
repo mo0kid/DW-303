@@ -121,6 +121,21 @@ components! {
     r63 = 220e3;
     /// R69, Q12 emitters to Q11 collector; limits Q11 compliance.
     r69 = 2.2e3;
+    /// R142, Q36 base return to +12 V.
+    r142 = 10e3;
+    /// R143, Q37 collector to Q36 base.
+    r143 = 10e3;
+    /// R145, Q36 collector load to ground.
+    r145 = 10e3;
+    /// C72, Q36 base-emitter storage (+ at the +12 V rail).
+    /// VERIFY: 10 µF nominal → 8 µF fitted gate-storage tolerance.
+    c72 = 8e-6;
+    /// VERIFY: Q36 collector current at the reference Vbe; the saturated gate
+    /// load is used as the junction reference pending device measurements.
+    q36_reference_current = 1.18e-3;
+    /// VERIFY: Q36 PNP Vbe at the gate-load reference current; generic
+    /// 0.65 V estimate → 0.60 V session1 gate-attack fit.
+    q36_vbe = 0.60;
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
@@ -139,9 +154,11 @@ components! {
     /// R133, in series with R131 after D35.
     r133 = 2.2e3;
     /// R119, accent wiper to C36.
-    r119 = 47e3;
+    /// VERIFY: 47 kΩ nominal → 49.35 kΩ accent-current tolerance fit.
+    r119 = 49.35e3;
     /// R120, C36 to the VCA duplicate D27.
-    r120 = 22e3;
+    /// VERIFY: 22 kΩ nominal → 23.1 kΩ accent-current tolerance fit.
+    r120 = 23.1e3;
     /// C36, VCA accent-current smoothing.
     c36 = 33e-9;
     /// R121, VCF output to BA662A pin 3 via C21.
@@ -186,7 +203,7 @@ components! {
     vbe = 0.65;
     /// VERIFY: Q36/Q38/Q32 saturation voltage, not printed.
     saturation = 0.2;
-    /// VERIFY: Q32 current gain; type/β not assigned on the schematic.
+    /// VERIFY: Q32/Q36 current gain; type/β not assigned on the schematic.
     beta = 200.0;
     /// VERIFY: Q10/Q11 and IC15 junction thermal voltage at about 300 K.
     thermal_voltage = 0.0259;
@@ -674,20 +691,22 @@ mod tests {
     }
 }
 
-/// C41/Q32 discharge of C42 and D35/R131/R133/Q31 control current source.
+/// C72/Q36 gate supply, C41/Q32 reset, and C42/Q31 control current source.
 pub struct Veg {
     circuit: Circuit,
     capacitor: f64,
     base: f64,
     gate: bool,
+    gate_drive: f64,
 }
 impl Veg {
     lifecycle!(
         capacitor = |s: &Circuit| s.c.supply,
         base = |_: &Circuit| 0.0,
-        gate = |_: &Circuit| true
+        gate = |_: &Circuit| true,
+        gate_drive = |s: &Circuit| s.c.q36_vbe
     );
-    /// Set Q36's gate supply state before `tick`; low removes Q31 current.
+    /// Set Q37's digital gate drive before `tick`; C72/Q36 retain release charge.
     /// Default/reset is high so the contracted pulse-only interface exposes decay.
     pub fn set_gate(&mut self, gate: bool) {
         self.gate = gate;
@@ -728,13 +747,34 @@ impl Veg {
                 self.circuit
                     .rc(3, self.capacitor, c.supply, self.circuit.dt, c.r123 * c.c42);
         }
-        if self.gate {
+        // C72 stores the voltage across Q36's base-emitter junction. Q37
+        // sinks through R143 while on; R142 and Q36 base current remove
+        // charge after it turns off. Saturation clamps forward base drive.
+        // VERIFY: constant beta and a Vbe saturation clamp reduce Q36's
+        // junction/storage dynamics; C72 and both resistors are printed.
+        let collector = if self.gate_drive == c.q36_vbe {
+            c.q36_reference_current
+        } else {
+            c.q36_reference_current * libm::exp((self.gate_drive - c.q36_vbe) / c.thermal_voltage)
+        };
+        let gate_voltage = (c.r145 * collector).min(c.supply - c.saturation);
+        let base_current = collector / c.beta;
+        let discharge = self.gate_drive / c.r142 + base_current;
+        let charge = if self.gate {
+            (c.supply - c.saturation - self.gate_drive) / c.r143
+        } else {
+            0.0
+        };
+        self.gate_drive = flush(
+            (self.gate_drive + self.circuit.dt * (charge - discharge) / c.c72)
+                .clamp(0.0, c.q36_vbe),
+        );
+        if gate_voltage > c.diode_drop {
             // Emitter degeneration plus the PNP junction equation. A fixed Vbe
             // truncates the physical low-current tail at an arbitrary voltage.
             // VERIFY: ideality one and Vbe at 47 µA require device validation.
             let scale = self.circuit.fixed.q31_scale;
-            let x = (c.supply - c.saturation - c.diode_drop - c.vbe - self.capacitor)
-                / c.thermal_voltage
+            let x = (gate_voltage - c.diode_drop - c.vbe - self.capacitor) / c.thermal_voltage
                 + self.circuit.fixed.q31_log_reference;
             // Solve y + ln(y) = x (positive Lambert-W branch). At most four
             // Newton steps; asymptotic seeds avoid overflow and negative y.
