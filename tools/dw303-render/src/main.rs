@@ -83,6 +83,8 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let mut engine = Dw303Engine::new();
+    // Measurements use the circuit-calibrated level (no fixed +18 dB output gain).
+    engine.set_reference_level(true);
     engine.prepare(ProcessConfig::new(
         rate,
         BLOCK,

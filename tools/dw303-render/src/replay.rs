@@ -129,6 +129,8 @@ impl Replay {
     }
     fn render(&self) -> Result<Vec<f32>, Error> {
         let mut engine = Dw303Engine::new();
+        // TD-3 comparisons use the circuit-calibrated level (no fixed output gain).
+        engine.set_reference_level(true);
         engine.prepare(ProcessConfig::new(
             self.rate,
             BLOCK,

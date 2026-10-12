@@ -34,9 +34,27 @@ pub struct Dw303Engine {
     previews: [VoiceCommand; link::CAPACITY],
     preview_head: usize,
     preview_count: usize,
+    /// Fixed digital output gain (linear); 1.0 in reference-level mode.
+    output_gain: f64,
 }
 
+/// Fixed output gain after the circuit model. The circuit is calibrated so
+/// that 0 dB matches a TD-3 at VOLUME 10 into a line input at unity gain
+/// (about −20 dBFS for a typical note), which is too quiet for an instrument.
+/// The VOLUME knob adjusts level from there, as on the hardware.
+pub const OUTPUT_GAIN_DB: f64 = 18.0;
+
 impl Dw303Engine {
+    /// Output at the circuit's calibrated reference level (no fixed output
+    /// gain), as used for TD-3 comparisons by the offline renderer.
+    pub fn set_reference_level(&mut self, reference: bool) {
+        self.output_gain = if reference {
+            1.0
+        } else {
+            10f64.powf(OUTPUT_GAIN_DB / 20.0)
+        };
+    }
+
     /// Construct with factory memory and no shared panel.
     pub fn new() -> Self {
         Self {
@@ -54,6 +72,7 @@ impl Dw303Engine {
             previews: [VoiceCommand::default(); link::CAPACITY],
             preview_head: 0,
             preview_count: 0,
+            output_gain: 10f64.powf(OUTPUT_GAIN_DB / 20.0),
         }
     }
 
@@ -281,9 +300,10 @@ impl Processor for Dw303Engine {
                 self.preview_count -= 1;
             }
             self.last_command = command;
-            let sample =
-                self.voice
-                    .tick(self.voice_input(command, sequencing || preview)) as f32;
+            let sample = (self
+                .voice
+                .tick(self.voice_input(command, sequencing || preview))
+                * self.output_gain) as f32;
             for channel in 0..block.audio.output_channels() {
                 if let Some(out) = block.audio.output_mut(channel) {
                     out[frame] = sample;
