@@ -553,7 +553,7 @@ mod tests {
         .unwrap();
         assert_eq!(grid.ids.len(), 2772);
         assert!(grid.ids.iter().all(|id| id.starts_with("vcf-grid-")));
-        assert_eq!(essentials.ids.len(), 363);
+        assert_eq!(essentials.ids.len(), 349); // keys above 72 removed (TD-3 range)
         let captures = order(select(&manifest, "*", Some(&essentials)).unwrap());
         assert!((45.0..=60.0).contains(&(estimate(&captures).1 / 60.0)));
         assert_eq!(
