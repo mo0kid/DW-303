@@ -9,8 +9,9 @@ teardown follow RAVET's gain-clap owner/callback implementation.
 The panel uses the original `media/DW-303_UI.svg` geometry, gradients and outlined
 lettering, including all 37 original SVG filters (section drop shadows and
 button/key bevels). They were restored on 2026-10-12 after the first build had
-stripped them. Only the ten black knob discs are removed; CSS draws the shaded
-rotary knobs in their place. TEMPO is `param-8` (left) and VOLUME is `param-7`
+stripped them. The ten dark knob discs are kept. Each knob control is
+transparent, the same size as its disc, and draws only the rotating grip and
+pointer inside the disc, so the original bezel ring stays visible. TEMPO is `param-8` (left) and VOLUME is `param-7`
 (right). The first build had them swapped. The assembled page, including RAVET controls and
 styles, remains below the 1 MiB inline limit. No remote resources load.
 Default size is 1227×589 logical points; width ranges from 818 to 2045 and height

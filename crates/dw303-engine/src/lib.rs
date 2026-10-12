@@ -2,6 +2,7 @@
 //! sequencer -> circuit voice, with parameters applied sample-accurately.
 //!
 //! Pattern memory and the original panel editor live on the audio thread.
+pub mod factory;
 pub mod link;
 pub mod params;
 use link::{Button, Editor, Memory, PanelAction, PanelLink};
@@ -380,6 +381,7 @@ pub fn demo_pattern() -> Pattern {
 pub fn factory_memory() -> Memory {
     let mut memory = Memory::default();
     memory.bank.patterns[0] = demo_pattern();
+    factory::install(&mut memory);
     memory
 }
 
