@@ -7,7 +7,7 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-round3-2026-10-12.md](vcf-fitting-round3-2026-10-12.md);
+validation are in [vcf-fitting-round5-2026-10-12.md](vcf-fitting-round5-2026-10-12.md);
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
@@ -16,21 +16,21 @@ The four differential rung voltages are ordered bottom to top: C18 18 nF,
 C19/C24/C26 33 nF. Define `v = R - L`. Q12 is the fixed-tail input pair;
 Q13/Q15, Q14/Q17 and Q16/Q23 are diode-connected rungs; Q22 has fixed bases
 at BIAS_Q22 and acts as the common-base top termination. With `S = 2 VT`,
-`I = Q11 collector current`, and differential capacitor current equal to
+`I = Q11 collector current`, `Iladder = I beta12/(beta12+1)`, and differential capacitor current equal to
 half the arm-current difference:
 
 ```
-j_input = (I/2) tanh((base_left - base_right)/S)
-j_edge[i] = (I/2) tanh((v[i] - v[i+1])/S)
-j_top = (I/2) tanh(v[3]/S)
+j_input = (Iladder/2) tanh((base_left - base_right)/S)
+j_edge[i] = (Iladder/2) tanh((v[i] - v[i+1])/S)
+j_top = (Iladder/2) tanh(v[3]/S)
 C[i] dv[i]/dt = j_previous - j_edge[i]
 ```
 
 The rung capacitors carry equal and opposite arm currents. With negligible
-base/common-mode currents, each rung's arm-current sum is the Q11 tail current.
+base/common-mode currents, each rung's arm-current sum is the Q12 collector-current sum.
 Eliminating its common-mode voltage gives the `tanh` law above; the previous
 fixed-common-mode `sinh` law incorrectly allowed that sum to grow with signal.
-The small-signal conductance remains `I/(4 VT)`. The inferred common-mode
+The rung small-signal conductance is `Iladder/(4 VT)`. The inferred common-mode
 voltages are algebraic, so no new capacitor state is needed.
 
 This retains the loaded, tridiagonal ladder, rather than four buffered poles.
@@ -45,13 +45,34 @@ with voltages measured relative to the quiescent biases. No envelope state
 or arbitrary cutoff law is used. For C17 state `h17`:
 
 ```
-dh17/dt = (input - h17) / ((R62 + R70) C17)
-base_left = R70/(R62 + R70) * (input - h17)
+dh17/dt = (input - h17) / ((R62 + R70) C17) + R70/(R62+R70) j_input/(beta12 C17)
+base_left_unloaded = R70/(R62 + R70) * (input - h17)
 ```
 
 R62=220K, R70=2.2K give 0.009901 attenuation (−40.09 dB),
 C17=1µF gives 222.2 ms / 0.7163 Hz. The input DC is rejected after settling;
 reset followed by a nonzero waveform DC naturally produces a startup transient.
+
+Q12 differential base currents now load both the input and feedback sources:
+
+```
+Rleft = R62 || R70 = 2178.218 ohm
+Rright = R97 || R98 = 1803.279 ohm
+u0 = base_left_unloaded - base_right_unloaded
+u_intrinsic = u0 - (Rleft + Rright) j_input / beta12
+j_input = (Iladder/2) tanh(u_intrinsic/(2 VT))
+dh23/dt additionally subtracts R98/(R97+R98) j_input/(beta12 C23)
+```
+
+`beta12=300` is a fitted, unmeasured device estimate (**VERIFY**). The settled
+DC base-current sum remains absorbed in the bias. Small-signal Q12 conductance
+includes the frequency-dependent source degeneration
+`g12 = g / (1 + g (Zleft+Zright)/beta12)`. The continuous calibration pole and
+independent AC tests use that same physical loading, including C17/C23.
+A bounded five-update intrinsic-voltage Newton solve uses tanh addition and a
+small-step Taylor evaluation to avoid repeated exponentials; it solves the
+same implicit current law. C17/C23 form another 2×2 Schur block, retaining ten
+capacitor voltages, with no new allocation, lock or unbounded tick loop.
 
 Crossed C25/C27 (each 0.1µF) feed Q21R/Q21L respectively:
 
@@ -69,7 +90,7 @@ C26 dv[3]/dt additionally subtracts (i_left-i_right)/2
 R113/R114=100K alone yield 10 ms / 15.915 Hz corners. The current reduction
 also includes complementary nonlinear Q21 base currents. Their zero-signal
 linearisation is still `r_pi = beta VT / Ic`, with a loaded corner of about
-60.87 Hz; the DC base-current sum is absorbed into the settled bias. Both
+67.91 Hz; the DC base-current sum is absorbed into the settled bias. Both
 currents load the ladder top. Constant beta and stiff common-mode bias remain
 VERIFY assumptions.
 Q20 tail current is derived from R116/R112/R109's three-resistor divider,
@@ -83,8 +104,8 @@ Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 
 For the printed-only gain with infinite beta and correction one,
 R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
-The current fitted gain correction and finite beta give 92.44 V/V and
-4.78 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
+The current fitted gain correction and finite beta give 99.19 V/V and
+5.13 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
 
@@ -211,14 +232,17 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
    Q21 includes complementary nonlinear base currents, but retains constant beta,
    fixed tail current and settled common-mode base bias. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
 
-5. `Components::output_beta`: fitted Q21 beta 350 is unprinted and unmeasured.
-6. `Components::output_gain_correction`: fitted gain multiplier 8.5 remains
-   unresolved against the printed Q20/R108/R110 gain; see the current fit register.
+5. `Components::output_beta`: fitted Q21 beta 302.5 is unprinted and unmeasured.
+6. `Components::output_gain_correction`: fitted gain multiplier 9.125 remains
+   unresolved against the printed Q20/R108/R110 gain; see the round-5 fit register.
+7. `Components::input_beta`: Q12 beta 300 is inferred from output audio, not
+   measured at the ladder microamp bias. Constant beta, matched devices and
+   stiff common-mode bias remain approximations; see the round-5 register.
 
 Additional transcription open items: TP6's attachment / printed DC levels
 remain unresolved and are excluded from level calibration. Gang-B direction
 and ENV/ACCENT rest levels belong to the ENV integrator, not this signal crate.
-Bias-rail motion, R69/Q11 saturation headroom, finite-beta signal loading,
+Bias-rail motion, R69/Q11 saturation headroom, ladder/follower base-current loading,
 external VCA input loading and follower clipping are not dynamic modelled.
 Consequently strong damping, large-signal fidelity and absolute levels need
 SPICE / hardware checks. No claim of original-unit amplitude fidelity is made.

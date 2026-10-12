@@ -33,7 +33,7 @@ fn hp(w: f64, t: f64) -> Complex {
 // Independent AC analysis: eliminate coupling branches, then ladder determinant.
 fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
     let w = TAU * f;
-    let g = current / (4.0 * c.thermal_voltage);
+    let g = current * c.input_beta / (c.input_beta + 1.0) / (4.0 * c.thermal_voltage);
     let tail = (c.bias_supply / 3.0 - c.vbe) / c.amplifier_resistance[3];
     let alpha = c.output_beta / (c.output_beta + 1.0);
     let conductance = c
@@ -80,7 +80,26 @@ fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
         det = next;
     }
     let core = Complex(g.powi(4), 0.0).div(det);
-    let forward = core.mul(amp).mul(h14);
+    let source_left = Complex(1.0, 0.0)
+        .sub(
+            hp(w, (c.input_resistance[0] + c.input_resistance[1]) * c.c17)
+                .scale(c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1])),
+        )
+        .scale(c.input_resistance[1]);
+    let source_right = Complex(1.0, 0.0)
+        .sub(
+            hp(
+                w,
+                (c.feedback_resistance[2] + c.feedback_resistance[3]) * c.coupling_capacitance[2],
+            )
+            .scale(
+                c.feedback_resistance[3] / (c.feedback_resistance[2] + c.feedback_resistance[3]),
+            ),
+        )
+        .scale(c.feedback_resistance[3]);
+    let degeneration = Complex(1.0, 0.0)
+        .div(Complex(1.0, 0.0).add(source_left.add(source_right).scale(g / c.input_beta)));
+    let forward = core.mul(amp).mul(h14).mul(degeneration);
     let input = hp(w, (c.input_resistance[0] + c.input_resistance[1]) * c.c17)
         .scale(c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]));
     forward

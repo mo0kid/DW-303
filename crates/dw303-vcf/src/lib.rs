@@ -1,9 +1,9 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-fitting-round3-2026-10-12.md` for the current measurement fit.
-//! The round-4 peak audit and rejected Q12 trial are documented in
-//! `docs/circuit/vcf-fitting-round4-2026-10-12.md`; runtime parameters are unchanged.
+//! `docs/circuit/vcf-fitting-round5-2026-10-12.md` for the current measurement fit.
+//! Q12 differential base loading retains ten physical capacitor states;
+//! unmeasured transistor betas and the effective Q21 gain remain VERIFY items.
 
 /// Solver quality; switching preserves capacitor voltages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +51,10 @@ pub struct Components {
     /// VERIFY: Q21 common-emitter current gain at its approximately 0.26 mA
     /// collector bias. Fitted base loading; no internal current measurement.
     pub output_beta: f64,
+    /// VERIFY: Q12 current gain; differential base currents load R62/R70 and
+    /// R97/R98. Fitted to 300 for the unmeasured low-current 2SC1583 pair;
+    /// see the round-5 fit register for evidence and identifiability limits.
+    pub input_beta: f64,
     /// VERIFY: effective Q21 collector gain, fitted to TD-3 ring captures.
     /// Preserves the printed resistors; multiplies Q21 collector swing and gm.
     /// The excess gain is provisional pending Q21/feedback reconciliation.
@@ -74,8 +78,9 @@ impl Components {
         bias_supply: 5.333,
         thermal_voltage: 0.02585,
         vbe: 0.65,
-        output_beta: 350.0,
-        output_gain_correction: 8.5,
+        output_beta: 302.5,
+        input_beta: 300.0,
+        output_gain_correction: 9.125,
         output_coupling_scale: 1.0,
     };
 }
@@ -133,6 +138,10 @@ pub struct Vcf {
     feedback_gain: f64,
     amplifier_swing: f64,
     inverse_scale: f64,
+    input_alpha: f64,
+    input_base_drop: f64,
+    input_base_rate: f64,
+    feedback_base_rate: f64,
 }
 
 impl Vcf {
@@ -166,6 +175,7 @@ impl Vcf {
         c.thermal_voltage = positive(c.thermal_voltage, Components::NOMINAL.thermal_voltage);
         c.vbe = positive(c.vbe, Components::NOMINAL.vbe);
         c.output_beta = positive(c.output_beta, Components::NOMINAL.output_beta).clamp(1.0, 1e9);
+        c.input_beta = positive(c.input_beta, Components::NOMINAL.input_beta).clamp(50.0, 1e9);
         c.output_gain_correction = positive(
             c.output_gain_correction,
             Components::NOMINAL.output_gain_correction,
@@ -198,6 +208,18 @@ impl Vcf {
             previous_controls: [0.0; 2],
             diagnostics: VcfDiagnostics::default(),
             inverse_scale: 1.0 / (2.0 * c.thermal_voltage),
+            input_alpha: c.input_beta / (c.input_beta + 1.0),
+            input_base_drop: (c.input_resistance[0] * c.input_resistance[1]
+                / (c.input_resistance[0] + c.input_resistance[1])
+                + c.feedback_resistance[2] * c.feedback_resistance[3]
+                    / (c.feedback_resistance[2] + c.feedback_resistance[3]))
+                / c.input_beta,
+            input_base_rate: c.input_resistance[1]
+                / ((c.input_resistance[0] + c.input_resistance[1]) * c.input_beta * c.c17),
+            feedback_base_rate: c.feedback_resistance[3]
+                / ((c.feedback_resistance[2] + c.feedback_resistance[3])
+                    * c.input_beta
+                    * c.coupling_capacitance[2]),
             inverse_capacitance: c.ladder_capacitance.map(|c| 1.0 / c),
             input_rate: 1.0 / ((c.input_resistance[0] + c.input_resistance[1]) * c.c17),
             input_gain: c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]),
@@ -394,7 +416,7 @@ impl Vcf {
     // Determinant of the continuous matched-bias linearisation, normalised by g^4.
     fn characteristic(&self, s: Complex, current: f64) -> Complex {
         let c = self.c;
-        let g = current / (4.0 * c.thermal_voltage);
+        let g = current * self.input_alpha / (4.0 * c.thermal_voltage);
         let h25 = s.highpass(1.0 / self.output_rate[0]);
         let h27 = s.highpass(1.0 / self.output_rate[1]);
         let load = h25
@@ -420,7 +442,23 @@ impl Vcf {
             previous = determinant;
             determinant = next;
         }
-        determinant.add(forward.mul(feedback))
+        let input_impedance = Complex(1.0, 0.0)
+            .sub(s.highpass(1.0 / self.input_rate).scale(self.input_gain))
+            .scale(c.input_resistance[1]);
+        let feedback_impedance = Complex(1.0, 0.0)
+            .sub(
+                s.highpass(1.0 / self.feedback_rate)
+                    .scale(self.feedback_gain),
+            )
+            .scale(c.feedback_resistance[3]);
+        let degeneration = Complex(1.0, 0.0).div(
+            Complex(1.0, 0.0).add(
+                input_impedance
+                    .add(feedback_impedance)
+                    .scale(g / c.input_beta),
+            ),
+        );
+        determinant.add(forward.mul(feedback).mul(degeneration))
     }
 
     fn sanitize(&mut self, value: f64) -> f64 {
@@ -484,7 +522,7 @@ impl Vcf {
         feedback: f64,
     ) -> ([f64; N], [[f64; N]; N], f64) {
         let inverse_scale = self.inverse_scale;
-        let half_current = 0.5 * current;
+        let half_current = 0.5 * current * self.input_alpha;
         let current_over_scale = half_current * inverse_scale;
         let (amp, amp_d) = self.amplifier(x[3] + x[5] - x[6]);
         let out = amp - x[7];
@@ -494,7 +532,8 @@ impl Vcf {
         let fb_i = (feedback * out - x[8]) * conductance;
         let follower = self.c.feedback_resistance[1] * fb_i;
         let u = self.input_gain * (input - x[4]) - self.feedback_gain * (follower - x[9]);
-        let (t, derivative) = junction(u * inverse_scale);
+        let (t, derivative) =
+            degenerated_junction(u * inverse_scale, current_over_scale * self.input_base_drop);
         let injection = half_current * t;
         let injection_d = current_over_scale * derivative;
         let mut out_d = [0.0; N];
@@ -531,11 +570,13 @@ impl Vcf {
                 j[i][i + 1] = edge_d[i] * inv_c;
             }
         }
+        let mut injection_derivative = [0.0; N];
         for col in 0..N {
             let du = -self.feedback_gain * self.c.feedback_resistance[1] * fi_d[col]
                 - if col == 4 { self.input_gain } else { 0.0 }
                 + if col == 9 { self.feedback_gain } else { 0.0 };
-            j[0][col] += injection_d * self.inverse_capacitance[0] * du;
+            injection_derivative[col] = injection_d * du;
+            j[0][col] += injection_derivative[col] * self.inverse_capacitance[0];
         }
         // Q21's fixed tail gives complementary base currents, with the same
         // tanh law as its collectors. Their DC sum is absorbed in the bias;
@@ -554,7 +595,10 @@ impl Vcf {
         j[3][3] -= (0.25 * (gl + gr) + base_d) * ic;
         j[3][5] -= (0.5 * gr + base_d) * ic;
         j[3][6] += (0.5 * gl + base_d) * ic;
-        f[4] = (input - x[4]) * self.input_rate;
+        // Complementary Q12 base currents also charge C17 and C23. Their
+        // settled DC sum is absorbed into the bias, as for Q21.
+        // VERIFY: matched, constant beta and stiff common-mode bias.
+        f[4] = (input - x[4]) * self.input_rate + self.input_base_rate * injection;
         j[4][4] = -self.input_rate;
         let cr = self.inverse_output_capacitance[0];
         let cl = self.inverse_output_capacitance[1];
@@ -569,14 +613,16 @@ impl Vcf {
         f[7] =
             (out / self.c.resonance_resistance + feedback * fb_i) / self.c.coupling_capacitance[0];
         f[8] = fb_i / self.c.coupling_capacitance[1];
-        f[9] = (follower - x[9]) * self.feedback_rate;
+        f[9] = (follower - x[9]) * self.feedback_rate - self.feedback_base_rate * injection;
         for col in 0..N {
+            j[4][col] += self.input_base_rate * injection_derivative[col];
             j[7][col] = (out_d[col] / self.c.resonance_resistance + feedback * fi_d[col])
                 / self.c.coupling_capacitance[0];
             j[8][col] = fi_d[col] / self.c.coupling_capacitance[1];
             j[9][col] = (self.c.feedback_resistance[1] * fi_d[col]
                 - if col == 9 { 1.0 } else { 0.0 })
-                * self.feedback_rate;
+                * self.feedback_rate
+                - self.feedback_base_rate * injection_derivative[col];
         }
         (f, j, out)
     }
@@ -651,12 +697,42 @@ fn junction(x: f64) -> (f64, f64) {
         )
     }
 }
+// t = tanh(x - a t), from the differential base-current voltage drop.
+// With beta >= 50 and I <= 1 mA, a <= 0.77 for printed source resistors.
+// Monotone scalar law, with a bounded Newton solve and analytic derivative.
+fn degenerated_junction(x: f64, a: f64) -> (f64, f64) {
+    let mut intrinsic = x / (1.0 + a);
+    let (mut value, mut derivative) = junction(intrinsic);
+    for _ in 0..5 {
+        let correction = (intrinsic + a * value - x) / (1.0 + a * derivative);
+        if correction.abs() < 2e-16 * (1.0 + intrinsic.abs()) {
+            break;
+        }
+        intrinsic -= correction;
+        // Tanh addition evaluates the same junction at the corrected voltage.
+        // For |step| < 0.03, the degree-nine Taylor remainder is < 1e-18;
+        // avoid another expensive exponential at the captured microamp bias.
+        let step = -correction;
+        let delta = if step.abs() < 0.03 {
+            let square = step * step;
+            step * (1.0
+                + square
+                    * (-1.0 / 3.0
+                        + square
+                            * (2.0 / 15.0 + square * (-17.0 / 315.0 + square * (62.0 / 2835.0)))))
+        } else {
+            junction(step).0
+        };
+        value = ((value + delta) / (1.0 + value * delta)).clamp(-1.0, 1.0);
+        derivative = (1.0 - value) * (1.0 + value);
+    }
+    (value, derivative / (1.0 + a * derivative))
+}
 // Schur reduction: all coupling states are affine in the top rung correction.
 // C14/C15 form a 2x2 block because VR4A is loaded by the feedback branch.
 fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
     let mut rhs = [0.0; N];
     let mut gain = [0.0; N];
-    rhs[4] = b[4] / a[4][4];
     // Q21's complementary base currents couple C25 and C27.
     let det_base = a[5][5] * a[6][6] - a[5][6] * a[6][5];
     let inverse_base = 1.0 / det_base;
@@ -674,14 +750,24 @@ fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
     rhs[8] = (a[7][7] * r8 - r7 * a[8][7]) * inverse_coupling;
     gain[7] = (g7 * a[8][8] - a[7][8] * g8) * inverse_coupling;
     gain[8] = (a[7][7] * g8 - g7 * a[8][7]) * inverse_coupling;
-    rhs[9] = b[9];
-    gain[9] = a[9][3];
+    // Q12 base currents couple C17 and C23. Both rows still depend only on
+    // the top rung and already eliminated output/coupling states.
+    let mut r4 = b[4];
+    let mut r9 = b[9];
+    let mut g4 = a[4][3];
+    let mut g9 = a[9][3];
     for i in 5..9 {
-        rhs[9] -= a[9][i] * rhs[i];
-        gain[9] -= a[9][i] * gain[i];
+        r4 -= a[4][i] * rhs[i];
+        r9 -= a[9][i] * rhs[i];
+        g4 -= a[4][i] * gain[i];
+        g9 -= a[9][i] * gain[i];
     }
-    rhs[9] /= a[9][9];
-    gain[9] /= a[9][9];
+    let det_input = a[4][4] * a[9][9] - a[4][9] * a[9][4];
+    let inverse_input = 1.0 / det_input;
+    rhs[4] = (r4 * a[9][9] - a[4][9] * r9) * inverse_input;
+    rhs[9] = (a[4][4] * r9 - a[9][4] * r4) * inverse_input;
+    gain[4] = (g4 * a[9][9] - a[4][9] * g9) * inverse_input;
+    gain[9] = (a[4][4] * g9 - a[9][4] * g4) * inverse_input;
     let mut r0 = b[0];
     let mut corner = a[0][3];
     let mut r3 = b[3];
@@ -705,7 +791,7 @@ fn solve_ladder(a: [[f64; N]; N], b: [f64; N]) -> Option<[f64; N]> {
     let inv2 = 1.0 / d2;
     let t3 = a[3][2] * inv2;
     let d3 = d3 - t3 * c2;
-    if [a[0][0], d1, d2, d3, det, det_base, a[9][9]]
+    if [a[0][0], d1, d2, d3, det, det_base, det_input]
         .iter()
         .any(|v| !v.is_finite() || v.abs() < 1e-20)
     {
@@ -785,6 +871,23 @@ mod tests {
         }
         assert!(junction(0.2 / (2.0 * 0.02585)).0 > 0.999);
         assert!(junction(1.0 / (2.0 * 0.02585)).1 < 1e-12);
+    }
+
+    #[test]
+    fn degenerated_pair_matches_implicit_law_and_derivative() {
+        for a in [0.0, 0.001, 0.006, 0.15, 0.8] {
+            for i in -200..=200 {
+                let x = f64::from(i) * 0.1;
+                let (t, derivative) = degenerated_junction(x, a);
+                let exact = junction(x - a * t);
+                assert!((t - exact.0).abs() < 2e-14, "a={a} x={x}");
+                assert!((derivative - exact.1 / (1.0 + a * exact.1)).abs() < 2e-14);
+                let numerical = (degenerated_junction(x + 1e-6, a).0
+                    - degenerated_junction(x - 1e-6, a).0)
+                    / 2e-6;
+                assert!((derivative - numerical).abs() < 2e-9);
+            }
+        }
     }
 
     #[test]
