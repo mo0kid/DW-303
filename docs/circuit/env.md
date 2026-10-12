@@ -146,13 +146,14 @@ retains its own charge. Mixer headroom is bounded around its estimated bias.
 
 | Source flag | Unprinted assumption / outstanding check |
 |---|---|
+| `r61` | VERIFY: printed 10 kΩ → 9.5 kΩ (−5% assumed tolerance) in the 2026-10-12 interaction fit. Output audio does not separate R61, VR5 track, Q9 bias and expo-ratio calibration. See the final investigation below. |
 | `meg_discharge_drop` | VERIFY: D27/D28 shared 0.60 V estimate → 0.45 V low-current reduction. D26 remains 0.60 V under R117 bias; effective C62 floor 1.50 V and buffered rest 0.20 V. Current-dependent diode law and buffer base loading remain unresolved. See round 9. |
 | `diode_drop` | Generic Si Vf = 0.6 V; per-designator types, Is, ideality, leakage and current dependence are unprinted. Fixed clamp drops omit R117 bias dependence and the logarithmic near-floor tail. |
 | `vbe` | Generic Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe = 0.65 V; individual Is/beta/matching/temperature are unprinted. Q39's 2SK30(Y) type is printed, but individual Idss and buffer sink dynamics are omitted. |
 | `saturation` | Q36/Q38/Q32 Vsat and buffer headroom = 0.2 V; output resistances and rail-dependent clipping need device validation. |
 | `beta` | Q32/Q36 beta = 200; C41 reset stretch and C72 release need SPICE/device data. |
 | `thermal_voltage` | VT = 25.9 mV, approximately 300 K; no measured temperature/tempco calibration. |
-| `expo_is_ratio` | Nominal matching estimate 1; preceding VCF fit uses 3.074, with voice calibration around 3.134. Matching is unprinted and inseparable from TM3 in these output captures. See vcf-calibration.md. |
+| `expo_is_ratio` | Nominal matching estimate 1; component fit remains 3.074, with current voice calibration about 3.088 after the R61 fit below. Matching is unprinted and inseparable from TM3 in these output captures. See vcf-calibration.md. |
 | `ota_control_voltage` | BA662A pin 1 = 0.65 V; determines accent diode current and source headroom. |
 | `ota_mirror_ratio` | BA662A current transfer factor = 1; gm, offsets, feedthrough and buffer characteristics are not printed. |
 | `tm3` | Historical 62.918K analytical trim superseded by preceding VCF 470K/expo-ratio fit; see vcf-calibration.md for assembled ring/grid evidence. |
@@ -893,3 +894,249 @@ C62's decay times and D37 charge peak are retained. All fitted values are
 output-audio identifications; low Q36 reference voltage, fixed diode drops,
 MIDI off-latency and saturation/storage reduction prevent a device-authenticity
 claim. D24/C36 cross-loading and the excess accented peaks remain open.
+
+## 2026-10-12: interaction repeat floor and buffer investigation
+
+This work uses the unchanged v5 harness, both read-only capture sessions, and
+the worktree's renderer. The initial full score reproduces `round8.json` exactly:
+**0.821752766751**, zero analysis failures, renderer SHA-256
+`54db76b4e79c206b4c56d4250306f2a2e65cd3763fabf50f5ed167dc73b94b93`.
+The preceding [round-9 investigation](vcf-env-fitting-round9-2026-10-12.md)
+remains the record of its rejected trials.
+
+### Interaction metric's own hardware repeat floor
+
+`crates/dw303-env/analysis/interaction_noise_floor.py` calls the actual harness
+`analyse(..., category_override='interaction')` on all 18 unordered session-2
+repeat pairs. It preserves the common first-take timeline, per-gate acoustic
+alignment, raw absolute level, decay-fit penalties and the additional normalized
+full-window spectrum. It neither changes scoring nor subtracts the floor.
+
+| Hardware stimulus | Pairs | Normalized median | p90 |
+|---|---:|---:|---:|
+| All three repeat patterns | 18 | 1.051804 | 1.349860 |
+| Accent/slide | 6 | 0.769816 | 1.059668 |
+| Classic | 6 | 0.932946 | 1.102300 |
+| Rests/ties | 6 | 1.306435 | 1.457640 |
+
+The corresponding aggregate is **1.126318**. Native-unit repeat median/p90:
+bands **1.528309/1.715440 dB**, RMS shape **1.963017/2.544366 dB**,
+normalized spectrum **1.050181/1.355091 dB**, absolute level
+**0.016815/0.076419 dB**. The existing behavior floor stays
+**1.016496/1.407178**; adding the interaction spectrum changes the metric mean.
+
+There are **zero exact duplicate combo stimuli** after checking every setting,
+tempo, MIDI mapping and relative raw MIDI schedule, including note key and
+velocity. Single/phrase pairs share controls but have different gate durations
+and cannot provide an interaction repeat floor. VERIFY: these accented,
+mixed-key pattern repeats are a variability proxy, not an independently
+measured lower bound for the unaccented, repeated-key combo phrases or singles.
+Four takes and three patterns do not identify the source of this variability.
+
+Matched session-1 patterns versus their four session-2 repetitions give an
+interaction median/p90 **1.241567/1.351811**. Session-2 signed level increments
+are positive in all 12 comparisons: median approximately **+0.095 dB**, range
+**+0.029 to +0.126 dB**. Classic/accent-slide/rests-ties family medians are about
+**+0.079/+0.097/+0.079 dB**. VERIFY: temperature, supply, interface gain,
+carrier phase and MIDI arrival are not separately identified. This small session
+offset does not justify a session-selective thermal correction in the synth.
+
+### Ranked initial combo residuals
+
+Each family below pairs keys 36/48 at identical controls and stimulus. Mean
+normalized error retains the harness's 10-unit missing-fit penalties; the
+feature-only column exposes the residual underneath. Updated rankings are
+emitted by `analysis/interaction_audit.py`, without changing the harness.
+
+| Family | Mean error | Feature-only mean | Penalized captures / 2 |
+|---|---:|---:|---:|
+| CUTOFF .6, ENV 1, RES 1, phrase | 12.7553 | 2.7553 | 2 |
+| DECAY 1, RES .8, phrase | 8.1058 | 3.1058 | 1 |
+| CUTOFF .2, ENV 1, RES 1, phrase | 7.4966 | 2.4966 | 1 |
+| CUTOFF .2, ENV .6, RES .8, phrase | 7.3905 | 2.3905 | 1 |
+| DECAY 0, RES .5, phrase | 7.3580 | 2.3580 | 1 |
+| CUTOFF .6, ENV 0, RES .8, phrase | 7.3514 | 2.3514 | 1 |
+
+Ranking only the measured features instead puts DECAY 1 / RES 0 first
+(**4.0802**), followed by DECAY 1 / RES .8 (**3.1058**) and
+CUTOFF .6 / ENV 0 / RES 0 (**2.8699**). ACCENT is zero and all phrase
+velocities are 80: D24 and the VCA accent branch are disconnected from MEG
+for these stimuli. Accent mutual loading cannot explain their main discrepancy.
+The high-RES penalties often compare an exponential fitted to only seven
+reference brightness windows with a whole repeated-note trajectory. They remain
+in the score; fitting them is not an independent measurement of C62 decay.
+
+### Loading and identifiability limits
+
+R61 already supplies the physical ENV MOD residual at CCW; it is not an omitted
+zero-envelope switch. Q41/Q40's source impedance is missing. Assuming Q39 Idss
+**1.2 mA** gives a two-junction incremental follower resistance about **43 Ω**
+at 25.9 mV VT. The standing VR5/R61 load at peak changes the two Vbe drops by
+only about **4.5 mV**; even approximately 0.5 mA additional accent loading changes
+them by less than **20 mV**. VERIFY: Q39's individual grade/Idss and Q40/Q41 beta,
+Early effect, cutoff behavior and base loading are unmeasured. These estimates
+are not accepted fitted device parameters or a complete buffer solve. They
+cannot account for the multi-dB ordinary combo residual.
+
+C36 and D24 currents share the real VR7/MEG source. The existing voltage-only
+stage boundary supplies neither the pot/source resistance nor both capacitor
+currents to a common solve; the assigned voice scope permits constants only.
+An exact shared-node model requires coordinated integration work. A guessed
+midpoint RES load inside Accent would not implement the actual gang setting.
+At full ACCENT the ideal VR7 wiper resistance is zero, so its loading alone
+cannot explain the full-turn accent excess. The unknown MEG buffer/device
+impedance and OTA transfer remain explicit VERIFY items.
+
+### Accepted fit and VERIFY register
+
+Only **R61 changes at runtime**. The printed 10 kΩ resistor becomes
+**9.5 kΩ**, the assumed −5% tolerance endpoint. The CCW VR5 source fraction
+changes **0.166667 → 0.159664**, and its Thevenin resistance
+**8.333333 → 7.983193 kΩ**. The retained CCW peak/rest ladder-current ratio
+is about **1.749**, or **0.807 octaves**. C62/C72/C42 and all pot tracks retain
+their preceding fits; their physical charges, decay and gate timing are not
+replaced by a new envelope law.
+
+The existing voice calibration still holds the settled centre ring target.
+Its computed expo ratio changes **3.111363443 → 3.087816429** as a consequence
+of R61, without an additional manual fit or a voice runtime edit. VERIFY:
+neither this ratio nor R61 is independently identified from the audio. TM3,
+the Q9 reference and device matching remain coupled to that calibration.
+
+| VERIFY item | Nominal / preceding → retained | Evidence and residual |
+|---|---|---|
+| R61 | Printed **10 kΩ → 9.5 kΩ** | −5% assumed resistor tolerance. Both tolerance endpoints were replayed and fully scored. Lower endpoint gives the smaller full score and improves behavior/amplitude. This does not measure the hardware resistor; VR5 taper, Q9 bias, transistor laws and panel placement remain confounded. |
+| Computed expo normalization | **3.111363443 → 3.087816429** | Existing centre-ring normalization compensates the different resting CCW feed. It is a derived calibration, not a separate component/device fit. |
+| Interaction floor | No previous interaction-specific repeat result → **1.051804 / 1.349860 median/p90** | 18 within-session pairs, exact v5 interaction metrics. Pattern settings differ from combo stimuli, and there are no exact combo duplicates. This is a variability proxy, not a universal noise bound or a score subtraction. |
+| Session offset | No thermal model → retain no session-dependent correction | Hardware session-2 pattern levels are about +0.095 dB; attribution to temperature rather than interface/supply/phase remains unresolved. |
+| MEG / accent loading bounds | No accepted new device value | Estimated Q39 current makes ordinary buffer voltage droop too small to explain the main combo residual. Exact D24/C36 mutual loading still requires shared-node integration outside the assigned voice-constants scope. |
+
+All preceding VERIFY registers remain applicable, including fixed MEG diode
+drops, Q36's unusually low effective junction reference, Q31/buffer beta and
+current laws, Q39 Idss, IC12 Ron/supply, VR4 gang correlation, OTA control voltage,
+mirror gain/offset/output resistance, output-loading reductions, capture latency,
+absolute recording volts and the earlier capacitor/pot/resistor tolerance fits.
+No authenticity claim is made for the fitted TD-3 unit or its internal values.
+
+### Full v5 scores
+
+Category aggregate is `0.75*median + 0.25*p90`. The complete overall score is
+**0.821752766751 → 0.820619690550 (−0.137885%)**. This is a small improvement;
+the main phrase discrepancy remains. Both reports have zero analysis failures.
+No category worsens by more than 2%; the largest increase is envelopes at
+**0.672510%**.
+
+| Category | Before | After | Change |
+|---|---:|---:|---:|
+| interaction | 1.832589761 | 1.831926690 | −0.036182% |
+| behavior | 1.891781609 | 1.881799076 | −0.527679% |
+| amplitude | 1.232026556 | 1.223434434 | −0.697397% |
+| envelopes | 0.321122628 | 0.323282209 | +0.672510% |
+| accent | 0.346873717 | 0.349160101 | +0.659140% |
+| gate | 0.510936207 | 0.510936207 | 0.000000% |
+| VCF | 0.704232636 | 0.704231428 | −0.000171% |
+| waveform | 0.739877549 | 0.739877754 | +0.000028% |
+| pitch | 0.139133897 | 0.139133567 | −0.000237% |
+| tuning | 0.199086757 | 0.199086874 | +0.000059% |
+| slide | 0.039124674 | 0.039124674 | 0.000000% |
+
+Interaction median/p90 **1.491036/2.857250 → 1.498367/2.832607**: the
+median worsens slightly while p90 improves. Behavior median/p90
+**1.752903/2.308418 → 1.745888/2.289533**. The 17 interaction missing-fit
+penalties remain 17; no failed row, quiet gap or inconvenient metric is removed.
+
+| Initially worst family | Before mean | After mean | Penalties before → after |
+|---|---:|---:|---:|
+| CUTOFF .6, ENV 1, RES 1, phrase | 12.755298 | 12.731357 | 2 → 2 |
+| DECAY 1, RES .8, phrase | 8.105778 | 8.126855 | 1 → 1 |
+| CUTOFF .2, ENV 1, RES 1, phrase | 7.496594 | 7.459070 | 1 → 1 |
+| CUTOFF .2, ENV .6, RES .8, phrase | 7.390517 | 7.363566 | 1 → 1 |
+| DECAY 0, RES .5, phrase | 7.358032 | 7.297544 | 1 → 1 |
+| CUTOFF .6, ENV 0, RES .8, phrase | 7.351380 | 7.324961 | 1 → 1 |
+
+Three-way single/phrase medians **0.798194/2.207556 → 0.795967/2.216075**;
+DECAY-extension single/phrase medians **0.542537/2.101521 →
+0.518387/2.077449**. Phrase brightness fits, independent carrier phase,
+per-note timing variation and capture background limit attribution. The ordinary
+ACCENT=0 combo residual is not evidence for missing accent loading. Source
+waveform, VCF downstream loading and shared accent/OTA nodes require coordinated
+work rather than larger unexplained envelope multipliers.
+
+### Rejected new trials
+
+The fixed diagnostic set contains 136 captures: 64 selected interaction rows,
+all 22 envelopes and 3 gates, 32 endpoint-accent rows, 3 patterns and 12 repeat
+takes. Repeat means use the harness's canonical first-take order. Its interaction
+aggregate **4.399088** deliberately emphasizes bad phrases and is not the full
+interaction aggregate. Rows below label subset versus complete comparisons.
+
+| Trial | Evidence / rejection |
+|---|---|
+| OTA input offset +1 mV, no output-resistance change | Diagnostic behavior **1.891782 → 6.347689**, interaction **4.399088 → 6.675697**. Strong quiet-gap feedthrough is contradicted by the audio. Reverted. |
+| OTA offset +10 µV | Complete related-category interaction **−0.0720%**, behavior **+0.1857%**; the small apparent subset behavior gain disappeared after canonical repeat ordering. A separate <20-Hz waveform residual fit suggested about +6 µV for selected combos but mixed signs across repeated patterns. Offset is not uniquely identified; retain zero. |
+| OTA Early voltage 100 V, mirror 1.024687 (ordinary 47-µA peak normalized), C42 1.05 µF | Diagnostic envelopes **0.321123 → 0.338927 (+5.54%)**; reject. This isolates output resistance while retaining C42, unlike the preceding round's joint 22-V trial. |
+| OTA 100 V, mirror 1.02, C42 1.04 µF, zero offset | Diagnostic envelopes **0.341732 (+6.42%)**; reject. Modest capacitor/mirror refit does not rescue the loading reduction. No Early voltage/mirror/capacitor trial value is retained. |
+| Q41 drop .65 → .55 V, Q40 retained .65 V; rest calibration derived from both | Diagnostic interaction **4.399088 → 4.462403 (+1.44%)**, despite small behavior/accent gains. Raises the buffered node but worsens the targeted high-ENV spectral residual. Reverted; constant-drop versus source-impedance/base-loading reductions remain unverified. |
+| R61 10.5 kΩ (+5%) | Complete overall **0.821126500932**; envelopes improve 3.70%, behavior worsens 0.67%. All categories pass the regression limit, but 9.5 kΩ gives the lower overall score once amplitude is included. |
+
+The earlier round's rejected VR5 .6-knot increase, passive VCA/VCF loading,
+and joint 22-V OTA/C42 trial were not repeated. None of the new diagnostic
+device estimates establishes a measured BA662A or transistor parameter.
+
+### Final validation and reproduction
+
+**135 workspace tests pass**, zero failures, five manual benchmarks ignored,
+across all ten explicitly selected packages. Scoped ENV/voice all-target Clippy
+with warnings denied, scoped rustfmt and diff whitespace checks pass. The
+superseded raw-control-current fixture is updated with rounded tolerances, and
+a new 48/96/192-kHz test checks the retained CCW feed and its reduction from
+printed R61. Public stage signatures, dependency/manifests and other crates
+are not changed. The runtime change is one resistor constant: no allocation,
+lock, extra solve, unbounded loop or new envelope state is introduced.
+
+Exact-replay solver audits cover **346 + 274 = 620 captures** with **zero
+non-convergence**, **zero sanitized inputs** and **maximum four evaluations**.
+The final full run, without category selection, exactly reproduces the retained
+trial's overall and every category. The physical mutual-loading reductions and
+capture limitations above remain; passing these checks does not close them.
+
+Warm sequential Full Circuit holds at 48-kHz host / 192-kHz circuit, three
+16-second runs per setting, satisfy the 13% CPU limit:
+
+| Setting | DSP wall median | DSP wall max | Whole-process CPU median | CPU max |
+|---|---:|---:|---:|---:|
+| C1, default controls | 10.306% | 10.906% | 10.220% | 10.250% |
+| C3, default controls | 9.706% | 9.744% | 9.645% | 9.698% |
+| C3, CUTOFF/RES max, ENV MOD min | 10.394% | 11.063% | 10.373% | 10.465% |
+
+DSP wall time excludes WAV writing; whole-process user+system CPU includes
+setup and writing. This is evidence for these measured workloads, not a claim
+about every automation sequence. Raw runs and diagnostics are retained in
+`/tmp/envfit-cpu.json`. All holds report zero solver non-convergence/sanitization.
+
+Final renderer SHA-256:
+`1aad0de3249a63fc2c7cedceb1f0f4dcc8f7b666de667e5abb5f41d5d9e437b4`.
+Unchanged harness analysis SHA-256:
+`7fbc7305a654c4fa061c7434777f57539e5f3becd2f36dd36a2d026c44bc4d83`.
+Full reports, noise-floor pairs with WAV/sidecar hashes, ranked families,
+pattern diagnostics, solver audits and test logs are under `/tmp/envfit-*`.
+No commit, branch/history change or push was performed.
+
+```sh
+cargo build --offline --release -p dw303-render
+python3 crates/dw303-env/analysis/interaction_noise_floor.py \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
+  --json /tmp/envfit-noise.json
+python3 tools/analysis/harness/score.py \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
+  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
+  --categories interaction,behavior,envelopes,accent,gate,vcf \
+  --cache /tmp/envfit-cache --jobs 4 --json /tmp/envfit-related.json
+# Final run omits --categories and writes /tmp/envfit-score.json.
+cargo test --offline --release -p dw303-osc -p dw303-vcf -p dw303-env \
+  -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
+  -p dw303-standalone -p dw303-render -p dw303-capture
+cargo clippy --offline -p dw303-env -p dw303-voice --all-targets -- -D warnings
+cargo --offline fmt -p dw303-env -p dw303-voice -- --check
+```

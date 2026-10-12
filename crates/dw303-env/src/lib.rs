@@ -120,7 +120,10 @@ components! {
     /// VR5, 50 kΩ A ENV MOD divider.
     vr5 = 50e3;
     /// R61, VR5 terminal 1 to VQ9.
-    r61 = 10e3;
+    /// VERIFY: 10 kΩ printed → 9.5 kΩ session1/2 interaction fit, within
+    /// assumed −5% resistor tolerance. Audio does not identify R61 separately
+    /// from pot track, Q9 reference and the voice's expo-ratio calibration.
+    r61 = 9.5e3;
     /// R63, VR5 wiper to EXP_B.
     r63 = 220e3;
     /// R69, Q12 emitters to Q11 collector; limits Q11 compliance.

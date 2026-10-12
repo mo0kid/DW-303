@@ -292,10 +292,11 @@ fn fitted_cutoff_track_reproduces_identified_tail_currents() {
     let c = Components::NOMINAL;
     let mut f = FilterControl::new(c);
     let reference = f.reference_voltage();
-    // Independently identified from session1 ring/grid spectra, rounded to
-    // avoid pinning the implementation's exact interpolation arithmetic.
+    // Raw control currents for the identified cutoff track with fitted R61.
+    // The voice separately renormalizes the expo ratio at its ring reference.
+    // Rounded targets retain tolerances instead of pinning floating arithmetic.
     let targets = [
-        3.58, 4.13, 5.13, 6.10, 6.81, 7.59, 8.12, 12.95, 23.56, 35.80, 36.58,
+        3.60, 4.15, 5.17, 6.14, 6.86, 7.64, 8.17, 13.04, 23.73, 36.05, 36.83,
     ];
     for rate in rates() {
         f.prepare(rate).unwrap();
@@ -317,6 +318,28 @@ fn fitted_cutoff_track_reproduces_identified_tail_currents() {
         f.ladder_current(0.5, 0.0, 0.5, reference),
         1e-15,
     );
+}
+
+#[test]
+fn r61_keeps_a_small_filter_envelope_at_env_mod_minimum() {
+    let c = Components::NOMINAL;
+    let rest = c.diode_drop + 2.0 * c.meg_discharge_drop - 2.0 * c.vbe;
+    for rate in rates() {
+        let mut f = FilterControl::new(c);
+        f.prepare(rate).unwrap();
+        let reference = f.reference_voltage();
+        let low = f.ladder_current(0.4, 0.0, rest, reference);
+        let peak = f.ladder_current(0.4, 0.0, 9.9, reference);
+        // Output-fit R61 retains roughly 0.81 octaves of CCW excursion.
+        // Its static current calibration cancels in this ratio.
+        near(peak / low, 1.749, 0.01);
+        let mut printed = c;
+        printed.r61 = 10e3;
+        let mut original = FilterControl::new(printed);
+        let original_low = original.ladder_current(0.4, 0.0, rest, reference);
+        let original_peak = original.ladder_current(0.4, 0.0, 9.9, reference);
+        assert!(peak / low < original_peak / original_low);
+    }
 }
 
 #[test]
