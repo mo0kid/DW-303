@@ -2,6 +2,15 @@
 use crate::{Memory, Octave, Pattern, StageError, StepClock, StepEvent, Time, Track};
 use ravet_foundation::{EventData, MidiKind, MidiMessage};
 
+/// Largest step phase at which an edge still starts a note. An edge is the
+/// first sample of a new step; its phase is exactly zero only when the step
+/// is a whole number of samples (constant tempo). Under tempo changes it is up
+/// to one sample's worth (well under 2% of a step even at 1 kHz / 300 BPM), so
+/// an exact-zero test dropped every attack (user-reported stutter). Starting
+/// playback mid-step (e.g. a host seek to 40% of a step) still does not
+/// trigger.
+pub const EDGE_PHASE_TOLERANCE: f64 = 0.25;
+
 /// Per-sample integration boundary for the circuit voice.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct VoiceCommand {
@@ -350,7 +359,7 @@ fn command(
     // exact firmware switch timing at a boundary awaits hardware measurement.
     out.slide = incoming;
     out.trigger = e.edge
-        && e.phase < 1.0e-8
+        && e.phase < EDGE_PHASE_TOLERANCE
         && pattern.time[position] == Time::Note
         && (!incoming || e.resync);
     out
@@ -446,7 +455,10 @@ fn track_command(
             + i16::from(chain.entries[m].transpose))
         .clamp(0, 127) as u8,
         gate: next == Time::Tie || s.slide || e.phase < timing.gate_fraction,
-        trigger: e.edge && e.phase < 1.0e-8 && current == Time::Note && (!incoming || e.resync),
+        trigger: e.edge
+            && e.phase < EDGE_PHASE_TOLERANCE
+            && current == Time::Note
+            && (!incoming || e.resync),
         accent: s.accent,
         slide: incoming,
     }

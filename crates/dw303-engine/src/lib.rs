@@ -389,7 +389,7 @@ pub fn factory_memory() -> Memory {
 mod tests {
     use super::*;
     use link::Mode;
-    use ravet_foundation::{AudioBuffer, AudioLayout, Transport};
+    use ravet_foundation::{AudioBuffer, AudioLayout, Event, Transport};
     fn tap(link: &PanelLink, button: Button) {
         link.push(PanelAction::Press(button)).unwrap();
         link.push(PanelAction::Release(button)).unwrap();
@@ -482,5 +482,63 @@ mod tests {
         render(&mut engine);
         assert!(!engine.last_command().gate);
         assert!(!link.display().unwrap().running);
+    }
+    /// Tempo automation while the internal clock runs must not repeat or drop
+    /// steps: every step boundary advances exactly once (user report: tempo
+    /// changes "stutter").
+    #[test]
+    fn tempo_automation_keeps_steps_monotonic() {
+        const TEMPO_EVERY: usize = 64;
+        let rate = 48_000.0;
+        let mut engine = Dw303Engine::new();
+        engine
+            .prepare(ProcessConfig::new(rate, 1, 8, AudioLayout::STEREO_INSTRUMENT).unwrap())
+            .unwrap();
+        engine.set_pattern(Pattern {
+            time: [Time::Note; 16],
+            ..Pattern::default()
+        });
+        let set = |id, value| Event {
+            frame_offset: 0,
+            data: EventData::ParameterValue { id, value },
+        };
+        let mut triggers = Vec::new();
+        let total = (rate * 4.0) as usize;
+        for n in 0..total {
+            let t = n as f64 / rate;
+            let mut events = vec![];
+            if n == 0 {
+                events.push(set(params::SYNC_MODE, 0.0));
+                events.push(set(params::RUN, 1.0));
+            }
+            if n % TEMPO_EVERY == 0 {
+                // Sweep 120 -> 180 -> 90 BPM, as a knob drag would.
+                let bpm = if t < 2.0 {
+                    120.0 + 30.0 * t
+                } else {
+                    180.0 - 45.0 * (t - 2.0)
+                };
+                events.push(set(params::TEMPO, bpm as f32));
+            }
+            let mut left = [0.0f32; 1];
+            let mut right = [0.0f32; 1];
+            let mut outputs = [&mut left[..], &mut right[..]];
+            let audio = AudioBuffer::separate(&[], &mut outputs, 1).unwrap();
+            let mut block = ProcessBlock::new(audio, &events, Transport::default());
+            assert_eq!(engine.process(&mut block), ProcessStatus::Continue);
+            if engine.last_command().trigger {
+                triggers.push(n);
+            }
+        }
+        // 16th notes between 90 and 180 BPM last 83..167 ms.
+        assert!(triggers.len() > 20, "{} triggers", triggers.len());
+        for pair in triggers.windows(2) {
+            let ms = (pair[1] - pair[0]) as f64 * 1000.0 / rate;
+            assert!(
+                (75.0..=180.0).contains(&ms),
+                "step interval {ms:.1} ms at sample {}",
+                pair[1]
+            );
+        }
     }
 }

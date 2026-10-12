@@ -999,11 +999,11 @@ node.addEventListener('wheel',event=>{event.preventDefault();knob.commit(knob.cu
 // Preserve RAVET gesture ownership while extending its Shift fine mode to Alt.
 node.addEventListener('pointermove',event=>{if(event.altKey)Object.defineProperty(event,'shiftKey',{value:true});},true);
 node.addEventListener('wheel',event=>{event.preventDefault();knob.commit(knob.current+(event.deltaY<0?1:-1)*0.01*((event.shiftKey||event.altKey)?0.1:1));},{passive:false});}
-{const node=document.getElementById('param-8');node.setAttribute('aria-label','Volume');node.title='Volume';const knob=new RavetControls.Knob(node,null,{id:7,minimum:0,maximum:1,step:0.001,value:0.7},post);controls.set(7,knob);
+{const node=document.getElementById('param-7');node.setAttribute('aria-label','Volume');node.title='Volume';const knob=new RavetControls.Knob(node,null,{id:7,minimum:0,maximum:1,step:0.001,value:0.7},post);controls.set(7,knob);
 // Preserve RAVET gesture ownership while extending its Shift fine mode to Alt.
 node.addEventListener('pointermove',event=>{if(event.altKey)Object.defineProperty(event,'shiftKey',{value:true});},true);
 node.addEventListener('wheel',event=>{event.preventDefault();knob.commit(knob.current+(event.deltaY<0?1:-1)*0.01*((event.shiftKey||event.altKey)?0.1:1));},{passive:false});}
-{const node=document.getElementById('param-7');node.setAttribute('aria-label','Tempo');node.title='Tempo';const knob=new RavetControls.Knob(node,null,{id:8,minimum:40,maximum:300,step:0.1,value:120},post);controls.set(8,knob);
+{const node=document.getElementById('param-8');node.setAttribute('aria-label','Tempo');node.title='Tempo';const knob=new RavetControls.Knob(node,null,{id:8,minimum:40,maximum:300,step:0.1,value:120},post);controls.set(8,knob);
 // Preserve RAVET gesture ownership while extending its Shift fine mode to Alt.
 node.addEventListener('pointermove',event=>{if(event.altKey)Object.defineProperty(event,'shiftKey',{value:true});},true);
 node.addEventListener('wheel',event=>{event.preventDefault();knob.commit(knob.current+(event.deltaY<0?1:-1)*2.6*((event.shiftKey||event.altKey)?0.1:1));},{passive:false});}
