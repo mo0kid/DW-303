@@ -44,7 +44,7 @@ fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
             (0.0, false, c.r138),
             (1.0, false, c.r138 + c.vr6),
             (1.0, true, c.r138),
-            (0.5, false, c.r138 + 0.1 * c.vr6),
+            (0.5, false, c.r138 + c.vr6_taper[5] * c.vr6),
         ] {
             let mut m = Meg::new(c);
             m.prepare(rate).unwrap();
@@ -75,9 +75,10 @@ fn meg_charge_buffer_clamp_and_decay_follow_r152_r138_vr6_c62() {
             1e-12,
         );
     }
-    // Printed 100%→10% maximum is 2.5 s; the minimum sketch is approximate.
-    near((c.r138 + c.vr6) * c.c62 * 10.0_f64.ln(), 2.5, 0.05);
-    near(c.r138 * c.c62 * 10.0_f64.ln(), 0.2, 0.05);
+    // Fitted electrical time constants, within capacitor/pot tolerances.
+    near((c.r138 + c.vr6) * c.c62, 0.82783, 0.001);
+    near((c.r138 + c.vr6_taper[5] * c.vr6) * c.c62, 0.1908, 0.001);
+    near(c.r138 * c.c62, 0.06783, 0.001);
 }
 
 #[test]
@@ -225,7 +226,7 @@ fn fitted_cutoff_track_reproduces_identified_tail_currents() {
 }
 
 #[test]
-fn veg_c42_recharges_in_1_5_seconds_and_gate_removes_current() {
+fn veg_c42_recharge_and_q31_junction_tail_are_rate_independent() {
     let c = Components::NOMINAL;
     for rate in rates() {
         let mut v = Veg::new(c);
@@ -241,13 +242,13 @@ fn veg_c42_recharges_in_1_5_seconds_and_gate_removes_current() {
             v.tick(0.0);
         }
         let old = v.capacitor_voltage();
-        let n = (rate * 1.5) as usize;
+        let n = (rate * c.r123 * c.c42).round() as usize;
         for _ in 0..n {
             v.tick(0.0);
         }
         near(
             v.capacitor_voltage(),
-            c.supply + (old - c.supply) * (-1.0_f64).exp(),
+            c.supply + (old - c.supply) * (-(n as f64) / rate / (c.r123 * c.c42)).exp(),
             0.002,
         );
         v.set_gate(false);
@@ -257,9 +258,48 @@ fn veg_c42_recharges_in_1_5_seconds_and_gate_removes_current() {
         for _ in 0..(rate * 2.0) as usize {
             v.tick(0.0);
         }
-        assert_eq!(v.tick(0.0), 0.0);
+        assert!(v.tick(0.0) < 10e-9);
         v.reset();
         near(v.capacitor_voltage(), 12.0, 1e-12);
+    }
+}
+
+#[test]
+fn q31_current_obeys_junction_equation_and_has_a_smooth_low_current_tail() {
+    let c = Components::NOMINAL;
+    let mut tails = [0.0; 3];
+    for (index, rate) in rates().into_iter().enumerate() {
+        let mut v = Veg::new(c);
+        v.prepare(rate).unwrap();
+        for _ in 0..(rate * 0.0014).round() as usize {
+            v.tick(c.supply - c.saturation);
+        }
+        let mut previous = 1e-3;
+        for sample in 0..(rate * 3.6).round() as usize {
+            let current = v.tick(0.0);
+            if sample > (rate * 0.05) as usize {
+                assert!(current <= previous + 1e-15);
+                let emitter_headroom =
+                    c.supply - c.saturation - c.diode_drop - v.capacitor_voltage();
+                let junction = c.vbe + c.thermal_voltage * (current / c.q31_reference_current).ln();
+                near(
+                    emitter_headroom,
+                    (c.r131 + c.r133) * current + junction,
+                    1e-8,
+                );
+            }
+            previous = current;
+            if sample == (rate * 3.2).round() as usize {
+                tails[index] = current;
+                // The former fixed-Vbe source cut off abruptly in this region.
+                assert!((50e-9..2e-6).contains(&current));
+            }
+        }
+        v.set_gate(false);
+        assert_eq!(v.tick(0.0), 0.0);
+    }
+    for tail in tails {
+        near(tail, tails[2], tails[2] * 0.01);
     }
 }
 

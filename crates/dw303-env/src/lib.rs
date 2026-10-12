@@ -19,6 +19,12 @@ macro_rules! components {
             /// VERIFY: VR3 wiper fractions at 0.1 panel increments, fitted to
             /// session1 ring/grid spectra; see vcf-calibration.md.
             pub vr3_taper: [f64; 11],
+            /// VERIFY: VR5 electrical fractions at tenth-turn intervals, fitted
+            /// to session1 envelope spectra; printed A law is unspecified.
+            pub vr5_taper: [f64; 11],
+            /// VERIFY: VR6 electrical fractions at tenth-turn intervals, fitted
+            /// to session1 effective decay; output-only identification.
+            pub vr6_taper: [f64; 11],
         }
         impl Components {
             /// Reconciled service-note values; device assumptions remain flagged.
@@ -27,6 +33,11 @@ macro_rules! components {
                 vr3_taper: [0.0, 0.016988877, 0.048210059, 0.078453452,
                             0.100557131, 0.124966812, 0.1415,
                             0.292831010, 0.621164626, 0.978428507, 1.0],
+                vr5_taper: [0.0, 0.00689807, 0.01760141, 0.03420803,
+                            0.05967361, 0.1, 0.16180566, 0.36, 0.65, 0.92, 1.0],
+                vr6_taper: [0.0, 0.038644737, 0.07275, 0.10875, 0.133381579,
+                            0.161802632, 0.195907895, 0.398644737, 0.616539474,
+                            0.815486842, 1.0],
             };
             fn guarded(mut self) -> Self {
                 let zero_trim = self.tm3 == 0.0;
@@ -39,6 +50,16 @@ macro_rules! components {
                     || self.vr3_taper.windows(2).any(|p| !p[0].is_finite()
                         || !p[1].is_finite() || p[0] > p[1]) {
                     self.vr3_taper = Self::NOMINAL.vr3_taper;
+                }
+                for (track, nominal) in [
+                    (&mut self.vr5_taper, Self::NOMINAL.vr5_taper),
+                    (&mut self.vr6_taper, Self::NOMINAL.vr6_taper),
+                ] {
+                    if track[0] != 0.0 || track[10] != 1.0
+                        || track.windows(2).any(|p| !p[0].is_finite()
+                            || !p[1].is_finite() || p[0] > p[1]) {
+                        *track = nominal;
+                    }
                 }
                 self
             }
@@ -59,11 +80,14 @@ components! {
     /// R152, D37 to C62 charge resistance.
     r152 = 100.0;
     /// C62, MEG storage to ground.
-    c62 = 1e-6;
+    /// VERIFY: 1 µF nominal → 0.95 µF fitted electrolytic tolerance.
+    c62 = 0.95e-6;
     /// R138, fixed MEG discharge resistance.
-    r138 = 68e3;
+    /// VERIFY: 68 kΩ nominal → 71.4 kΩ fitted (+5%) to preserve accent decay.
+    r138 = 71.4e3;
     /// VR6, 1 MΩ A DECAY rheostat, wiper strapped to terminal 3.
-    vr6 = 1e6;
+    /// VERIFY: 1 MΩ nominal → 0.8 MΩ fitted track (−20% tolerance limit).
+    vr6 = 0.8e6;
     /// VR7, 50 kΩ B ACCENT divider.
     vr7 = 50e3;
     /// R46, D24 to resonance gang B terminal 1.
@@ -71,7 +95,8 @@ components! {
     /// VR4B, 50 kΩ B RESONANCE second gang.
     vr4b = 50e3;
     /// C13, resonance gang B terminal 3 to ground.
-    c13 = 1e-6;
+    /// VERIFY: 1 µF nominal → 0.8 µF fitted sweep capacitor tolerance.
+    c13 = 0.8e-6;
     /// R72, gang B wiper to EXP_B.
     r72 = 100e3;
     /// R71, EXP_B to VQ9.
@@ -99,7 +124,8 @@ components! {
     /// R123, C42 recharge from +12 V.
     r123 = 1.5e6;
     /// C42, Q31 base storage to ground, positive at the base.
-    c42 = 1e-6;
+    /// VERIFY: 1 µF nominal → 1.05 µF session1 held-note tolerance fit.
+    c42 = 1.05e-6;
     /// R130, Q32 emitter degeneration.
     r130 = 100.0;
     /// R132, C42 to Q32 collector.
@@ -168,8 +194,18 @@ components! {
     expo_is_ratio = 3.074_323_408_395_499;
     /// VERIFY: BA662A pin 1 bias voltage, absent from service-note transfer data.
     ota_control_voltage = 0.65;
+    /// VERIFY: Q31 collector current at the reference Vbe; inferred device law,
+    /// not a printed part parameter or internal-node measurement.
+    q31_reference_current = 47e-6;
     /// VERIFY: BA662A current-mirror factor in Iout = factor*Iabc*tanh(Vdiff/2VT).
     ota_mirror_ratio = 1.0;
+}
+
+// A bounded interpolation of the fitted electrical pot track, not an envelope.
+fn track_fraction(track: [f64; 11], rotation: f64) -> f64 {
+    let position = rotation * 10.0;
+    let index = (position as usize).min(9);
+    track[index] + (track[index + 1] - track[index]) * (position - index as f64)
 }
 
 /// Per-stage sanitisation telemetry, cleared by reset.
@@ -193,6 +229,8 @@ struct Fixed {
     accent_tau_off: f64,
     accent_inverse_r: f64,
     ota_scale: f64,
+    q31_scale: f64,
+    q31_log_reference: f64,
     inverse_two_vt: f64,
     output_tau: f64,
     line_tau: f64,
@@ -210,6 +248,10 @@ impl Fixed {
             accent_tau_off: c.r119 * c.c36,
             accent_inverse_r: 1.0 / c.r120,
             ota_scale: parallel(c.r128, c.r129 + c.r127) * c.ota_mirror_ratio,
+            q31_scale: c.thermal_voltage / (c.r131 + c.r133),
+            q31_log_reference: libm::log(
+                c.q31_reference_current * (c.r131 + c.r133) / c.thermal_voltage,
+            ),
             inverse_two_vt: 1.0 / (2.0 * c.thermal_voltage),
             output_tau: c.vr8 * c.c38,
             line_tau: (c.r161 + c.r165) * c.c56,
@@ -380,7 +422,7 @@ impl Meg {
             .max(0.0)
             .min(self.circuit.c.supply);
         let decay = self.circuit.knob(decay);
-        let track = self.circuit.audio(0, decay);
+        let track = track_fraction(self.circuit.c.vr6_taper, decay);
         let c = self.circuit.c;
         let r = c.r138 + if accent { 0.0 } else { track * c.vr6 };
         let floor = 3.0 * c.diode_drop;
@@ -557,7 +599,7 @@ impl FilterControl {
         let index = (position as usize).min(9);
         let kc = c.vr3_taper[index]
             + (c.vr3_taper[index + 1] - c.vr3_taper[index]) * (position - index as f64);
-        let ke = self.circuit.audio(1, env);
+        let ke = track_fraction(c.vr5_taper, env);
         let low_c = c.r47 + kc * c.vr3;
         let high_c = (1.0 - kc) * c.vr3;
         let vw = reference + (c.supply - reference) * low_c / (low_c + high_c);
@@ -687,8 +729,26 @@ impl Veg {
                     .rc(3, self.capacitor, c.supply, self.circuit.dt, c.r123 * c.c42);
         }
         if self.gate {
-            ((c.supply - c.saturation - c.diode_drop - c.vbe - self.capacitor) / (c.r131 + c.r133))
-                .max(0.0)
+            // Emitter degeneration plus the PNP junction equation. A fixed Vbe
+            // truncates the physical low-current tail at an arbitrary voltage.
+            // VERIFY: ideality one and Vbe at 47 µA require device validation.
+            let scale = self.circuit.fixed.q31_scale;
+            let x = (c.supply - c.saturation - c.diode_drop - c.vbe - self.capacitor)
+                / c.thermal_voltage
+                + self.circuit.fixed.q31_log_reference;
+            // Solve y + ln(y) = x (positive Lambert-W branch). At most four
+            // Newton steps; asymptotic seeds avoid overflow and negative y.
+            let mut y = if x > 1.0 {
+                x - libm::log(x)
+            } else {
+                libm::exp(x.max(-80.0))
+            };
+            let iterations = if x.abs() > 16.0 { 2 } else { 4 };
+            for _ in 0..iterations {
+                y -= (y + libm::log(y) - x) * y / (y + 1.0);
+                y = y.max(1e-36);
+            }
+            flush(scale * y)
         } else {
             0.0
         }
