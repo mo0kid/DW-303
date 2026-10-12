@@ -12,3 +12,4 @@ __pycache__/
 /reference/captures/2026-10-12-test*/
 /tools/analysis/harness/cache/
 __pycache__/
+/tools/analysis/harness/.cache/
