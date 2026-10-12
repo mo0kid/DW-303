@@ -52,6 +52,9 @@ fn main() -> Result<(), Error> {
     if args.first().map(String::as_str) == Some("levels") {
         return levels(&args);
     }
+    if args.first().map(String::as_str) == Some("midi-scan") {
+        return midi_scan(&args);
+    }
     match args.first().map(String::as_str) {
         Some("session" | "plan") => {
             return match measurement_session(&args) {
@@ -714,6 +717,101 @@ fn levels(args: &[String]) -> Result<(), Error> {
         if count == 0 {
             thread::sleep(Duration::from_millis(2));
         }
+    }
+    for ch in 0..16u8 {
+        let _ = midi.send(&[0xb0 | ch, 123, 0]);
+    }
+    Ok(())
+}
+
+/// Find the unit's MIDI receive channel and playable key range: for each MIDI
+/// channel 1..16, play one note and report the peak on the selected input;
+/// then, on the loudest channel, try keys 12..96 in octaves.
+///
+///   dw303-capture midi-scan --audio-device ID --channel N --midi-out NAME
+fn midi_scan(args: &[String]) -> Result<(), Error> {
+    let input: usize = option(args, "--channel")?.parse()?;
+    let audio_id = option(args, "--audio-device")?;
+    let info = ravet_device::input_devices()?
+        .into_iter()
+        .find(|d| d.id == audio_id)
+        .ok_or("unknown audio ID")?;
+    let config = info
+        .configurations
+        .iter()
+        .find(|c| {
+            c.sample_format() == cpal::SampleFormat::F32
+                && c.min_sample_rate() <= 96_000
+                && c.max_sample_rate() >= 96_000
+        })
+        .ok_or("device has no f32 input configuration at 96 kHz")?;
+    let channels = usize::from(config.channels());
+    if input == 0 || input > channels {
+        return Err("input channel out of range".into());
+    }
+    let device = ravet_device::input_device(Some(audio_id))?.ok_or("device disappeared")?;
+    let (stream, mut consumer) = ravet_device::open_input(
+        &device,
+        cpal::StreamConfig {
+            channels: channels as u16,
+            sample_rate: 96_000,
+            buffer_size: cpal::BufferSize::Default,
+        },
+        65536,
+    )?;
+    stream.play()?;
+    let midi_name = option(args, "--midi-out")?;
+    let port = ravet_midi_device::output_ports()?
+        .into_iter()
+        .find(|p| p.name == midi_name)
+        .ok_or("MIDI output not found")?;
+    let mut midi = ravet_midi_device::open_output(&port.id)?;
+    let mut buffer = vec![0.0f32; channels * 4096];
+    // Peak on the selected input over `seconds`, draining the ring.
+    let mut measure = |seconds: f64| -> Result<f32, Error> {
+        let start = Instant::now();
+        let mut peak = 0.0f32;
+        while start.elapsed().as_secs_f64() < seconds {
+            let count = consumer
+                .pop(&mut buffer)
+                .map_err(|e| format!("ring: {e:?}"))?;
+            for frame in buffer[..count * channels].chunks_exact(channels) {
+                peak = peak.max(frame[input - 1].abs());
+            }
+            if count == 0 {
+                thread::sleep(Duration::from_millis(2));
+            }
+        }
+        Ok(peak)
+    };
+    let db = |p: f32| 20.0 * p.max(1e-9).log10();
+    let floor = measure(0.5)?;
+    println!("Input {input} noise floor: {:.1} dBFS", db(floor));
+    let mut best = (0u8, 0.0f32);
+    for ch in 0..16u8 {
+        midi.send(&[0x90 | ch, 36, 100])?;
+        let peak = measure(0.6)?;
+        midi.send(&[0x80 | ch, 36, 0])?;
+        let _ = measure(0.4)?;
+        println!("MIDI channel {:>2}: {:>6.1} dBFS", ch + 1, db(peak));
+        if peak > best.1 {
+            best = (ch, peak);
+        }
+    }
+    if db(best.1) < db(floor) + 20.0 {
+        println!("No channel produced a note more than 20 dB above the noise floor.");
+        return Ok(());
+    }
+    println!(
+        "Unit answers on MIDI channel {}. Key range on that channel:",
+        best.0 + 1
+    );
+    for key in (12..=96).step_by(12) {
+        midi.send(&[0x90 | best.0, key, 100])?;
+        let peak = measure(0.6)?;
+        midi.send(&[0x80 | best.0, key, 0])?;
+        let _ = measure(0.4)?;
+        println!("  key {key:>3}: {:>6.1} dBFS", db(peak));
     }
     for ch in 0..16u8 {
         let _ = midi.send(&[0xb0 | ch, 123, 0]);
