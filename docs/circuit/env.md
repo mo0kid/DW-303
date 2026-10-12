@@ -700,3 +700,155 @@ Reports: `/tmp/env-before.json`, `/tmp/env3-score.json`,
 `/tmp/env3-full-score.json`, with matching Markdown companions. Final renderer
 SHA-256: `712176db16feaaba441b9770f48aa6a6f58ea1accee652b7e4dc4acc105f7ede`.
 Analysis SHA-256: `c62e2c0e72028d55d33f49a37f3d2acee6917575107bd33dfe376d10a1e741bb`.
+
+## Session-1 fitting round 4 (Harness v3, 2026-10-12)
+
+Baseline in this isolated worktree reproduces the merged round-3 Harness-v2
+score **0.8917369997**, all 346 WAV/JSON captures, zero analysis failures.
+The binding contract, PLAN sections 3/4/6, schematic ENV/VCA transcription,
+preceding 42-note audit and measured discrepancy document were reviewed.
+The only circuit-side edit is the permitted voice output calibration constant.
+FilterControl cutoff constants, all capacitor/resistor/device defaults,
+MonoNoteInput, renderer replay, manifests and dependencies are unchanged.
+
+### Timing and MIDI semantics audit
+
+The earlier 20%-peak pattern crossings confound arrival with waveform/attack
+shape. A read-only audit now uses bounded 0.5-ms RMS, 2%-peak arrivals with a
+pre-attack noise guard, and records both scheduled and logged-send timestamps.
+It is reproducible with `tools/analysis/harness/timing.py`; all note evidence is
+in `/tmp/env4-timing-audit.json`. See [Harness v3](../harness.md#harness-v3-2026-10-12-env-fitting-round-4)
+for the metric definition and unchanged-model comparison.
+
+| Probe | Gates | Schedule→arrival mean / SD / range (ms) | Send→arrival mean / SD / range (ms) |
+|---|---:|---:|---:|
+| loopback | 1 | 10.500 / — / — | 7.482 / — / — |
+| gate-80 | 4 | 8.750 / 1.677 / 4.500 | 6.834 / 0.822 / 2.074 |
+| gate-120 | 4 | 8.000 / 0.612 / 1.500 | 5.473 / 1.168 / 3.206 |
+| gate-160 | 4 | 7.438 / 1.891 / 4.750 | 5.922 / 1.190 / 3.281 |
+| pattern-classic | 16 | 4.438 / 0.864 / 3.000 | 3.720 / 0.844 / 2.352 |
+| pattern-accent-slide | 11 | 4.136 / 1.245 / 3.500 | 3.350 / 0.874 / 2.380 |
+| pattern-rests-ties | 10 | 6.050 / 1.739 / 5.500 | 4.943 / 1.661 / 4.595 |
+
+**VERIFY: timing attribution.** These are acoustic arrival variations,
+including waveform/attack dependence and the sidecar's estimated audio clock.
+Logged send subtraction removes host dispatch jitter but does not identify
+TD-3 firmware, MIDI transport, interface buffering or circuit delay separately.
+The single-note `loopback` probe cannot establish jitter independently. The
+20%-peak audit gave larger 5–8.5-ms pattern ranges; using those as arrival
+alignment worsened shape scores and was rejected. The low-threshold variations
+are still significant for logarithmic quiet-gap comparisons.
+
+The 42 scheduled pattern notes contain **37 genuine gate rises and five legato
+note-ons**. Each overlap retains its gate island, consistent with the existing
+last-note-priority, no-retrigger slide behavior and the round-3 note audit.
+`rests-ties` sends notes/rests rather than internal tie commands. Accent velocity
+120 versus normal 80 matches the existing >=100 threshold. There is no capture
+evidence establishing a different threshold, fixed gate fraction, same-key
+retrigger or accent hold after final release. MonoNoteInput therefore remains
+unchanged; the already rejected held-accent trial is not reintroduced.
+
+### Metric correction separated from model fitting
+
+V3 rigidly translates each model gate island to its measured reference arrival
+for trajectory shape, with changes in scheduled rests. It preserves note
+pitch, within-island decay, legato and release duration. Accent windows compare
+15–60 ms acoustic age in each instrument and its own `a00` baseline. Absolute
+level, fitted time constants and all pitch/VCF/glide features remain measured
+on original audio. Audible gate errors retain original 3-ms/20% crossings;
+only the first model/reference arrival difference is subtracted globally.
+Later onset jitter and release-duration discrepancies remain scored.
+
+On the **unchanged model**, v2 **0.8917369997 → v3 0.8822330482**. This is a
+change of objective, not circuit progress. Behavior contribution improves
+3.23%, amplitude 5.70%, envelopes 1.86%. Gate contribution increases **18.40%**
+and accent **4.76%**; these >2% increases are explicitly retained because the
+corrected measurement exposes errors hidden by mismatched acoustic ages.
+Gate on-error median improves **3.674 → 2.179 ms** while release-error median
+increases **1.500 → 4.444 ms**: after removing duplicated first attack,
+model audible releases are generally early. Accent level-increase p90 rises
+**2.960 → 3.319 dB**. Weights/scales are unchanged. None of these increases
+comes from a circuit edit, and no gain/time adjustment is made per capture.
+
+The timing correction only modestly improves patterns. `classic` normalized
+RMS trajectory is **6.467 → 6.026 dB**; `accent-slide` is **5.200 → 5.239 dB**;
+`rests-ties` is **4.545 → 4.005 dB**. Thus residual timing alone does not explain
+the remaining behavior score. A diagnostic of the largest v2 RMS errors found
+frames around note boundaries, e.g. classic at age 0.48 s **−44.6 dBFS hardware
+versus −85.8 dBFS model**, where a short analysis frame can include a different
+amount of the following attack. Low-frequency 30–76 Hz band trajectories and
+quiet coupling tails also differ; that does not independently identify a
+capacitor tolerance or justify an invented audio envelope/noise source.
+
+### Fitted calibration and VERIFY register
+
+| VERIFY item | Previous / nominal → fitted | Evidence and residual |
+|---|---|---|
+| `FULL_SCALE_VOLTS` | Original 5.12; round 3 **10.041 → 10.192 V/full scale** | One session-wide **−0.12965 dB** calibration. A bounded gain-only evaluation on v3 selected about −0.125…−0.13 dB; −0.13 dB was rebuilt and rescored. This is a TD-3/UMC1820 recording-chain estimate, not a printed part value or measured absolute voltage. Full amplitude contribution improves 0.73%, envelopes 3.99%, behavior 0.29%. Absolute amplitude median worsens 0.560 → 0.623 dB while p90 improves 2.564 → 2.460 dB; the objective balances the distribution. |
+| Acoustic-arrival estimate | One sidecar first offset → per-gate 2% RMS proxy | Hardware timing variations above justify explicit nuisance alignment for shape. 0.5-ms quantization, attack/phase, noise guard and rigid joins in rests remain approximations. `pitch-k24-t0` exceeds the 25-ms offset bound and keeps raw trajectory scoring with a warning. No data/notes are excluded. |
+
+All previous VERIFY registers remain binding: generic junction drops and
+D26–D28 clamp/IC12 Ron/supply; Q9/Q10/Q11/Q31/Q32/Q40/Q41 Vbe/Is/beta/matching
+and temperature; Q39 Idss; Q36/Q38/Q32 saturation/headroom, Q36 gate reference
+and C72 dynamics, Q31 reference/ideality/base-current reduction; BA662A pin-1,
+mirror gain/offset/feedthrough/buffer transfer; VR4 gang correlation and mutual
+accent-branch loading; fitted C13/C42/C62/C72/C38/C59/C56 and R138/VR6/R119/R120
+tolerances; VR5/VR6/VR8 tracks; VCF-owned cutoff/expo/trim calibration; omitted
+C38/VR8/C59 mutual loading; interface response/noise/voltage calibration;
+transcription duplicate C22/D27, R147 notation, CPU strobe/TP6/headphone
+ambiguities. Their nominal→fitted values are in the preceding round tables;
+none was retuned in this round.
+
+Remaining model error is compatible with several unmeasured mechanisms:
+Q36 saturation/storage and output coupling can affect gate release; MEG/VCF
+large-signal response, accent branch loading and OTA transfer affect high
+accent level/brightness. Quiet-gap transients, low-frequency phase and input
+noise affect behavior/amplitude. Output audio alone does not identify these
+uniquely. The current electrically plausible fitted component bounds are
+retained rather than extending tolerances or altering MIDI semantics to absorb
+capture timing. Electrical loopback with repeated edges, timestamped MIDI,
+calibrated input response and internal gate/envelope probes are needed to
+separate those remaining terms.
+
+### Final same-v3 results
+
+Final rebuilt **overall 0.8822330482 → 0.8779866621** (**0.48% improvement**).
+Requested subset **1.3469 → 1.3423**. Relative to the original v2 report the
+final number is 0.8917 → 0.8780, but those different objectives must not be
+reported as one circuit improvement. All **346/346** captures are analysed,
+**zero failures**, one explicitly warned raw-alignment fallback.
+
+| Category | V2 baseline median / p90 | V3 unchanged median / p90 | V3 final median / p90 | Same-v3 contribution change |
+|---|---:|---:|---:|---:|
+| behavior | 2.6445 / 2.7299 | 2.5360 / 2.7113 | 2.5213 / 2.7257 | −0.29% |
+| amplitude | 0.9356 / 2.9636 | 0.8725 / 2.8242 | 0.8584 / 2.8266 | −0.73% |
+| gate | 0.5174 / 0.7761 | 0.6624 / 0.7697 | 0.6624 / 0.7697 | 0.00% |
+| accent | 0.2478 / 0.9090 | 0.2485 / 0.9856 | 0.2485 / 0.9856 | <0.00001% |
+
+No category worsens by >2% under the same v3 metric. Envelopes improve 3.99%;
+pitch, tuning, waveform, VCF and slide are unchanged to reporting precision.
+The numerical effect on those categories is float-WAV rounding after the
+single global gain adjustment, not a DSP topology change.
+
+Validation: **122 workspace tests passed**, zero failures, four manual tests
+ignored, using explicit offline `-p` selections for all ten workspace packages.
+**17 Python metric tests pass**, including retained gain/release mismatch,
+identity, silent-arrival rejection, overlaps/channel identity and gate-origin
+correction. ENV/voice/sequencer/renderer all-target Clippy with `-D warnings`,
+package-scoped rustfmt checks and `git diff --check` pass. The DSP change adds
+no allocations, locks, loops or nonlinear work. No dependencies or commits.
+
+Reports: `/tmp/env4-before-full.json`, `/tmp/env4-v3-unchanged-full.json`,
+`/tmp/env4-score.json`, `/tmp/env4-full-score.json` and matching Markdown;
+`/tmp/env4-timing-audit.json` contains the per-arrival reference measurements.
+Final renderer SHA-256:
+`b7e91a487996431c93051d44a17655be55c95876e5ef96f5f51be55e1508c48f`.
+Final analysis SHA-256:
+`7164879656a7304f1483c53fc542186545414c1abc0218f7373eb743125c90d1`.
+
+Three sequential warmed eight-second Full Circuit renders at 48 kHz measured
+**1.349 / 1.347 / 1.345 s**, **16.9 / 16.8 / 16.8% of one core**.
+Each processed **1,536,000** VCF samples, maximum Newton count **3**,
+**zero non-convergence** and zero sanitized inputs. These are isolated wall-clock
+observations after scoring completed, not a hard scheduling guarantee.
+Reproduce with `target/release/dw303-render /tmp/env4-cpu.wav --seconds 8 --rate 48000`.

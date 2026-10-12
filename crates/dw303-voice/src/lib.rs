@@ -69,9 +69,11 @@ pub const VCO_BAND_LIMIT_HZ: f64 = 20_000.0;
 /// Round 1 used 11.595 V after a +7.10 dB baseline correction; round 2
 /// used 10.334 V. Round 3 adds 0.25 dB after the physical envelope fit,
 /// minimizing the full Harness-v2 objective with one session-wide gain.
+/// Round 4 uses 10.192 V (about −0.13 dB) after the Harness-v3 timing audit;
+/// see docs/circuit/env.md for unchanged-model v2/v3 scores and residuals.
 /// This calibrates the recording chain, not a TB-303 component value.
 /// VERIFY: absolute volts are unknown (no interface dBFS-per-volt calibration).
-pub const FULL_SCALE_VOLTS: f64 = 10.041;
+pub const FULL_SCALE_VOLTS: f64 = 10.192;
 
 /// Knob positions as panel rotation fractions (0 = fully counter-clockwise).
 #[derive(Clone, Copy, Debug, PartialEq)]
