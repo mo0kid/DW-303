@@ -30762,3 +30762,2472 @@ clock = false
 instructions = "MIDI-to-audio first-note calibration. Connect unit output to selected input. Quiet input during pre-roll; cutoff max, resonance/env mod min. No device opened by tests."
 notes = [[0, 60, 2, 80]]
 settings = { tuning = 0.5, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+# Session 2: interaction constraints and exact pattern repeats (03-combos.toml).
+# VERIFY: physical knob placement and settling on the TD-3; see docs/capture.md.
+
+[[capture]]
+id = "combo-c02-e00-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e00-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e06-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c02-e10-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.2, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e00-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e06-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c04-e10-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e00-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e06-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r00-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r00-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r00-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r00-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r05-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r05-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r05-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r05-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.5, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r08-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r08-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r08-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r08-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 0.8, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r10-k36-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r10-k36-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r10-k48-single"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 3, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-c06-e10-r10-k48-phrase"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.6, resonance = 1.0, env_mod = 1.0, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r00-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r00-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r00-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r00-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r05-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r05-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r05-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r05-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r08-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r08-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r08-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r08-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r10-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r10-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r10-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d00-r10-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r00-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r00-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r00-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r00-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r05-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r05-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r05-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r05-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r08-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r08-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r08-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r08-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r10-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r10-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r10-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d25-r10-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.25, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r00-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r00-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r00-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r00-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r05-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r05-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r05-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r05-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r08-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r08-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r08-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r08-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r10-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r10-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r10-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d75-r10-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.75, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r00-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r00-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r00-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r00-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r05-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r05-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r05-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r05-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r08-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r08-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r08-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r08-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r10-k36-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 36, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r10-k36-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 36, 0.125, 80], [0.25, 36, 0.125, 80], [0.5, 36, 0.125, 80], [0.75, 36, 0.125, 80], [1.0, 36, 0.125, 80], [1.25, 36, 0.125, 80], [1.5, 36, 0.125, 80], [1.75, 36, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r10-k48-single"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "combo-decay-d100-r10-k48-phrase"
+seconds = 6.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.0, 48, 0.125, 80], [1.25, 48, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 1.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r00-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r00-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r05-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r05-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r08-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r08-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n1-r10-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a00-n4-r10-v80"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 80], [0.25, 48, 0.125, 80], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n1-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n4-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n1-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n4-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n1-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n4-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n1-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a25-n4-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.25, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n1-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n4-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n1-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n4-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n1-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n4-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n1-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a50-n4-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.5, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n1-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n4-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n1-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n4-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n1-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n4-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n1-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a75-n4-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 0.75, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n1-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n4-r00"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.0, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n1-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n4-r05"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.5, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n1-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n4-r08"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n1-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "accent2-a100-n4-r10"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 120], [0.5, 48, 0.125, 120], [0.75, 48, 0.125, 120]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 1.0, env_mod = 0.6, decay = 0.5, accent = 1.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k24-t25"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 24, 7, 80]]
+settings = { tuning = 0.25, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k48-t25"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.25, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k72-t25"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 72, 7, 80]]
+settings = { tuning = 0.25, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k24-t75"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 24, 7, 80]]
+settings = { tuning = 0.75, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k48-t75"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 48, 7, 80]]
+settings = { tuning = 0.75, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "tuning2-k72-t75"
+seconds = 4.0
+tempo = 120.0
+clock = false
+instructions = ""
+notes = [[0, 72, 7, 80]]
+settings = { tuning = 0.75, cutoff = 1.0, resonance = 0.0, env_mod = 0.0, decay = 0.0, accent = 0.0, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-classic-01"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-classic; take 1/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 80], [0.5, 60, 0.125, 80], [0.75, 55, 0.125, 80], [1.0, 48, 0.125, 120], [1.25, 51, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 60, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 55, 0.125, 80], [2.5, 51, 0.125, 80], [2.75, 48, 0.125, 80], [3.0, 60, 0.125, 120], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80], [3.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-accent-slide-01"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-accent-slide; take 1/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.3, 120], [0.25, 60, 0.125, 80], [0.5, 55, 0.125, 80], [0.75, 48, 0.3, 80], [1.0, 51, 0.125, 120], [1.25, 63, 0.125, 80], [1.5, 55, 0.3, 80], [1.75, 48, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 60, 0.3, 80], [2.5, 55, 0.125, 80], [2.75, 51, 0.125, 80], [3.0, 48, 0.3, 120], [3.25, 55, 0.125, 80], [3.5, 60, 0.125, 80], [3.75, 48, 0.3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-rests-ties-01"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-rests-ties; take 1/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.25, 60, 0.125, 80], [1.75, 55, 0.125, 80], [2.0, 48, 0.125, 120], [2.5, 48, 0.125, 80], [2.75, 60, 0.125, 80], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-classic-02"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-classic; take 2/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 80], [0.5, 60, 0.125, 80], [0.75, 55, 0.125, 80], [1.0, 48, 0.125, 120], [1.25, 51, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 60, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 55, 0.125, 80], [2.5, 51, 0.125, 80], [2.75, 48, 0.125, 80], [3.0, 60, 0.125, 120], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80], [3.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-accent-slide-02"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-accent-slide; take 2/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.3, 120], [0.25, 60, 0.125, 80], [0.5, 55, 0.125, 80], [0.75, 48, 0.3, 80], [1.0, 51, 0.125, 120], [1.25, 63, 0.125, 80], [1.5, 55, 0.3, 80], [1.75, 48, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 60, 0.3, 80], [2.5, 55, 0.125, 80], [2.75, 51, 0.125, 80], [3.0, 48, 0.3, 120], [3.25, 55, 0.125, 80], [3.5, 60, 0.125, 80], [3.75, 48, 0.3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-rests-ties-02"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-rests-ties; take 2/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.25, 60, 0.125, 80], [1.75, 55, 0.125, 80], [2.0, 48, 0.125, 120], [2.5, 48, 0.125, 80], [2.75, 60, 0.125, 80], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-classic-03"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-classic; take 3/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 80], [0.5, 60, 0.125, 80], [0.75, 55, 0.125, 80], [1.0, 48, 0.125, 120], [1.25, 51, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 60, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 55, 0.125, 80], [2.5, 51, 0.125, 80], [2.75, 48, 0.125, 80], [3.0, 60, 0.125, 120], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80], [3.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-accent-slide-03"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-accent-slide; take 3/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.3, 120], [0.25, 60, 0.125, 80], [0.5, 55, 0.125, 80], [0.75, 48, 0.3, 80], [1.0, 51, 0.125, 120], [1.25, 63, 0.125, 80], [1.5, 55, 0.3, 80], [1.75, 48, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 60, 0.3, 80], [2.5, 55, 0.125, 80], [2.75, 51, 0.125, 80], [3.0, 48, 0.3, 120], [3.25, 55, 0.125, 80], [3.5, 60, 0.125, 80], [3.75, 48, 0.3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-rests-ties-03"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-rests-ties; take 3/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.25, 60, 0.125, 80], [1.75, 55, 0.125, 80], [2.0, 48, 0.125, 120], [2.5, 48, 0.125, 80], [2.75, 60, 0.125, 80], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-classic-04"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-classic; take 4/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.25, 48, 0.125, 80], [0.5, 60, 0.125, 80], [0.75, 55, 0.125, 80], [1.0, 48, 0.125, 120], [1.25, 51, 0.125, 80], [1.5, 48, 0.125, 80], [1.75, 60, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 55, 0.125, 80], [2.5, 51, 0.125, 80], [2.75, 48, 0.125, 80], [3.0, 60, 0.125, 120], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80], [3.75, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-accent-slide-04"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-accent-slide; take 4/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.3, 120], [0.25, 60, 0.125, 80], [0.5, 55, 0.125, 80], [0.75, 48, 0.3, 80], [1.0, 51, 0.125, 120], [1.25, 63, 0.125, 80], [1.5, 55, 0.3, 80], [1.75, 48, 0.125, 80], [2.0, 48, 0.125, 120], [2.25, 60, 0.3, 80], [2.5, 55, 0.125, 80], [2.75, 51, 0.125, 80], [3.0, 48, 0.3, 120], [3.25, 55, 0.125, 80], [3.5, 60, 0.125, 80], [3.75, 48, 0.3, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
+
+[[capture]]
+id = "repeat-rests-ties-04"
+seconds = 5.0
+tempo = 120.0
+clock = false
+instructions = "Exact replay of pattern-rests-ties; take 4/4. Keep the panel and interface gain unchanged throughout all twelve repeat captures."
+notes = [[0.0, 48, 0.125, 120], [0.5, 48, 0.125, 80], [0.75, 48, 0.125, 80], [1.25, 60, 0.125, 80], [1.75, 55, 0.125, 80], [2.0, 48, 0.125, 120], [2.5, 48, 0.125, 80], [2.75, 60, 0.125, 80], [3.25, 55, 0.125, 80], [3.5, 48, 0.125, 80]]
+settings = { tuning = 0.5, cutoff = 0.4, resonance = 0.8, env_mod = 0.6, decay = 0.5, accent = 0.7, volume = 1.0, waveform = "saw" }
