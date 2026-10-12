@@ -647,10 +647,14 @@ fn levels(args: &[String]) -> Result<(), Error> {
     let config = info
         .configurations
         .iter()
-        .find(|c| c.sample_format() == cpal::SampleFormat::F32)
-        .ok_or("device has no f32 input configuration")?;
+        .find(|c| {
+            c.sample_format() == cpal::SampleFormat::F32
+                && c.min_sample_rate() <= 96_000
+                && c.max_sample_rate() >= 96_000
+        })
+        .ok_or("device has no f32 input configuration at 96 kHz")?;
     let channels = usize::from(config.channels());
-    let rate = config.max_sample_rate();
+    let rate = 96_000;
     let device = ravet_device::input_device(Some(audio_id))?.ok_or("device disappeared")?;
     let (_stream, mut consumer) = ravet_device::open_input(
         &device,
