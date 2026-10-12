@@ -7,7 +7,7 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-2026-10-12.md](vcf-fitting-2026-10-12.md);
+validation are in [vcf-fitting-round3-2026-10-12.md](vcf-fitting-round3-2026-10-12.md);
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
@@ -21,10 +21,17 @@ half the arm-current difference:
 
 ```
 j_input = (I/2) tanh((base_left - base_right)/S)
-j_edge[i] = (I/2) sinh((v[i] - v[i+1])/S)
-j_top = (I/2) sinh(v[3]/S)
+j_edge[i] = (I/2) tanh((v[i] - v[i+1])/S)
+j_top = (I/2) tanh(v[3]/S)
 C[i] dv[i]/dt = j_previous - j_edge[i]
 ```
+
+The rung capacitors carry equal and opposite arm currents. With negligible
+base/common-mode currents, each rung's arm-current sum is the Q11 tail current.
+Eliminating its common-mode voltage gives the `tanh` law above; the previous
+fixed-common-mode `sinh` law incorrectly allowed that sum to grow with signal.
+The small-signal conductance remains `I/(4 VT)`. The inferred common-mode
+voltages are algebraic, so no new capacitor state is needed.
 
 This retains the loaded, tridiagonal ladder, rather than four buffered poles.
 R69 2.2K is in the common tail path and does not change an externally specified
@@ -51,16 +58,20 @@ Crossed C25/C27 (each 0.1µF) feed Q21R/Q21L respectively:
 ```
 b_right = -v[3]/2 - h25
 b_left  = +v[3]/2 - h27
-g_right = 1/R114 + 1/r_pi
-g_left  = 1/R113 + 1/r_pi
-dh25/dt = b_right g_right / C25
-dh27/dt = b_left  g_left  / C27
-C26 dv[3]/dt additionally subtracts (b_left g_left - b_right g_right)/2
+base_delta = Ic/beta * tanh((b_left-b_right)/(2 VT))
+i_right = b_right/R114 - base_delta
+i_left  = b_left/R113 + base_delta
+dh25/dt = i_right/C25
+dh27/dt = i_left/C27
+C26 dv[3]/dt additionally subtracts (i_left-i_right)/2
 ```
 
 R113/R114=100K alone yield 10 ms / 15.915 Hz corners. The current reduction
-also includes Q21 base loading, `r_pi = beta VT / Ic`; the fitted loaded
-corner is about 60.87 Hz. Both currents load the ladder top.
+also includes complementary nonlinear Q21 base currents. Their zero-signal
+linearisation is still `r_pi = beta VT / Ic`, with a loaded corner of about
+60.87 Hz; the DC base-current sum is absorbed into the settled bias. Both
+currents load the ladder top. Constant beta and stiff common-mode bias remain
+VERIFY assumptions.
 Q20 tail current is derived from R116/R112/R109's three-resistor divider,
 R108=2.2K and the estimated Vbe:
 
@@ -72,8 +83,8 @@ Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 
 For the printed-only gain with infinite beta and correction one,
 R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
-The current fitted gain correction and finite beta give 89.17 V/V and
-4.61 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
+The current fitted gain correction and finite beta give 92.44 V/V and
+4.78 V swing; the missing gain is explicitly provisional in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
 
@@ -110,11 +121,12 @@ All ten capacitor equations use implicit trapezoidal companions,
 The Newton solve includes the complete resonance loop without a sample delay.
 It uses at most eight iterations and eight backtracking trials per iteration,
 with absolute residual tolerance 1e-13 V and hold-on-failure telemetry.
-The exponential law has a linear tangent continuation beyond argument 20;
-that protects rejected trials from overflow and is inactive in normal use.
+The fixed-tail `tanh` law remains finite for arbitrarily large trial voltages;
+its derivative is bounded between zero and one.
 
 The linear correction eliminates the coupling states with a Schur reduction,
-including C14/C15's loaded-pot 2×2 block, then solves the tridiagonal ladder
+including C25/C27's complementary-base-current 2×2 block and C14/C15's
+loaded-pot 2×2 block, then solves the tridiagonal ladder
 and its feedback corner. Fixed-size partial-pivot elimination is the fallback.
 Static reciprocals, RC rates and transistor scale/gain are cached on construction.
 Warm starts use cubic extrapolation of four accepted endpoints for smoothly
@@ -139,7 +151,8 @@ loaded C25/C27, C14, C15 and C23 at RES max. The bounded search returns
 ENV MOD, DECAY and ACCENT minima and CUTOFF centre are integrator settings.
 The helper does not assume a knob-to-current mapping.
 
-Nominal 500 Hz pole calibration gives **23.1996 µA**. A small impulse produces
+Historical printed-only, infinite-beta 500 Hz pole calibration gave **23.1996 µA**.
+For the current fitted components, see the round-3 report above. A small impulse produces
 first peak-to-peak periods of **1.896 / 1.906 / 1.906 ms** at 48/96/192 kHz,
 inside page 7's 2 ms ±0.5 ms adjustment window. Early peaks contain other
 modes, so their spacing differs slightly from the isolated pole's 2 ms.
@@ -190,14 +203,16 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 2. `Components::vbe`: Q20 Vbe=0.65 V is an estimate. It sets tail current,
    Q21 gain, clipping amplitude and calibration current. The schematic's
    unspecified individual transistor types, Is/β and matching remain unknown.
-3. `Vcf::flow`: fixed arm common-mode reduction omits large-signal
-   common-mode redistribution, finite β, Early effect and junction capacitance.
+3. `Vcf::flow`: algebraic common-mode elimination neglects ladder base currents,
+   Early effect, common-mode/junction capacitance and common-mode Q21 loading.
+   Differential Q21 loading is retained. Stiff settled rails remain assumed.
 4. `Vcf::nodes`: Q18/Q19 are ideal unity followers with fixed settled bias,
    infinite β and no Early effect/parasitics. Q20 base loading is omitted;
-   Q21 includes fixed-bias linear r_pi but omits nonlinear base current. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
+   Q21 includes complementary nonlinear base currents, but retains constant beta,
+   fixed tail current and settled common-mode base bias. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
 
 5. `Components::output_beta`: fitted Q21 beta 350 is unprinted and unmeasured.
-6. `Components::output_gain_correction`: fitted gain multiplier 8.2 remains
+6. `Components::output_gain_correction`: fitted gain multiplier 8.5 remains
    unresolved against the printed Q20/R108/R110 gain; see the current fit register.
 
 Additional transcription open items: TP6's attachment / printed DC levels

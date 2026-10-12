@@ -372,3 +372,46 @@ fn resonance_decays_across_the_complete_control_current_range() {
         }
     }
 }
+
+#[test]
+fn large_signal_excitation_does_not_leave_sustained_resonance() {
+    // A bounded nonlinear oscillation could pass a small-impulse pole test.
+    // Drive the input pair into limiting for 10 ms, then require at least
+    // 40 dB decay after four seconds and continued decay between equal tail
+    // windows. The C14/C15/C23 network has slow, coupled infrasonic poles.
+    // Cover the settled and ENV/accent current ranges.
+    for quality in [Quality::Full, Quality::Economy] {
+        for rate in [48_000.0, 192_000.0] {
+            for current in [4e-6, 8e-6, 38e-6, 100e-6, 530e-6, 1e-3] {
+                let mut v = Vcf::new(Components::NOMINAL);
+                v.prepare(rate).unwrap();
+                v.set_quality(quality);
+                let mut early = 0.0_f64;
+                let mut late = 0.0_f64;
+                let mut preceding = 0.0_f64;
+                for n in 0..(rate * 4.0) as usize {
+                    let input = if n < (rate * 0.01) as usize {
+                        12.0 * (TAU * n as f64 * 330.0 / rate).sin()
+                    } else {
+                        0.0
+                    };
+                    let y = v.tick(input, current, 1.0).output;
+                    if n < (rate * 0.03) as usize {
+                        early = early.max(y.abs());
+                    }
+                    if n >= (rate * 3.4) as usize && n < (rate * 3.6) as usize {
+                        preceding = preceding.max(y.abs());
+                    }
+                    if n >= (rate * 3.8) as usize {
+                        late = late.max(y.abs());
+                    }
+                }
+                assert!(
+                    late < early * 0.01 + 1e-9 && late < preceding * 0.95 + 1e-9,
+                    "{quality:?} rate={rate} I={current:e} early={early:e} preceding={preceding:e} late={late:e}"
+                );
+                assert_eq!(v.diagnostics().non_convergence, 0);
+            }
+        }
+    }
+}
