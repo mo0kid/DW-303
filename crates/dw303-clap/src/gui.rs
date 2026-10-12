@@ -537,7 +537,8 @@ mod tests {
     fn inline_page_fits_and_contains_all_controls() {
         let page = ravet_surface::embed_web_controls(HTML).unwrap();
         assert!(page.len() < 1_048_576);
-        assert!(!page.contains("<filter"));
+        // All 37 original SVG filters (section shadows, button bevels) are kept.
+        assert_eq!(page.matches("<filter").count(), 37);
         for id in 1..=8 {
             assert!(page.contains(&format!("id=\"param-{id}\"")));
         }
