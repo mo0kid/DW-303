@@ -241,12 +241,29 @@ impl Host {
             },
         };
         // The idle renderer is not processing while the live owner is prepared.
-        let stream = ravet_device::open_output(
+        let stream = match ravet_device::open_output(
             &device,
             config,
             FRAMES,
             Audio::new(self.shared.clone(), receivers, mask),
-        )?;
+        ) {
+            Ok(stream) => stream,
+            // The device could not run at the requested rate (another app
+            // holds it, or a virtual device runs at its own rate). Retry once
+            // at the rate it really runs at rather than playing off pitch.
+            Err(ravet_device::OpenError::SampleRateMismatch { actual, .. })
+                if actual != rate && m["retried_rate"] != Value::Bool(true) =>
+            {
+                let Value::Object(mut retry) = m.clone() else {
+                    return Err("Invalid settings".into());
+                };
+                retry.insert("sample_rate".into(), Value::Number(f64::from(actual)));
+                retry.insert("retried_rate".into(), Value::Bool(true));
+                self.render_idle();
+                return self.start(&Value::Object(retry));
+            }
+            Err(e) => return Err(e.into()),
+        };
         stream.play()?;
         self.idle = None;
         self.midi = streams;
@@ -256,7 +273,11 @@ impl Host {
         // automatically (best effort: a failed save only loses auto-start).
         if let Ok(path) = audio_settings_path() {
             let _ = std::fs::create_dir_all(path.parent().unwrap_or(&path));
-            let _ = std::fs::write(&path, m.to_string());
+            let mut saved = m.clone();
+            if let Value::Object(fields) = &mut saved {
+                fields.remove("retried_rate");
+            }
+            let _ = std::fs::write(&path, saved.to_string());
         }
         Ok(())
     }
