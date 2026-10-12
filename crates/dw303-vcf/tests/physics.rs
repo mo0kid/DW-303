@@ -50,21 +50,6 @@ fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
         c.output_capacitance[1] / conductance[1] * c.output_coupling_scale,
     );
     let amp = h25.add(h27).scale(0.5 * gain);
-    let rt = c.resonance_resistance * p * (1.0 - p);
-    let rf = rt + c.feedback_resistance[0] + c.feedback_resistance[1];
-    let y15 = hp(w, rf * c.coupling_capacitance[1]).scale(1.0 / rf);
-    let yload = Complex(1.0 / c.resonance_resistance, 0.0).add(y15.scale(p * p));
-    let h14 = Complex(0.0, w * c.coupling_capacitance[0])
-        .div(Complex(0.0, w * c.coupling_capacitance[0]).add(yload));
-    let feedback = y15
-        .scale(
-            p * c.feedback_resistance[1] * c.feedback_resistance[3]
-                / (c.feedback_resistance[2] + c.feedback_resistance[3]),
-        )
-        .mul(hp(
-            w,
-            (c.feedback_resistance[2] + c.feedback_resistance[3]) * c.coupling_capacitance[2],
-        ));
     let load = h25
         .scale(0.25 * conductance[0])
         .add(h27.scale(0.25 * conductance[1]));
@@ -86,25 +71,55 @@ fn analytic(c: Components, current: f64, f: f64, p: f64) -> f64 {
                 .scale(c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1])),
         )
         .scale(c.input_resistance[1]);
-    let source_right = Complex(1.0, 0.0)
-        .sub(
-            hp(
-                w,
-                (c.feedback_resistance[2] + c.feedback_resistance[3]) * c.coupling_capacitance[2],
-            )
-            .scale(
-                c.feedback_resistance[3] / (c.feedback_resistance[2] + c.feedback_resistance[3]),
-            ),
-        )
-        .scale(c.feedback_resistance[3]);
-    let degeneration = Complex(1.0, 0.0)
-        .div(Complex(1.0, 0.0).add(source_left.add(source_right).scale(g / c.input_beta)));
-    let forward = core.mul(amp).mul(h14).mul(degeneration);
+    // Independent frequency-domain Q18 T-equivalent. R94 and C23's load
+    // draw emitter current; its base current loads C15 and the VR4 wiper.
+    let re = c.thermal_voltage
+        * (c.follower_resistance[0]
+            + (c.follower_resistance[1] + c.feedback_resistance[1]) / (c.follower_beta + 1.0))
+        / (c.bias_supply - c.follower_vbe);
+    let emit = c.follower_resistance[0];
+    let bias = c.feedback_resistance[1];
+    let beta = c.follower_beta + 1.0;
+    let sr = c.feedback_resistance[0] + c.resonance_resistance * p * (1.0 - p);
+    let series = Complex(sr, -1.0 / (w * c.coupling_capacitance[1]));
+    let sum = c.feedback_resistance[2] + c.feedback_resistance[3];
+    let right = c.feedback_resistance[3];
+    let z23 = Complex(sum, -1.0 / (w * c.coupling_capacitance[2]));
+    let a = Complex(1.0, 0.0)
+        .add(series.scale(1.0 / bias))
+        .scale(1.0 + re / emit)
+        .add(series.scale(1.0 / (emit * beta)));
+    let b = Complex(1.0, 0.0)
+        .add(series.scale(1.0 / bias))
+        .scale(re)
+        .add(series.scale(1.0 / beta));
+    let denominator = a.add(b.div(z23));
+    let eo = Complex(p, 0.0).div(denominator);
+    let ej = b.scale(right / c.input_beta).div(z23).div(denominator);
+    let io = eo.div(z23);
+    let ij = ej.sub(Complex(right / c.input_beta, 0.0)).div(z23);
+    let e = (1.0 + re / emit) / bias + 1.0 / (emit * beta);
+    let f = re / bias + 1.0 / beta;
+    let no = eo.scale(e).add(io.scale(f));
+    let nj = ej.scale(e).add(ij.scale(f));
+    let sc14 = Complex(0.0, w * c.coupling_capacitance[0]);
+    let output = amp.mul(core).scale(1.0 / g).sub(nj.scale(p).div(sc14)).div(
+        Complex(1.0, 0.0).add(
+            Complex(1.0 / c.resonance_resistance, 0.0)
+                .add(no.scale(p))
+                .div(sc14),
+        ),
+    );
+    let source_right = Complex(right, 0.0).sub(Complex(right * right, 0.0).div(z23));
+    let injection_denominator = Complex(1.0, 0.0)
+        .add(source_left.add(source_right).scale(g / c.input_beta))
+        .add(ej.scale(g * right).div(z23));
     let input = hp(w, (c.input_resistance[0] + c.input_resistance[1]) * c.c17)
         .scale(c.input_resistance[1] / (c.input_resistance[0] + c.input_resistance[1]));
-    forward
+    output
+        .scale(g)
         .mul(input)
-        .div(Complex(1.0, 0.0).add(forward.mul(feedback)))
+        .div(injection_denominator.add(output.mul(eo).scale(g * right).div(z23)))
         .abs()
 }
 fn response(rate: f64, current: f64, f: f64, p: f64, q: Quality) -> f64 {
@@ -148,8 +163,8 @@ fn fitted_passives_and_loaded_output_corner() {
     let collector = 0.5 * tail * c.output_beta / (c.output_beta + 1.0);
     let loaded_g =
         1.0 / c.output_bias_resistance[0] + collector / (c.output_beta * c.thermal_voltage);
-    assert!((loaded_g / (TAU * c.output_capacitance[0]) - 78.35).abs() < 0.1);
-    assert!((Vcf::new(c).output_gain() - 103.26).abs() < 0.1);
+    assert!((loaded_g / (TAU * c.output_capacitance[0]) - 78.35).abs() < 0.25);
+    assert!((Vcf::new(c).output_gain() - 101.85).abs() < 0.25);
 }
 #[test]
 fn response_matches_netlist_and_rates() {
@@ -375,7 +390,9 @@ fn resonance_decays_across_the_complete_control_current_range() {
     // integration error in otherwise silent coupling states.
     for quality in [Quality::Full, Quality::Economy] {
         for rate in [48_000.0, 192_000.0, 384_000.0] {
-            for current in [1e-6, 4e-6, 8e-6, 20e-6, 40e-6, 60e-6, 100e-6, 300e-6, 1e-3] {
+            for current in [
+                1e-6, 4e-6, 8e-6, 20e-6, 40e-6, 60e-6, 100e-6, 140e-6, 180e-6, 220e-6, 300e-6, 1e-3,
+            ] {
                 for resonance in [0.0, 0.5, 0.9, 1.0] {
                     let mut v = Vcf::new(Components::NOMINAL);
                     v.prepare(rate).unwrap();

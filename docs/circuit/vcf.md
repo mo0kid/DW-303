@@ -7,7 +7,7 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-round10-2026-10-12.md](vcf-fitting-round10-2026-10-12.md);
+validation are in [vcf-fitting-round13-2026-10-12.md](vcf-fitting-round13-2026-10-12.md);
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
@@ -65,16 +65,17 @@ j_input = (Iladder/2) tanh(u_intrinsic/(2 VT))
 dh23/dt additionally subtracts R98/(R97+R98) j_input/(beta12 C23)
 ```
 
-`beta12=50` is the current effective, unmeasured device estimate (**VERIFY**),
-at the supported lower fitting bound; round 5 used 300. The settled
+`beta12=200` is the current unmeasured device estimate (**VERIFY**).
+Round 13 replaces the effective beta=50 compensation with finite Q18 loading;
+this does not independently identify the 2SC1583 gain at microamp bias. The settled
 DC base-current sum remains absorbed in the bias. Small-signal Q12 conductance
 includes the frequency-dependent source degeneration
 `g12 = g / (1 + g (Zleft+Zright)/beta12)`. The continuous calibration pole and
 independent AC tests use that same physical loading, including C17/C23.
 A bounded five-update intrinsic-voltage Newton solve uses tanh addition and a
 small-step Taylor evaluation to avoid repeated exponentials; it solves the
-same implicit current law. C17/C23 form another 2×2 Schur block, retaining ten
-capacitor voltages, with no new allocation, lock or unbounded tick loop.
+same implicit current law. The coupled C17/C14/C15/C23 branches form a fixed 4×4 Schur block,
+retaining ten capacitor voltages, with no allocation, lock or unbounded tick loop.
 
 Crossed C25/C27 (printed 0.1µF each; fitted 0.086667µF) feed Q21R/Q21L respectively:
 
@@ -107,8 +108,8 @@ Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 
 For the printed-only gain with infinite beta and correction one,
 R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
-The current fitted Q20 Vbe/Q21 beta, with the retained gain correction 9.125,
-give 103.26 V/V and 5.34 V swing; the missing gain remains explicitly provisional
+The current fitted Q20 Vbe/Q21 beta, with the retained gain correction 9.0,
+give 101.85 V/V and 5.27 V swing; the missing gain remains explicitly provisional
 in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
@@ -119,19 +120,22 @@ C14 voltage `h14`, C15 voltage `h15` and Q18's input branch current `ifb`:
 ```
 out = Q19_E_AC - h14
 Rth = 50K p (1-p)
-ifb = (p out - h15)/(Rth + R67 + R99)
+ie18 = Q18_E_AC/R94 + i23
+Q18_B_AC = Q18_E_AC + re18*ie18
+ifb = Q18_B_AC/R99 + ie18/(beta18+1)
+p out - h15 = Q18_B_AC + (Rth+R67)*ifb
 tap = p out - Rth ifb
 dh14/dt = (out/50K + p ifb)/C14
 dh15/dt = ifb/C15
-Q18_E_AC = R99 ifb
-base_right = R98/(R97+R98) * (Q18_E_AC - h23)
-dh23/dt = (Q18_E_AC - h23)/((R97+R98) C23)
+i23 = (Q18_E_AC-h23)/(R97+R98) - R98/(R97+R98)*j_input/beta12
+dh23/dt = i23/C23
 ```
 
 C14/C15/C23=1µF; R67=2.2K, R99=100K, R97=10K, R98=2.2K.
-C15's corner is approximately 1.56 Hz at either pot endpoint, decreasing
-with wiper source resistance. C23 gives 0.180328 injection and a 12.2 ms /
-13.045 Hz corner. C14 drives the track and feedback branch together in the
+In the ideal-follower limit, C15's corner is approximately 1.56 Hz at either
+pot endpoint, decreasing with wiper source resistance; C23 gives 0.180328
+injection and a 12.2 ms / 13.045 Hz corner. Q18's finite base/emitter loading
+couples these branches, so their isolated RC corners are not the full model poles. C14 drives the track and feedback branch together in the
 implicit solve. At maximum resonance the tap equals output exactly; at
 intermediate rotation it differs from an unloaded `p * output`.
 
@@ -150,8 +154,8 @@ The fixed-tail `tanh` law remains finite for arbitrarily large trial voltages;
 its derivative is bounded between zero and one.
 
 The linear correction eliminates the coupling states with a Schur reduction,
-including C25/C27's complementary-base-current 2×2 block and C14/C15's
-loaded-pot 2×2 block, then solves the tridiagonal ladder
+including C25/C27's complementary-base-current 2×2 block and the coupled
+C17/C14/C15/C23 4×4 block, then solves the tridiagonal ladder
 and its feedback corner. Fixed-size partial-pivot elimination is the fallback.
 Static reciprocals, RC rates and transistor scale/gain are cached on construction.
 Warm starts use cubic extrapolation of four accepted endpoints for smoothly
@@ -231,16 +235,17 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 3. `Vcf::flow`: algebraic common-mode elimination neglects ladder base currents,
    Early effect, common-mode/junction capacitance and common-mode Q21 loading.
    Differential Q21 loading is retained. Stiff settled rails remain assumed.
-4. `Vcf::nodes`: Q18/Q19 are ideal unity followers with fixed settled bias,
-   infinite β and no Early effect/parasitics. Q20 base loading is omitted;
-   Q21 includes complementary nonlinear base currents, but retains constant beta,
-   fixed tail current and settled common-mode base bias. Q18's actual bias is particularly β-sensitive (R66+R99=200K).
+4. Q18 uses finite β=200 and the quiescent emitter resistance VT/Ie,
+   including R94, R66/R99 DC bias loading and C23's AC load. **VERIFY:**
+   constant T-model conductances omit curvature, cutoff, Early effect and
+   parasitics. Q19 remains an ideal unity follower. Q20 divider base loading
+   is omitted; Q21 retains constant beta, fixed tail and settled common-mode bias.
 
 5. `Components::output_beta`: fitted Q21 beta 314.93 is unprinted and unmeasured.
-6. `Components::output_gain_correction`: fitted gain multiplier 9.125 remains
+6. `Components::output_gain_correction`: fitted gain multiplier 9.0 remains
    unresolved against the printed Q20/R108/R110 gain; see the round-5 fit register.
-7. `Components::input_beta`: Q12 effective beta 50 is inferred from output audio, not
-   measured at the ladder microamp bias. Constant beta, matched devices and
+7. `Components::input_beta`: Q12 beta 200 is inferred from output audio, not
+   measured at the ladder microamp bias. The former beta=50 compensation is removed. Constant beta, matched devices and
    stiff common-mode bias remain approximations; see the round-10 register.
 8. `Components::ladder_capacitance`: fitted C18/C19/C24/C26 remain within
    assumed ±10% of 18/33/33/33 nF. Actual tolerances are unmeasured; their
@@ -252,7 +257,7 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 Additional transcription open items: TP6's attachment / printed DC levels
 remain unresolved and are excluded from level calibration. Gang-B direction
 and ENV/ACCENT rest levels belong to the ENV integrator, not this signal crate.
-Bias-rail motion, R69/Q11 saturation headroom, ladder/follower base-current loading,
+Bias-rail motion, R69/Q11 saturation headroom, interior ladder/Q19 base-current loading,
 external VCA input loading and follower clipping are not dynamic modelled.
 Consequently strong damping, large-signal fidelity and absolute levels need
 SPICE / hardware checks. No claim of original-unit amplitude fidelity is made.
@@ -270,3 +275,41 @@ and VR4A wiper loading, and rejected after **2.80%** VCF regression; a modest
 VR4A track fit regressed further. Omitted downstream loading remains VERIFY
 and requires joint response/device fitting plus independent AC verification.
 VR4B gang direction and accent cross-loading remain ENV/control open items.
+
+
+## Round-13 feedback follower and cutoff return fit
+
+[Round 13](vcf-fitting-round13-2026-10-12.md) supplies the current scores,
+component register and rejected trials. Q18's quiescent DC estimate is
+
+`Ie18 = (5.333 - Vbe18) / (R94 + (R66+R99)/(beta18+1))`.
+
+For the retained beta=200/Vbe=0.65 V, Ie is approximately 0.426 mA and
+`re18 = VT/Ie18` approximately 60.7 Ω. These are **VERIFY** estimates, not
+internal measurements. With `e` and `b` the AC emitter/base voltages,
+`j` the Q12 differential injection, and capacitor voltages `h15/h23`:
+
+```
+i23 = (e-h23)/(R97+R98) - R98/(R97+R98)*j/beta12
+ie18 = e/R94 + i23
+b = e + re18*ie18
+i15 = b/R99 + ie18/(beta18+1)
+resonance*out-h15 = b + (VR4A_Thevenin+R67)*i15
+dh15/dt = i15/C15
+dh23/dt = i23/C23
+resonance_tap = resonance*out - VR4A_Thevenin*i15
+```
+
+The algebraic follower nodes are eliminated jointly with Q12's implicit
+junction law. Its base current loads the VR4A wiper and charges C15; its
+emitter supplies R94 and C23. Continuous pole calibration now uses the full
+physical Jacobian. Independent frequency-domain and node-KCL tests cover
+these currents and the generalized capacitor solve.
+
+**VERIFY: voice R47 and VR3.** Printed R47 10 kΩ becomes 10.5 kΩ in the
+voice's VCF calibration block, assuming ±5% resistor tolerance. The electrical
+VR3 track is refitted through the loaded pot network, with fixed 0/1 endpoints,
+535-Hz centre normalization and the .4 current constrained by the envelope
+captures. Resistance, taper, placement and Q9 bias remain confounded. The
+complete table and residuals are in the round-13 report. ENV's standalone
+component defaults retain the printed R47 value.

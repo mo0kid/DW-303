@@ -401,34 +401,41 @@ const CALIBRATION_MEG_REST: f64 = dw303_env::Components::NOMINAL.diode_drop
 /// VERIFY: computed Q9 rest/reference voltage; no internal-node capture calibration.
 const CALIBRATION_SWEEP_REST: f64 = 3.3165;
 
-/// VERIFY: output-only VR3 electrical track fit to the session1 ring sweep.
-/// Relative to the earlier track, the calibrated top current is 6% lower;
-/// tenth-turn currents from 0.1 through 0.8 retain the earlier fit. The fixed
-/// endpoints preserve the physical pot wiring; minimum current falls by 6%.
-/// See `docs/circuit/vcf-top-range-2026-10-12.md` for pitch-resolution limits.
+/// VERIFY: output-only VR3 electrical track fit with R47 at +5% tolerance.
+/// Supported ring-sweep corrections use half the measured residual to allow
+/// harmonic-grid/placement uncertainty; the .4 current retains the joint
+/// envelope fit. Centre normalisation and
+/// the fixed electrical endpoints retain the established 535-Hz calibration.
+/// See `docs/circuit/vcf-fitting-round13-2026-10-12.md` for the fit register.
 const CALIBRATION_CUTOFF_TRACK: [f64; 11] = [
-    0.0,
-    0.025166027,
-    0.058405302,
-    0.090603915,
-    0.114135804,
-    0.140121040,
-    0.157719965,
-    0.318703784,
-    0.666613079,
-    0.985,
-    1.0,
+    0.000000000000,
+    0.015992842107,
+    0.048602438627,
+    0.082664695567,
+    0.106791530946,
+    0.132999821583,
+    0.150492774318,
+    0.309012150489,
+    0.662387518618,
+    0.988512075163,
+    1.000000000000,
 ];
+
+/// VERIFY: R47 printed 10 kΩ → fitted 10.5 kΩ, assuming ±5% tolerance.
+/// The low-cutoff ring is under-predicted; no hardware resistor measurement.
+const CALIBRATION_CUTOFF_RETURN: f64 = 10_500.0;
 
 /// Return fitted cutoff components with the expo ratio normalised at centre.
 /// TM3 retains the ENV component setting; VR3 uses the top-range calibration
 /// above. The bounded continuous pole search adjusts only Is(Q11)/Is(Q10),
 /// on the control thread.
-/// VERIFY: the effective ratio is approximately 3.163 (nominal fitted ratio 3.074);
-/// audio identifies its product with TM3's reference current, not either alone.
+/// VERIFY: the effective ratio is derived from the fitted VCF and model rest
+/// voltages (ENV default 3.074323); audio identifies its product with TM3's
+/// reference current, not either device parameter independently.
 pub fn calibrated_env_components() -> dw303_env::Components {
     let mut c = dw303_env::Components {
         vr3_taper: CALIBRATION_CUTOFF_TRACK,
+        r47: CALIBRATION_CUTOFF_RETURN,
         ..dw303_env::Components::NOMINAL
     };
     let vcf = Vcf::new(dw303_vcf::Components::NOMINAL);
