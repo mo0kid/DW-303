@@ -1,10 +1,11 @@
-# Pitch CV, VCO and square shaper — fitting round 3
+# Pitch CV, VCO and square shaper — session-2 tuning fit
 
 Authority: [reconciled netlist](../../reference/schematic/netlist.md),
 [VCO transcription](../../reference/schematic/transcription/vco.md), and
 [binding contract](contracts.md). Fitting rounds 2 and 3 change only `crates/dw303-osc`
-and this document. No dependencies were added. Calibration uses the 346
-read-only session-1 TD-3 WAV/JSON pairs dated 2026-10-12, with the unchanged
+and this document. The session-2 tuning round has the same scope. No dependencies
+were added. Calibration uses the 346 session-1 and 274 session-2
+read-only TD-3 WAV/JSON pairs dated 2026-10-12, with the unchanged
 [scoring harness](../harness.md). These are unit-specific output-audio fits,
 not internal-node measurements or proof of original TB-303 accuracy.
 
@@ -15,8 +16,9 @@ longer substituted for C33 voltage: `saw_low` and `saw_high` now describe the
 capacitor cycle endpoints **before** the explicitly modelled Q28 follower.
 `VcoOut.saw` remains Q28 source voltage and `VcoOut.square` Q8 collector voltage;
 method signatures and SI units remain unchanged. Round 3 changes Q8's junction
-law and fitted base/emitter parameters. The round-2 score sections below are
-historical harness-v1 evidence; current harness-v2 results appear at the end.
+law and fitted base/emitter parameters. The latest round fits VR2's resistive
+track only. Earlier score sections are historical evidence; current combined
+harness-v5 results appear at the end.
 
 ## Pitch CV and slide
 
@@ -55,13 +57,16 @@ compensates Q26 thermal voltage. Tracking remains 1200 cents/oct versus the
 measured 1200.09; the difference is only 0.36 cent over four octaves. No per-key
 pitch table or unconstrained correction was fitted.
 
-VR2 remains a **linear B-taper pot**. The previous law loaded a symmetric
+VR2 remains a **50k(B) pot**, with a small fitted departure from the ideal linear
+resistance track. The previous law loaded a symmetric
 midpoint voltage and forced ±700 cents. A pot between ground and an effective
 pin-3 rail instead loads toward the reference through R118:
 
 ```
-Rth(x) = VR2*x*(1-x)
-Vw(x) = (Vrail*x*R118 + Vref*Rth(x)) / (R118 + Rth(x))
+u = 2*x - 1
+z(x) = x + x*(1-x)*u*(bow + skew*u)
+Rth(x) = VR2*z(x)*(1-z(x))
+Vw(x) = (Vrail*z(x)*R118 + Vref*Rth(x)) / (R118 + Rth(x))
 ΔVbe_tune = gain_tune * (Vw(x) - Vw(0.5))
 ```
 
@@ -72,8 +77,14 @@ endpoint span, **1400 → 1978.472 cents**, rather than half the range. The
 rail is derived from that span and the nominal expo gain; it is an effective
 calibration, not identification of the unreadable pin-3 glyph O3. The load
 uses a stiff 64/12 V reference approximation and omits the small CV-dependent
-base-node/loading interaction. Only rotations 0, 0.5 and 1 were measured;
-t25/t75 remain predictions. No polynomial taper or endpoint lookup is used.
+base-node/loading interaction. The original session measured only rotations
+0, 0.5 and 1. Session 2 adds .25/.75 at MIDI 24/48/72. Their consistent residuals
+require a modest change in the intermediate wiper fraction; see the latest fit
+below. The smooth track approximation uses the same segment resistances for
+voltage division and Thevenin loading, rather than a direct cents correction.
+The panel fractions retain the 0–10 legend over 300 degrees with **zero common
+placement offset**. Track nonlinearity and small operator placement errors
+remain inseparable without direct resistance/angle measurements.
 
 ## C33 reset and Q28 follower
 
@@ -163,8 +174,10 @@ Every code `VERIFY:` item, including inherited approximations, is covered here.
 |---|---|
 | C35 | 0.22 → 0.232 uF (+5.45%); eight slide chirp fits, 22 → 23.2 ms physical tau; assumed ±10% capacitor tolerance; output-only, grid-limited residual |
 | TM4 `reference_hz` | 32.703195663 → 32.577173303 Hz; remove median +6.6842 cents across 49 notes; residual pitch median/p90 about 0.485/1.286 cents |
-| VR2 pin-3 / `tuning_octaves`, O3 | ±700 → −1086.620/+891.852 cents; effective reference-rail hypothesis 5.333 → 5.402046 V; residual tuning median/p90 about 0.713/2.829 cents; wiring and intermediate rotations unidentified |
+| VR2 pin-3 / `tuning_octaves`, O3 | ±700 → −1086.620/+891.852 cents; effective reference-rail hypothesis 5.333 → 5.402046 V; retained endpoint calibration; pin-3 wiring remains unidentified; combined residuals below |
 | VR2 `tuning_resistance` | 50k → 44.945454k (−10.11%); endpoint asymmetry with R118 loading; actual pot tolerance unknown |
+| VR2 `tuning_track_bow` | Ideal B track 0 → 0.102496922; central differential resistance density 1 → 1.051248 of mean; session-2 .25/.75 same-key tuning medians; assumed smooth track variation, not a measured manufacturer law |
+| VR2 `tuning_track_skew` | Ideal B track 0 → −0.038276829; electrical fractions .25/.75 → .238597/.757815; no common angle offset; track shape and placement covary, intermediate rotations other than .25/.75 unmeasured; combined residuals below |
 | R100 PTC coefficient | Ideal 1/300 per kelvin; curve unprinted; no warm-up/drift capture |
 | C33 lower endpoint / Q24/Q25, O5/O6 | Former ideal source annotation 5.5 → capacitor 5.2 V; Q24/Q25 difference absorbs unprinted junction physics; Q25 NPN chosen from function |
 | C33 upper endpoint / Q27/D25, O6 | Former ideal source annotation 12 → capacitor 11.5 V; reset drops inferred, not individually identified |
@@ -543,3 +556,179 @@ law, unmeasured parasitics/back-loading and reset recovery, finite source
 harmonic bandwidth, output-only identification, and inherited DAC/switch/expo
 approximations. There is no manufacturer Q8 model, isolated internal-node TD-3
 measurement or new SPICE validation in this fitting round.
+
+
+## Session-2 tuning fit (harness v5)
+
+The starting release exactly reproduced the combined baseline **0.9660342817**
+from `s12-baseline.json`: 620 sidecars, 629 analysis rows, zero failures. The
+same-key centre reference for session-2 tuning is session-1 `pitch-kKEY-t50`,
+as specified by the unchanged harness. All builds, replays and scores ran in
+this oscillator worktree; source changes are limited to this crate and document.
+
+An ideal B track with the existing loading predicts about **−478.63 / +433.72
+cents** at .25/.75. Hardware medians are **−502.788 / +447.289 cents**. The
+signed errors are consistent across all three keys: .25 is +23.5 to +24.2 cents,
+.75 is −14.3 to −12.1 cents. Altering only total VR2 resistance and effective
+rail cannot retain the accurate endpoints while matching both intermediates.
+An analytical least-squares trial of that two-parameter linear-track model has
+12.26 cents RMS residual. Adding only symmetric track bow lowers it to 2.69
+cents RMS, but retains a common intermediate bias. Those are analytical trials
+with baseline estimator offsets, not claims of separate engine scores.
+
+The retained fit changes only the resistance distribution of the B track. Let
+`u=2*x−1` for panel rotation `x`. Normalized differential track resistance is
+
+```
+rho(x) = 1 + (bow/2)*(1 - 3*u*u) + skew*(u - 2*u*u*u)
+z(x) = integral_0^x rho(t) dt
+     = x + x*(1-x)*u*(bow + skew*u)
+R_lower = VR2*z(x); R_upper = VR2*(1-z(x))
+```
+
+This is a smooth low-order approximation to a nonuniform resistive track,
+**VERIFY**, not an identified factory taper. Both voltage division and source
+resistance use these same track segments before the existing R118 loading.
+`bow: 0 → 0.10249692235426172`, `skew: 0 → −0.03827682943247928`; nominal
+zero means the printed ideal linear B track. Total VR2 **50k → 44.945454k**,
+R118 **100k**, effective rail **5.402046 V** and total span **1978.472 cents**
+are retained from the previous calibration. No other fitted component changes.
+
+The track's differential density is **0.8592–1.0535** times its mean; it stays
+strictly positive. Validation bounds bow ±.25 and skew ±.15 guarantee density
+at least .6. The midpoint remains exactly .5, and both endpoints remain exact.
+Unloaded wiper fractions at .25/.75 become **.238596687 / .757814860**; maximum
+fraction displacement anywhere is **.012051**, about 1.21% of total resistance.
+Thus no pot-end tolerance is spent beyond the previous total-resistance fit.
+These are assumed plausible B-track variations, not a tolerance specification
+for the original K161B0-50kB or the TD-3 replacement.
+
+The coefficients fit the median hardware-minus-baseline-estimator target at
+each intermediate position across the three keys. The static expo law becomes
+**−502.746697 / +447.290989 cents**. Real replay, rather than that surrogate,
+supplies all reported scores. Small endpoint replay-estimator differences
+(<.005 cents) remain because smoothed tuning traverses intermediate positions
+on the way to a stop, changing the free-running carrier's phase.
+
+No common knob placement offset is needed or introduced. Panel rotation still
+means legend 0–10 over 300 degrees. The electrical track changes are equivalent
+to −3.421/+2.344 degrees at .25/.75 for an unloaded ideal linear track; this
+illustrates the placement/track ambiguity, not an applied angle correction.
+The six session-2 captures contain only two distinct intermediate control
+positions, so they do not establish the full track shape independently. A
+resistance-versus-measured-angle sweep is needed to distinguish these effects.
+
+### Combined score and regression audit
+
+Both full runs score **620 sidecars / 629 analysis rows with zero failures**.
+Overall **0.9660342817 → 0.9153439122 (−5.25%)**. Tuning aggregate
+**2.3280823630 → 0.1990868448 (−91.45%)**; normalized median/p90
+**1.500320/4.811369 → 0.090374/0.525224**. Native absolute tuning error
+median/p90 **7.501601/24.056846 → 0.451872/2.626121 cents**.
+
+| Category | Before median / p90 | After median / p90 | Aggregate before → after |
+|---|---:|---:|---:|
+| pitch | 0.097183 / 0.264985 | 0.097183 / 0.264985 | 0.139134 → 0.139134 |
+| tuning | 1.500320 / 4.811369 | 0.090374 / 0.525224 | 2.328082 → 0.199087 |
+| waveform | 0.577513 / 1.226971 | 0.577513 / 1.226971 | 0.739878 → 0.739878 |
+| vcf | 0.521996 / 1.250907 | 0.521996 / 1.250907 | 0.704224 → 0.704224 |
+| envelopes | 0.304544 / 0.493104 | 0.304544 / 0.493104 | 0.351684 → 0.351684 |
+| amplitude | 1.036286 / 2.404905 | 1.036286 / 2.404905 | 1.378441 → 1.378441 |
+| accent | 0.215252 / 0.775566 | 0.215252 / 0.775566 | 0.355331 → 0.355331 |
+| slide | 0.000000 / 0.156499 | 0.000000 / 0.156499 | 0.039125 → 0.039125 |
+| gate | 0.522083 / 0.590399 | 0.522083 / 0.590399 | 0.539162 → 0.539162 |
+| behavior | 2.059199 / 2.527236 | 2.059199 / 2.527236 | 2.176209 → 2.176209 |
+| interaction | 1.798547 / 3.321572 | 1.798547 / 3.321572 | 2.179304 → 2.179304 |
+| repeatability | 1.016496 / 1.407178 | 1.016496 / 1.407178 | 1.114167 → 1.114167 |
+
+Every other category aggregate is **exactly unchanged**, including pitch,
+waveform, slide and amplitude. Only the twelve tuning rows change their
+per-capture metrics; every centre-tuning capture has identical metrics and
+amplitude metrics. No category worsens by 2%.
+
+| Capture | Signed tuning residual before → after (cents) |
+|---|---:|
+| pitch-k24-t0 | +0.5982 → +0.6029 |
+| pitch-k24-t100 | -2.8638 → -2.8656 |
+| pitch-k48-t0 | -0.2494 → -0.2496 |
+| pitch-k48-t100 | -0.3829 → -0.3829 |
+| pitch-k72-t0 | +0.0924 → +0.0924 |
+| pitch-k72-t100 | +2.7590 → +2.7590 |
+| tuning2-k24-t25 | +23.5061 → -0.5208 |
+| tuning2-k24-t75 | -14.2593 → -1.1793 |
+| tuning2-k48-t25 | +24.1180 → +0.0322 |
+| tuning2-k48-t75 | -13.5699 → -0.0367 |
+| tuning2-k72-t25 | +24.2084 → +0.0898 |
+| tuning2-k72-t75 | -12.1394 → +1.4306 |
+
+The largest remaining residual is **−2.866 cents** at MIDI 24 / t100 and
+**+2.759 cents** at MIDI 72 / t100. The reference upper-stop offsets themselves
+vary **894.249 → 889.093 cents** over those keys, whereas the ideal expo model's
+static stop shift is key-independent. One global VR2 track cannot remove that
+key variation; pair mismatch/reset recovery, estimator/downstream response,
+and inter-session reference drift remain confounded. The fitted intermediate
+replays have maximum absolute residual **1.431 cents**. No per-key correction,
+centre retrim, phase reset or output-path compensation was added.
+
+Artifacts: `/tmp/osc-tuning-before.json`, `/tmp/osc-tuning-after.json` (tuning
+subset), `/tmp/osc-tuning-overall.json`, plus exact-final-binary reports
+`/tmp/osc-tuning-final.json` and `/tmp/osc-tuning-overall-final.json`, and their
+matching Markdown reports.
+After-fit cache and solver audit are under `/tmp/osc-tuning-cache` and
+`/tmp/osc-tuning-solver-audit`. The initial baseline run used the harness's
+ignored default cache; no capture or harness source was changed.
+
+Final scored renderer SHA-256:
+`650d2f1cf7bb6e6c463b0c9117c48270b4aacda26b5c9ffc5bc8c9ffdcff15b1`.
+The final rebuild after comment/rustfmt cleanup changed the executable hash;
+fresh replay verified **all 620 WAVs byte-identical** to the earlier fitted
+binary `fb4a4ec3ba097fa0733548fa46d779d52bb2c4b6f76b6a202289f27c919ebbea`.
+Analysis SHA-256:
+`7fbc7305a654c4fa061c7434777f57539e5f3becd2f36dd36a2d026c44bc4d83`.
+
+### Validation and remaining limits
+
+Offline package-scoped tests across all ten workspace packages: **133 passed,
+5 existing manual timing tests ignored**. Oscillator: **20 passed**, including
+new checks for intermediate tuning at 44.1/48/96/192/384 kHz, exact unchanged
+static centre/endpoints, identical centre saw/square samples, positive track
+resistance density and monotonic tuning at validation bounds. The waveform
+frequency measurement test now covers all five tuning positions. Oscillator
+all-target clippy with warnings denied, scoped rustfmt and whitespace checks
+pass.
+
+A scratch auditor copied the current renderer's replay/parser and linked this
+worktree's fitted release engine, adding only post-replay diagnostic checks and
+omitting WAV payload writes. Across **620 captures / 701,184,000 circuit ticks**,
+there were **zero Newton non-convergence**, **zero sanitized inputs**, and a
+maximum of **4 iterations**. Source and log:
+`/tmp/osc-tuning-solver-audit/{main.rs,replay.rs,json.rs,results.txt}`. No workspace
+renderer or solver source was changed.
+
+Serial Full Circuit renderer holds, 10 seconds at host 48 kHz, open cutoff,
+zero resonance/env/decay/accent and full volume:
+
+| MIDI key / tuning | Render CPU (% of one core) | User / sys CPU (s) | Max Newton iterations |
+|---|---:|---:|---:|
+| 24 / .50 | 10.8% | 1.05 / .01 | 3 |
+| 48 / .25 | 10.7% | 1.06 / .00 | 3 |
+| 72 / .75 | 8.8% | .87 / .00 | 3 |
+
+All holds have zero non-convergence and sanitized inputs; logs are
+`/tmp/osc-tuning-cpu-k{24,48,72}.log`. The separately run release oscillator
+benchmark passes: **384,000 ticks at 192 kHz in 87.09 ms**. These holds exclude
+construction and are not worst-case callback/glide guarantees. The new track
+law adds only fixed arithmetic on a frequency-cache miss; no allocations,
+locks, iterative solves, new transcendental calls or loops are added to tick.
+
+New VERIFY items are precisely the two resistive-track coefficients and their
+placement/track ambiguity, included in the complete register above. Inherited
+VERIFY items remain: effective VR2 pin-3 rail/total resistance; IC10 supply and
+ideal DAC; slide switch/buffer/clamps and latch-clock ambiguity; C35 tolerance;
+TM4 current and R102 unit; R100 temperature law; ideal Q26/regulator; reset
+thresholds and instantaneous recovery; Q28 device law/parasitics/back-loading;
+Q8 junction/beta/saturation reduction; R35/R45/C10/C11 tolerances. No new
+internal-node measurement, manufacturer pot law, thermal sweep or SPICE
+validation is claimed. Remaining tuning error is limited chiefly by upper-stop
+key variation and sparse/inter-session angle references; resolving them needs
+measured pot resistance/angle and denser repeated same-session tuning captures.
