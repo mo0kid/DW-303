@@ -518,7 +518,11 @@ fn ota_gm_input_corners_and_resonance_tap_follow_netlist() {
             let y2 = Z(1.0, 0.0).div(Z(c.r122, -1.0 / (w * c.c22_vca)));
             let denominator = Z(1.0 / c.r124, 0.0).add(y1).add(y2);
             let gm = 10e-6 / (2.0 * c.thermal_voltage);
-            let out = hp(w, c.vr8 * c.c38);
+            // C59/R155 is a real load on the C38/VR8 junction at full volume.
+            // The two capacitors are coupled rather than cascaded stiff stages.
+            let y38 = Z(0.0, w * c.c38);
+            let y59 = Z(1.0, 0.0).div(Z(c.r155, -1.0 / (w * c.c59)));
+            let out = y38.div(y38.add(Z(1.0 / c.vr8, 0.0)).add(y59));
             for (input, path) in [
                 (
                     VcfSignals {
@@ -568,6 +572,61 @@ fn ota_gm_input_corners_and_resonance_tap_follow_netlist() {
         1e-6,
     );
     assert!(high < low * 10_000.0 * 0.9); // input-differential tanh compression
+}
+
+#[test]
+fn c38_c59_reciprocal_loading_matches_the_combined_output_network() {
+    let c = Components::NOMINAL;
+    for rate in rates() {
+        for hz in [8.0, 32.7, 65.4, 1000.0] {
+            let mut vca = Vca::new(c);
+            let mut output = OutputStage::new(c);
+            vca.prepare(rate).unwrap();
+            output.prepare(rate).unwrap();
+            let w = TAU * hz;
+            let y121 = Z(1.0, 0.0).div(Z(c.r121, -1.0 / (w * c.c21)));
+            let y122 = Z(1.0, 0.0).div(Z(c.r122, -1.0 / (w * c.c22_vca)));
+            let input = y121.div(Z(1.0 / c.r124, 0.0).add(y121).add(y122));
+            let y38 = Z(0.0, w * c.c38);
+            let y59 = Z(1.0, 0.0).div(Z(c.r155, -1.0 / (w * c.c59)));
+            let node = y38.div(y38.add(Z(1.0 / c.vr8, 0.0)).add(y59));
+            let mixer = hp(w, c.r155 * c.c59);
+            let line = hp(w, (c.r161 + c.r165) * c.c56);
+            let gain =
+                c.ota_mirror_ratio * 10e-6 / (2.0 * c.thermal_voltage) * c.r128 * (c.r127 + c.r129)
+                    / (c.r128 + c.r127 + c.r129)
+                    * c.r153
+                    / c.r155
+                    * c.r165
+                    / (c.r161 + c.r165);
+            let expected = input.mul(node).mul(mixer).mul(line).norm() * gain * 1e-3;
+            let mut sin = 0.0;
+            let mut cos = 0.0;
+            let mut count = 0;
+            for sample in 0..(rate * 2.0).round() as usize {
+                let phase = w * sample as f64 / rate;
+                let voltage = vca.tick(
+                    VcfSignals {
+                        output: 1e-3 * phase.sin(),
+                        resonance_tap: 0.0,
+                    },
+                    10e-6,
+                    0.0,
+                );
+                let value = output.tick(voltage, 1.0, 0.0);
+                if sample >= rate as usize {
+                    sin += value * phase.sin();
+                    cos += value * phase.cos();
+                    count += 1;
+                }
+            }
+            near(
+                2.0 * sin.hypot(cos) / f64::from(count),
+                expected,
+                expected * 0.004,
+            );
+        }
+    }
 }
 
 #[test]
