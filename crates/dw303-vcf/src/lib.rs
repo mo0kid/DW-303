@@ -2,6 +2,8 @@
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
 //! `docs/circuit/vcf-fitting-round3-2026-10-12.md` for the current measurement fit.
+//! The round-4 peak audit and rejected Q12 trial are documented in
+//! `docs/circuit/vcf-fitting-round4-2026-10-12.md`; runtime parameters are unchanged.
 
 /// Solver quality; switching preserves capacitor voltages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -276,13 +276,22 @@ fn page7_ring_calibration() {
 
 #[test]
 fn fitted_upper_cutoff_currents_ring_at_the_measured_plateau() {
+    // Normalise with the same centre pole as the voice. These current ratios
+    // belong to its retained VR3 track; they are not internal TD-3 measurements.
+    let centre = Vcf::new(Components::NOMINAL)
+        .calibration_current(535.0)
+        .unwrap();
     // VERIFY: these are output-only inferred currents, not internal TD-3
     // measurements. Session1 C1 c18/c20 ring peaks are 2338/2371 Hz on each
     // capture's own harmonic grid. Check their physical ringing across rates,
     // allowing harmonic spacing and sample quantisation rather than exact bins.
     for quality in [Quality::Full, Quality::Economy] {
         for rate in [48_000.0, 96_000.0, 192_000.0] {
-            for (current, target_hz) in [(37.078e-6, 2338.0), (37.635e-6, 2371.0)] {
+            for (ratio, target_hz) in [
+                (36.616e-6 / 8.20377e-6, 2338.0),
+                (37.166e-6 / 8.20377e-6, 2371.0),
+            ] {
+                let current = centre * ratio;
                 let mut vcf = Vcf::new(Components::NOMINAL);
                 vcf.prepare(rate).unwrap();
                 vcf.set_quality(quality);
