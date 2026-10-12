@@ -163,7 +163,7 @@ fn fitted_passives_and_loaded_output_corner() {
     let collector = 0.5 * tail * c.output_beta / (c.output_beta + 1.0);
     let loaded_g =
         1.0 / c.output_bias_resistance[0] + collector / (c.output_beta * c.thermal_voltage);
-    assert!((loaded_g / (TAU * c.output_capacitance[0]) - 78.35).abs() < 0.25);
+    assert!((loaded_g / (TAU * c.output_capacitance[0]) - 77.11).abs() < 0.25);
     assert!((Vcf::new(c).output_gain() - 101.85).abs() < 0.25);
 }
 #[test]

@@ -1,7 +1,7 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
 //! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-fitting-round13-2026-10-12.md` for the current measurement fit.
+//! `docs/circuit/vcf-fitting-round14-2026-10-12.md` for the current fit and rate audit.
 //! Q12 differential base loading retains ten physical capacitor states;
 //! unmeasured transistor betas and the effective Q21 gain remain VERIFY items.
 
@@ -31,7 +31,7 @@ pub struct Components {
     /// C17 input coupling.
     pub c17: f64,
     /// C25 (L1 to Q21R), C27 (R1 to Q21L), crossed output coupling, printed 0.1 uF.
-    /// VERIFY: fitted 0.086667 uF each, assuming ±20% tolerance; actual part
+    /// VERIFY: fitted 0.085 uF each, assuming ±20% tolerance; actual part
     /// tolerance and capacitance are unmeasured. Correlated with Q21 beta.
     pub output_capacitance: [f64; 2],
     /// C14 output, C15 Q18 input, C23 Q12 feedback coupling.
@@ -54,8 +54,8 @@ pub struct Components {
     /// Generic 0.65 V → effective fitted 0.603810 V; no device curve measured.
     pub vbe: f64,
     /// VERIFY: Q21 common-emitter current gain at its approximately 0.26 mA
-    /// collector bias. Fitted 314.93, jointly with Q20 Vbe
-    /// and C25/C27; no internal current measurement or device curve.
+    /// collector bias. Fitted 330 jointly with C25/C27; Q20 Vbe retains
+    /// its preceding fit. No internal current measurement or device curve.
     pub output_beta: f64,
     /// VERIFY: Q12 current gain; differential base currents load R62/R70 and
     /// R97/R98. Previous effective 50 → 200 after including Q18 loading.
@@ -82,7 +82,7 @@ impl Components {
     pub const NOMINAL: Self = Self {
         ladder_capacitance: [19.8e-9, 30.8e-9, 30.8e-9, 34.1e-9],
         c17: 1e-6,
-        output_capacitance: [0.086_666_667e-6; 2],
+        output_capacitance: [0.085e-6; 2],
         coupling_capacitance: [1e-6; 3],
         input_resistance: [220_000.0, 2_200.0],
         output_bias_resistance: [100_000.0; 2],
@@ -92,7 +92,7 @@ impl Components {
         bias_supply: 5.333,
         thermal_voltage: 0.02585,
         vbe: 0.6038102277086952,
-        output_beta: 314.93150684931504,
+        output_beta: 330.0,
         input_beta: 200.0,
         follower_resistance: [10_000.0, 100_000.0],
         follower_beta: 200.0,
@@ -959,6 +959,101 @@ fn solve(mut a: [[f64; N]; N], mut b: [f64; N]) -> Option<[f64; N]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "offline 4x/8x/16x feedback audit; emits continuous Jacobians and decay evidence"]
+    fn stronger_loop_rate_audit() {
+        extern crate std;
+        // Direct private step configuration deliberately leaves prepare's
+        // contracted 384-kHz upper limit unchanged. 768 kHz is offline only.
+        for (name, beta, gain) in [
+            ("incoming", 200.0, 9.0),
+            ("strong", 300.0, 9.125),
+            ("sparse-grid", 300.0, 8.95),
+        ] {
+            // Freeze the incoming fit so later component fits cannot silently
+            // change the numerical-versus-physical experiment.
+            let c = Components {
+                ladder_capacitance: [19.8e-9, 30.8e-9, 30.8e-9, 34.1e-9],
+                output_capacitance: [0.086_666_667e-6; 2],
+                output_beta: 314.93150684931504,
+                vbe: 0.6038102277086952,
+                follower_beta: 200.0,
+                input_beta: beta,
+                output_gain_correction: gain,
+                ..Components::NOMINAL
+            };
+            for current in [40e-6, 100e-6, 180e-6] {
+                let v = Vcf::new(c);
+                let j = v.flow([0.0; N], 0.0, current, 1.0, false).1.unwrap();
+                std::println!("JACOBIAN,{name},{current},{j:?}");
+                for rate in [192_000.0, 384_000.0, 768_000.0] {
+                    let mut v = Vcf::new(c);
+                    v.half_step = 0.5 / rate;
+                    let mut early = 0.0_f64;
+                    let mut late = 0.0_f64;
+                    for n in 0..(rate * 1.0) as usize {
+                        // Equal continuous-time excitation energy at each rate.
+                        let input = if n < (rate * 0.01) as usize {
+                            1e-4 * libm::sin(core::f64::consts::TAU * 330.0 * n as f64 / rate)
+                        } else {
+                            0.0
+                        };
+                        let y = v.tick(input, current, 1.0).output;
+                        if n < (rate * 0.03) as usize {
+                            early = early.max(y.abs());
+                        }
+                        if n >= (rate * 0.8) as usize {
+                            late = late.max(y.abs());
+                        }
+                    }
+                    std::println!(
+                        "DECAY,{name},{current},{rate},{early},{late},{:?}",
+                        v.diagnostics()
+                    );
+                    assert_eq!(v.diagnostics().non_convergence, 0);
+                    let unstable = (name == "strong" && current >= 100e-6)
+                        || (name == "sparse-grid" && current >= 180e-6);
+                    if unstable {
+                        assert!(late > 0.02 && late > early * 1.1);
+                    } else {
+                        assert!(late < 1e-6);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn trapezoidal_step_includes_all_loading_states_at_each_rate() {
+        // The ten-state linearised system has the exact Cayley step
+        // (I-hJ)^-1 (I+hJ). Compare against the nonlinear tick near zero.
+        // A delayed output/follower or stale coupling state breaks this check.
+        for rate in [192_000.0, 384_000.0, 768_000.0] {
+            for current in [40e-6, 100e-6, 180e-6] {
+                let mut v = Vcf::new(Components::NOMINAL);
+                v.half_step = 0.5 / rate;
+                let x = [
+                    1e-7, -2e-7, 1e-7, 3e-7, -1e-7, 2e-7, -1e-7, 1e-7, 1e-7, -2e-7,
+                ];
+                let (flow, j, _) = v.flow(x, 0.0, current, 1.0, false);
+                let j = j.unwrap();
+                v.x = x;
+                v.history = core::array::from_fn(|i| x[i] + v.half_step * flow[i]);
+                let lhs = core::array::from_fn(|i| {
+                    core::array::from_fn(|k| {
+                        (if i == k { 1.0 } else { 0.0 }) - v.half_step * j[i][k]
+                    })
+                });
+                let expected = solve(lhs, v.history).unwrap();
+                v.tick(0.0, current, 1.0);
+                assert_eq!(v.diagnostics().non_convergence, 0);
+                for (actual, expected) in v.x.into_iter().zip(expected) {
+                    assert!((actual - expected).abs() < 5e-13);
+                }
+            }
+        }
+    }
+
     #[test]
     fn junction_current_is_tail_limited() {
         // A fixed-tail rung cannot create arm current when its differential

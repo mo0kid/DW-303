@@ -7,7 +7,7 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-round13-2026-10-12.md](vcf-fitting-round13-2026-10-12.md);
+validation are in [vcf-fitting-round14-2026-10-12.md](vcf-fitting-round14-2026-10-12.md);
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
@@ -77,7 +77,7 @@ small-step Taylor evaluation to avoid repeated exponentials; it solves the
 same implicit current law. The coupled C17/C14/C15/C23 branches form a fixed 4×4 Schur block,
 retaining ten capacitor voltages, with no allocation, lock or unbounded tick loop.
 
-Crossed C25/C27 (printed 0.1µF each; fitted 0.086667µF) feed Q21R/Q21L respectively:
+Crossed C25/C27 (printed 0.1µF each; fitted 0.085µF) feed Q21R/Q21L respectively:
 
 ```
 b_right = -v[3]/2 - h25
@@ -91,10 +91,10 @@ C26 dv[3]/dt additionally subtracts (i_left-i_right)/2
 ```
 
 R113/R114=100K with the printed capacitors alone yield 10 ms / 15.915 Hz
-corners; fitted capacitance gives 8.667 ms / 18.364 Hz before base loading. The current reduction
+corners; fitted capacitance gives 8.5 ms / 18.724 Hz before base loading. The current reduction
 also includes complementary nonlinear Q21 base currents. Their zero-signal
-linearisation is still `r_pi = beta VT / Ic`, with a fitted loaded corner of about
-78.35 Hz (round 5: 67.91 Hz); the DC base-current sum is absorbed into the settled bias. Both
+linearisation is still `r_pi = beta VT / Ic`, with fitted Q21 beta=330 and a loaded corner of about
+77.11 Hz (round 13: 78.35 Hz; round 5: 67.91 Hz); the DC base-current sum is absorbed into the settled bias. Both
 currents load the ladder top. Constant beta and stiff common-mode bias remain
 VERIFY assumptions.
 Q20 tail current is derived from R116/R112/R109's three-resistor divider,
@@ -109,7 +109,7 @@ Q19_E_AC = output_gain_correction Ic R110 tanh((b_left-b_right)/(2 VT))
 For the printed-only gain with infinite beta and correction one,
 R110=2.2K and I20≈0.5126 mA give gain≈10.907 and collector swing≈0.564 V.
 The current fitted Q20 Vbe/Q21 beta, with the retained gain correction 9.0,
-give 101.85 V/V and 5.27 V swing; the missing gain remains explicitly provisional
+give 101.86 V/V and 5.27 V swing; the missing gain remains explicitly provisional
 in the fit register. Q19 is an ideal emitter follower of Q21R's
 collector; Q21 input polarity gives an in-phase input/output and subtractive
 feedback at Q12R. This replaces the old arbitrary gain 20/headroom 0.2 V.
@@ -241,7 +241,7 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
    parasitics. Q19 remains an ideal unity follower. Q20 divider base loading
    is omitted; Q21 retains constant beta, fixed tail and settled common-mode bias.
 
-5. `Components::output_beta`: fitted Q21 beta 314.93 is unprinted and unmeasured.
+5. `Components::output_beta`: fitted Q21 beta 330 is unprinted and unmeasured.
 6. `Components::output_gain_correction`: fitted gain multiplier 9.0 remains
    unresolved against the printed Q20/R108/R110 gain; see the round-5 fit register.
 7. `Components::input_beta`: Q12 beta 200 is inferred from output audio, not
@@ -250,7 +250,7 @@ denied passed; direct rustfmt checks passed. No new dependency was added.
 8. `Components::ladder_capacitance`: fitted C18/C19/C24/C26 remain within
    assumed ±10% of 18/33/33/33 nF. Actual tolerances are unmeasured; their
    ratios covary with the calibrated current and output-device parameters.
-9. `Components::output_capacitance`: C25/C27 0.1 → 0.086667 uF each, within
+9. `Components::output_capacitance`: C25/C27 0.1 → 0.085 uF each, within
    assumed ±20% tolerance. The part tolerance is not printed or measured;
    output audio cannot separate capacitance from Q21 base loading uniquely.
 
@@ -279,8 +279,9 @@ VR4B gang direction and accent cross-loading remain ENV/control open items.
 
 ## Round-13 feedback follower and cutoff return fit
 
-[Round 13](vcf-fitting-round13-2026-10-12.md) supplies the current scores,
-component register and rejected trials. Q18's quiescent DC estimate is
+[Round 13](vcf-fitting-round13-2026-10-12.md) introduces this loading model;
+[round 14](vcf-fitting-round14-2026-10-12.md) supplies the current scores,
+device/coupling fit and numerical audit. Q18's quiescent DC estimate is
 
 `Ie18 = (5.333 - Vbe18) / (R94 + (R66+R99)/(beta18+1))`.
 
