@@ -10,3 +10,5 @@ __pycache__/
 /reference/captures/2026-10-12-essentials-silent/
 /reference/captures/2026-10-12-probe/
 /reference/captures/2026-10-12-test*/
+/tools/analysis/harness/cache/
+__pycache__/
