@@ -110,3 +110,20 @@ wheel, keyboard/defaults, automation gestures, restore while editing, and
 close/reopen while playing or holding a panel key. Hardware/manual comparison
 is still needed for PATT.GROUP detents and original LED multiplexing; the
 existing engine TEMPO range remains VERIFY. No new circuit values are claimed.
+
+
+## Knob and switch artwork (2026-10-13)
+
+The panel's dark knob discs are replaced by the owner's artwork in `media/`:
+
+| Artwork | Controls |
+|---|---|
+| `Small_Knob.svg` | Tuning to Accent |
+| `Large_Knob.svg` | Tempo and Volume |
+| `Rotary_Switch.svg` | Patt. Group and Mode |
+
+Each file is embedded once in the page as an SVG `<symbol>`, with its own filter
+IDs. Each control renders `<svg class="face"><use href="#sym-…"/></svg>`,
+rotated by the control's `--angle`; the pointer at 12 o'clock is the centre
+position. The page holds 43 filters: 37 from the panel plus 6 from the
+artwork. The WebKit probe and the CLAP page test both check that count.

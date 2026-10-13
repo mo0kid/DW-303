@@ -538,7 +538,8 @@ mod tests {
         let page = ravet_surface::embed_web_controls(HTML).unwrap();
         assert!(page.len() < 1_048_576);
         // All 37 original SVG filters (section shadows, button bevels) are kept.
-        assert_eq!(page.matches("<filter").count(), 37);
+        // 37 panel filters plus the knob/switch artwork's own shadows.
+        assert_eq!(page.matches("<filter").count(), 43);
         for id in 1..=8 {
             assert!(page.contains(&format!("id=\"param-{id}\"")));
         }
