@@ -168,7 +168,7 @@ Each knob's paint hook sets `--cap` by linear interpolation in sRGB, with
 | Knob position | Cap colour |
 |---|---|
 | Centre (5/10) | `#C8C6C6` |
-| Either end (0/10, 10/10) | `#5E524C` |
+| Either end (0/10, 10/10) | `#8C8C8C` |
 
 TEMPO computes its position over 40–300 BPM. The WebKit probe checks the
 centre colour.
