@@ -291,49 +291,6 @@ FS threshold or eight times the pre-roll RMS noise floor, whichever is larger.
 Low-level/faded/strongly filtered notes may need manual onset recovery. For such
 captures do not blindly apply that threshold's delay as a MIDI latency correction.
 
-## Analysis
-
-Each script accepts a PCM WAV and `--channel`, `--start`, `--seconds`; stdout is
-strict JSON. Always exclude the one-second pre-roll before pitch/envelope fitting.
-
-```sh
-python3 tools/analysis/selftest.py
-python3 tools/analysis/f0.py CAPTURE.wav --start 1.2 --seconds 2 --hint 130.81 --track
-python3 tools/analysis/envelope.py CAPTURE.wav --start 1.1 --seconds 3
-python3 tools/analysis/harmonics.py CAPTURE.wav --start 1.2 --seconds 2 \
-  --f0 130.81 --reference OPEN_FILTER.wav --interface-response CALIBRATION.json
-python3 tools/analysis/ringing.py CAPTURE.wav --start EDGE_TIME --seconds 0.025
-python3 tools/analysis/compare.py reference/captures/manifest.toml SESSION_DIR \
-  --capture wave-saw-k48 --renderer target/release/dw303-render --out REPORT.md
-```
-
-- `f0.py`: linearly interpolated positive crossings, fundamental-isolated analytic
-  phase regression, and sliding-window tracks. Specify a measured/approximate
-  fundamental hint to avoid harmonic ambiguity. Tracking windows smear rapid
-  slides; shorten only when enough fundamental cycles remain.
-- `envelope.py`: RMS and magnitude-weighted spectral centroid; fit
-  `baseline + amplitude*exp(-t/tau)` after attack. Supply a separately measured
-  baseline. Centroid cannot uniquely identify internal MEG/cutoff in this closed
-  nonlinear system; fit centroid with care and a calibrated cutoff map.
-- `harmonics.py`: Hann-window complex projections at exact harmonic frequencies;
-  divide by a matching open-filter spectrum for indirect dB response. Unresolved
-  reference harmonics are null. Optional independently measured interface response
-  is removed; extrapolation is rejected. Square's missing harmonics cannot be used.
-- `ringing.py`: positive peak interpolation, period regression and log peak-decay
-  fitting, plus an API for averaging caller-identified saw edges. Crop reset
-  transients, subtract baseline, and end before the next edge. Multiple ringing
-  modes, noise peaks and ongoing excitation violate the single-mode assumption.
-- `compare.py`: invokes the existing renderer CLI with `--hold KEY`, `--set
-  ID=VALUE`, `--tempo`, rate and duration. Aligns capture using recovered onset;
-  reports pitch cents, raw level delta, fundamental-normalised harmonic shape and
-  amplitude tau delta in Markdown. Missing/invalid/unsupported captures get explicit
-  status rows. Absolute level is raw dBFS, not volts, until calibration is applied.
-  The renderer fixes hold velocity at .5 and has no arbitrary MIDI schedule input:
-  accented holds, slides, clock patterns and multi-note entries cannot be rendered
-  faithfully. They are reported unavailable, with no renderer extensions or proxy
-  patterns. Only the pre-note-off held segment is compared. Full behavioural
-  comparison remains dependent on a renderer CLI capable of replaying schedules.
-
 ## VERIFY register and known limits
 
 1. **VERIFY:** actual reference model label (TD-03 versus TD-3), firmware/manual,
@@ -376,7 +333,6 @@ Run offline package tests and Clippy; format only this package's source and test
 rustfmt --edition 2024 tools/dw303-capture/src/*.rs tools/dw303-capture/tests/*.rs
 cargo test --offline -p dw303-capture
 cargo clippy --offline -p dw303-capture --all-targets -- -D warnings
-python3 tools/analysis/selftest.py
 ```
 
 Rust checks cover absolute clock rounding at 80/120/160 BPM, note ordering,

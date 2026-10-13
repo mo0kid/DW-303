@@ -4,7 +4,7 @@ These decks follow `reference/schematic/netlist.md` and its reconciled VCO,
 VCF, ENV and VCA transcriptions. The files are component-level nominal-circuit
 experiments with explicitly generic semiconductors. They are reference data for
 **these models**, not validated original-unit measurements. A passing simulation
-alone does not establish the PLAN §6 pitch/filter/envelope error budgets.
+alone does not establish the pitch/filter/envelope error budgets.
 
 Run from any directory:
 
@@ -154,7 +154,7 @@ separately from ladder compliance. The static OTA macro does not supply the
 BA662A's control bleed or distortion from its actual internal buffer. Physical
 capacitor tolerances, PTC temperature tracking, hardware noise, leakage and
 per-unit mismatch are absent. Further validation should use manufacturer device
-curves and the PLAN hardware protocol.
+curves and the hardware comparison protocol.
 
 ## Measured results and disagreements (ngspice 47, 27 °C)
 
@@ -162,7 +162,7 @@ curves and the PLAN hardware protocol.
 |---|---:|---:|
 | A at 2.75 V, TM4=0.62835693 | 110.0007 Hz | 110 Hz (calibrated) |
 | C1 / C2 / C4, TM5=3.6 kΩ | 33.1267 / 65.6999 / 260.0516 Hz | 32.7032 / 65.4064 / 261.6256 Hz |
-| Pitch error C1 / C2 / C4 | +22.28 / +7.75 / −10.45 cents | ±1 cent PLAN budget; not met |
+| Pitch error C1 / C2 / C4 | +22.28 / +7.75 / −10.45 cents | ±1 cent budget; not met |
 | Slide C35 time constant | 21.9997 ms | 22 ms |
 | A saw Q28 source min/max | 5.259 / 10.748 V | annotated 5.5 / 12 V; not met |
 | A square Q8 collector min/max | 5.333 / 8.619 V | annotated about 5 / 8 V |
@@ -184,7 +184,7 @@ estimate so octave errors remain visible; an authentic page-7 WIDTH adjustment
 would be the next calibration experiment. The generic JFET/reset models do not
 reproduce the annotated 12 V saw peak. MEG fitted tau differs from raw RC because
 the fit uses a fixed floor while the physical diode clamp and buffer loading do
-not. The max-decay error exceeds PLAN's 2% envelope comparison budget. These
+not. The max-decay error exceeds the 2% envelope comparison budget. These
 are recorded disagreements, not grounds to rewrite schematic nominal values.
 
 At RES max, all four tested currents yield decaying responses with late RMS

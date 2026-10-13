@@ -7,7 +7,7 @@ resonance) -> VcfOut`. Input is the WAVEFORM switch common voltage; current
 is Q11 collector current in amperes; outputs are AC volts at C14 negative
 terminal / VR4A terminal 3 and the **loaded** VR4A wiper. `Components` cites
 printed designators. The current fitted device/loading parameters and
-validation are in [vcf-fitting-round14-2026-10-12.md](vcf-fitting-round14-2026-10-12.md);
+validation come from fitting round 14;
 printed-only calibration and performance numbers below are historical.
 
 ## Circuit reduction
@@ -266,7 +266,7 @@ Aliasing relies on voice oversampling; trapezoidal warping remains near Nyquist.
 
 ## Session-1+2 interaction fit (round 9)
 
-[Round 9](vcf-env-fitting-round9-2026-10-12.md) changes the ENV gate/clamp fit
+Round 9 changes the ENV gate/clamp fit
 and derives the corresponding voice rest constant. Accepted VCF components,
 tracks, capacitor states and solver are unchanged. VCF category error is
 **0.704223885 → 0.704232636** under the full combined v5 score. The downstream
@@ -279,8 +279,8 @@ VR4B gang direction and accent cross-loading remain ENV/control open items.
 
 ## Round-13 feedback follower and cutoff return fit
 
-[Round 13](vcf-fitting-round13-2026-10-12.md) introduces this loading model;
-[round 14](vcf-fitting-round14-2026-10-12.md) supplies the current scores,
+Round 13 introduces this loading model;
+round 14 supplies the current scores,
 device/coupling fit and numerical audit. Q18's quiescent DC estimate is
 
 `Ie18 = (5.333 - Vbe18) / (R94 + (R66+R99)/(beta18+1))`.

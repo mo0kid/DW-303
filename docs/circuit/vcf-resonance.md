@@ -1,6 +1,6 @@
 # VCF resonance: loop-gain analysis
 
-Status: analysis only, done 2026-10-11. The TD-03 captures (PLAN §6a, VCF items)
+Status: analysis only, done 2026-10-11. The TD-03 captures
 are the deciding measurement.
 
 ## Loop gain from the reconciled netlist

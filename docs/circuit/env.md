@@ -66,8 +66,7 @@ loads the wiper: `Vw = (Vunloaded*(R119+R120) + T*Rsource) /
 (R119+R120+Rsource)`. Below T the steady branch is open; an inactive accent
 returns zero. This retains the printed 50 kΩ track rather than an arbitrary
 accent gain. VERIFY: C36 transient back-current and D24 branch cross-loading
-remain omitted at the voltage-only stage boundary. See the
-[round-7 fit](vcf-env-fitting-round7-2026-10-12.md).
+remain omitted at the voltage-only stage boundary.
 
 **Sweep (transcribed nominal values):** D24 feeds R46, then VR4B terminal 1; C13 is at terminal 3.
 R72 loads the wiper through R71 into the stiff Q9 reference. C13 therefore
@@ -719,7 +718,7 @@ Analysis SHA-256: `c62e2c0e72028d55d33f49a37f3d2acee6917575107bd33dfe376d10a1e74
 
 Baseline in this isolated worktree reproduces the merged round-3 Harness-v2
 score **0.8917369997**, all 346 WAV/JSON captures, zero analysis failures.
-The binding contract, PLAN sections 3/4/6, schematic ENV/VCA transcription,
+The binding contract, schematic ENV/VCA transcription,
 preceding 42-note audit and measured discrepancy document were reviewed.
 The only circuit-side edit is the permitted voice output calibration constant.
 FilterControl cutoff constants, all capacitor/resistor/device defaults,
@@ -730,9 +729,7 @@ MonoNoteInput, renderer replay, manifests and dependencies are unchanged.
 The earlier 20%-peak pattern crossings confound arrival with waveform/attack
 shape. A read-only audit now uses bounded 0.5-ms RMS, 2%-peak arrivals with a
 pre-attack noise guard, and records both scheduled and logged-send timestamps.
-It is reproducible with `tools/analysis/harness/timing.py`; all note evidence is
-in `/tmp/env4-timing-audit.json`. See [Harness v3](../harness.md#harness-v3-2026-10-12-env-fitting-round-4)
-for the metric definition and unchanged-model comparison.
+All note evidence is in `/tmp/env4-timing-audit.json`.
 
 | Probe | Gates | Schedule→arrival mean / SD / range (ms) | Send→arrival mean / SD / range (ms) |
 |---|---:|---:|---:|
@@ -870,7 +867,7 @@ and jointly refits Q36/C72/R142/R143 for attack and release. All earlier VERIFY
 items remain applicable; the three new register rows above describe the added
 reduction and nominal→fitted values. Full category, solver and CPU evidence,
 rejected trials and the noise-sensitive pattern centroid audit are in the
-[round-7 report](vcf-env-fitting-round7-2026-10-12.md). The VCF topology, resonance
+round-7 report. The VCF topology, resonance
 gang direction, cutoff/ENV MOD/DECAY tracks, OTA transfer and output calibration
 retain their preceding fits.
 Each processed **1,536,000** VCF samples, maximum Newton count **3**,
@@ -882,7 +879,7 @@ Reproduce with `target/release/dw303-render /tmp/env4-cpu.wav --seconds 8 --rate
 ## Session-1+2 interaction fit (round 9)
 
 The accepted current fit and complete scores/VERIFY inventory are in
-[round 9](vcf-env-fitting-round9-2026-10-12.md). C72 is **12 µF** (+20% assumed
+round 9. C72 is **12 µF** (+20% assumed
 tolerance), effective Q36 reference is **0.40 V**, and the two low-current
 MEG discharge drops are separately **0.45 V**. D26 remains **0.60 V** under
 R117 bias; C62 floor is **1.50 V**, buffered MEG rest **0.20 V**. The voice's
@@ -902,12 +899,12 @@ This work uses the unchanged v5 harness, both read-only capture sessions, and
 the worktree's renderer. The initial full score reproduces `round8.json` exactly:
 **0.821752766751**, zero analysis failures, renderer SHA-256
 `54db76b4e79c206b4c56d4250306f2a2e65cd3763fabf50f5ed167dc73b94b93`.
-The preceding [round-9 investigation](vcf-env-fitting-round9-2026-10-12.md)
+The preceding round-9 investigation
 remains the record of its rejected trials.
 
 ### Interaction metric's own hardware repeat floor
 
-`crates/dw303-env/analysis/interaction_noise_floor.py` calls the actual harness
+The noise-floor audit calls the actual harness
 `analyse(..., category_override='interaction')` on all 18 unordered session-2
 repeat pairs. It preserves the common first-take timeline, per-gate acoustic
 alignment, raw absolute level, decay-fit penalties and the additional normalized
@@ -1125,15 +1122,6 @@ No commit, branch/history change or push was performed.
 
 ```sh
 cargo build --offline --release -p dw303-render
-python3 crates/dw303-env/analysis/interaction_noise_floor.py \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
-  --json /tmp/envfit-noise.json
-python3 tools/analysis/harness/score.py \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
-  --categories interaction,behavior,envelopes,accent,gate,vcf \
-  --cache /tmp/envfit-cache --jobs 4 --json /tmp/envfit-related.json
 # Final run omits --categories and writes /tmp/envfit-score.json.
 cargo test --offline --release -p dw303-osc -p dw303-vcf -p dw303-env \
   -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
@@ -1151,12 +1139,12 @@ score is **0.752349791399**, SHA-256
 `2d7e313cea259a7c1d355f95aadcb55f9a8f3d71fab02ef5b4f575fd77bb0c17`.
 The rebuilt related-category baseline reproduces all six published category
 statistics exactly. Neither the scoring code nor capture data was changed.
-PLAN sections 3/4/6, the binding contract, v7 harness rules and the reconciled
+The binding contract, v7 harness rules and the reconciled
 ENV/netlist authority were read before fitting.
 
 ### Time-resolved diagnosis
 
-`crates/dw303-env/analysis/phrase_dynamics.py` now records 20-ms RMS windows at
+The phrase-dynamics audit records 20-ms RMS windows at
 10-ms age increments, bin means, RMS after subtracting each bin's mean, the
 8-ms attack peak's age, and the next-onset interval. Bin-mean subtraction is
 an offline diagnostic, not a 30-Hz high-pass or a changed scoring metric.
@@ -1362,12 +1350,6 @@ Changes are left in the assigned worktree, without a commit or history change.
 
 ```sh
 cargo build --offline --release -p dw303-render
-python3 -B tools/analysis/harness/score.py \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
-  --categories behavior,interaction,amplitude,envelopes,accent,gate \
-  --json /tmp/env-i-score.json
-# Repeat without --categories for /tmp/env-i-full-score.json.
 cargo test --offline -p dw303-osc -p dw303-vcf -p dw303-env \
   -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
   -p dw303-standalone -p dw303-render -p dw303-capture
@@ -1605,12 +1587,6 @@ removed before delivery. Changes remain in this worktree without a commit.
 
 ```sh
 cargo build --offline --release -p dw303-render
-python3 -B tools/analysis/harness/score.py \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 \
-  /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session2 \
-  --categories interaction,amplitude,behavior,envelopes,accent,gate \
-  --json /tmp/env14-final-score.json
-# Repeat without --categories for /tmp/env14-full-score.json.
 cargo test --offline -p dw303-osc -p dw303-vcf -p dw303-env \
   -p dw303-sequencer -p dw303-voice -p dw303-engine -p dw303-clap \
   -p dw303-standalone -p dw303-render -p dw303-capture

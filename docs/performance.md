@@ -109,7 +109,7 @@ they were reverted. No physics test tolerance was weakened.
 
 **New circuit VERIFY items: none.** All existing device, rail, tolerance and
 reduction assumptions remain in the [OSC register](circuit/osc.md),
-[VCF register](circuit/vcf.md), [VCF round-5 register](circuit/vcf-fitting-round5-2026-10-12.md)
+[VCF register](circuit/vcf.md)
 and [ENV register](circuit/env.md). In particular, fitted transistor gains,
 Q21 excess gain, square-shaper device estimates, ideal followers/switches,
 pot tracks and recording-chain calibration are still provisional.
@@ -149,8 +149,6 @@ cargo build --offline --release -p dw303-render
 ./target/release/dw303-render /tmp/c1.wav --hold 24 --seconds 16 --rate 48000
 ./target/release/dw303-render /tmp/c3.wav --hold 48 --seconds 16 --rate 48000
 cargo test --offline --release -p dw303-voice --test performance -- --ignored --nocapture
-python3 tools/analysis/harness/score.py /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 --cache /tmp/perf-harness-cache --json /tmp/perf-score.json --jobs 4
-python3 tools/analysis/harness/solver_audit.py /Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/reference/captures/2026-10-12-session1 --json /tmp/perf-solver-audit.json --jobs 4
 ```
 
 CPU records: `/tmp/perf-cpu-candidate12.json` (original rows only),

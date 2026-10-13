@@ -2,7 +2,7 @@
 
 Historical first fit. Applied gain/coupling values, validation and the
 high-current instability warning are superseded by
-[vcf-fitting-2026-10-12.md](vcf-fitting-2026-10-12.md). VR3/TM3 and ENV
+later fitting rounds. VR3/TM3 and ENV
 calibration assumptions remain inherited; the current fit restores printed
 C25/C27 values and includes Q21 differential base loading.
 
@@ -24,7 +24,7 @@ The renderer's fixed velocity 0.5 is appropriate for v80; v120 records have
 hardware metrics but deliberately have no model comparison. No renderer change
 or new dependency was necessary.
 
-`tools/analysis/vcf_fit.py` reads 96 kHz/24-bit PCM and the JSON onset/MIDI
+The fitting script reads 96 kHz/24-bit PCM and the JSON onset/MIDI
 schedule. Minimum-DECAY sustained windows start 350 ms after detected onset and
 last 600 ms, after approximately five 68 ms MEG time constants. Other decay
 settings select a later, bounded window; those settings are not present in this
@@ -219,13 +219,6 @@ and the increased Q21 output level are outside this task.
 
 ```sh
 cargo build --offline -p dw303-render --release
-OPENBLAS_NUM_THREADS=1 python3 tools/analysis/vcf_fit.py --self-test
-OPENBLAS_NUM_THREADS=1 python3 tools/analysis/vcf_fit.py --render \
-  --cache /tmp/dw303-vcf-fit --json /tmp/dw303-vcf-fit.json \
-  --markdown /tmp/dw303-vcf-fit.md
-OPENBLAS_NUM_THREADS=1 python3 tools/analysis/vcf_fit.py --fit-linear \
-  --fixed-coupling-scale 1
-OPENBLAS_NUM_THREADS=1 python3 tools/analysis/vcf_fit.py --fit-linear
 cargo test --offline --workspace
 cargo clippy --offline -p dw303-vcf -p dw303-env --all-targets -- -D warnings
 ```

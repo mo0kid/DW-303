@@ -1,7 +1,6 @@
 #![no_std]
 //! Differential TB-303 diode ladder with implicit trapezoidal integration.
-//! See `docs/circuit/vcf.md` for the reduced netlist and
-//! `docs/circuit/vcf-fitting-round14-2026-10-12.md` for the current fit and rate audit.
+//! See `docs/circuit/vcf.md` for the reduced netlist.
 //! Q12 differential base loading retains ten physical capacitor states;
 //! unmeasured transistor betas and the effective Q21 gain remain VERIFY items.
 

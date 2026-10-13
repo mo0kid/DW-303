@@ -6,7 +6,7 @@ Authority: [reconciled netlist](../../reference/schematic/netlist.md),
 and this document. The session-2 tuning round has the same scope. No dependencies
 were added. Calibration uses the 346 session-1 and 274 session-2
 read-only TD-3 WAV/JSON pairs dated 2026-10-12, with the unchanged
-[scoring harness](../harness.md). These are unit-specific output-audio fits,
+scoring harness. These are unit-specific output-audio fits,
 not internal-node measurements or proof of original TB-303 accuracy.
 
 `Components::NOMINAL` retains its integration API name but now contains the
@@ -18,8 +18,7 @@ capacitor cycle endpoints **before** the explicitly modelled Q28 follower.
 method signatures and SI units remain unchanged. Round 3 changes Q8's junction
 law and fitted base/emitter parameters. The session-2 tuning round fits VR2's
 resistive track. Round 10 refits Q8 parameters with the revised VCF coupling;
-its combined results and limitations are in
-[the round-10 report](vcf-fitting-round10-2026-10-12.md).
+its combined results and limitations were recorded in the round-10 fit.
 Earlier score sections are historical evidence.
 
 ## Pitch CV and slide
@@ -362,8 +361,8 @@ No SPICE or hardware-internal validation is claimed.
 
 ## Round-3 fitting evidence (harness v2)
 
-The starting release reproduces **1.0198058937** overall, matching
-`tools/analysis/harness/results/round2-v2.json`. Every trial and build runs in
+The starting release reproduces **1.0198058937** overall, matching the
+round-2 v2 result. Every trial and build runs in
 this oscillator worktree. Scratch scripts, immutable capture symlinks, hashed
 replay caches and score artifacts are under `/tmp`; captures, scoring code,
 other crates, manifests and dependencies are unchanged. No commits are made.

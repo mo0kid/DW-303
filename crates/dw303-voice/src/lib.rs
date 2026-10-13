@@ -406,7 +406,6 @@ const CALIBRATION_SWEEP_REST: f64 = 3.3165;
 /// harmonic-grid/placement uncertainty; the .4 current retains the joint
 /// envelope fit. Centre normalisation and
 /// the fixed electrical endpoints retain the established 535-Hz calibration.
-/// See `docs/circuit/vcf-fitting-round13-2026-10-12.md` for the fit register.
 const CALIBRATION_CUTOFF_TRACK: [f64; 11] = [
     0.000000000000,
     0.015992842107,
