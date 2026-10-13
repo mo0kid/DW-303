@@ -127,3 +127,10 @@ IDs. Each control renders `<svg class="face"><use href="#sym-…"/></svg>`,
 rotated by the control's `--angle`; the pointer at 12 o'clock is the centre
 position. The page holds 43 filters: 37 from the panel plus 6 from the
 artwork. The WebKit probe and the CLAP page test both check that count.
+
+The rotary switches are inlined, one copy per switch with unique IDs, rather
+than shared symbols. The base circle stays still. The bar and pointer rotate
+inside the drop-shadow and inner-shadow filters, so the light direction stays
+fixed: the shadow is always cast down and to the right. The filter regions are
+widened to cover the whole switch, so the rotated bar is never clipped. Knobs
+still rotate as a whole, which is fine for their small, symmetric shadows.
