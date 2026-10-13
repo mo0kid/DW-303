@@ -18,3 +18,5 @@ __pycache__/
 /tools/analysis/td3-results/
 /crates/dw303-vcf/analysis/*.json
 /crates/dw303-vcf/analysis/*.patch
+# Roland service notes: private reference, never commit
+/reference/schematic/TB-303.pdf
