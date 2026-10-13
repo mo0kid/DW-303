@@ -371,12 +371,20 @@ impl Host {
             self.display = d
         }
         let d = self.display;
-        if self.stream.as_ref().is_some_and(|s| {
-            let s = s.statistics();
-            s.panics != 0 || s.processor_faults != 0 || s.backend_errors != 0
-        }) {
-            self.status = "Audio fault; stop and select the device again".into()
-        }
+        // Genuine failures are faults; late buffers (CoreAudio overload xruns)
+        // are reported as an informational dropout count (RAVET 944011d).
+        let shown_status = match self.stream.as_ref().map(|s| s.statistics()) {
+            Some(s) if s.panics != 0 || s.processor_faults != 0 || s.backend_errors != 0 => {
+                "Audio fault; stop and select the device again".to_string()
+            }
+            Some(s) if s.xruns != 0 => format!(
+                "{} · {} dropout{}",
+                self.status,
+                s.xruns,
+                if s.xruns == 1 { "" } else { "s" }
+            ),
+            _ => self.status.clone(),
+        };
         let params = Value::Object(
             params::DESCRIPTORS
                 .iter()
@@ -384,7 +392,7 @@ impl Host {
                 .map(|(d, v)| (d.id.0.to_string(), v.into()))
                 .collect(),
         );
-        object([("params",params),("leds",Value::Object(protocol::panel_lamps(d))),("selection",object([("mode",d.mode.into()),("group",d.group.into()),("track",d.track.into()),("section",if d.section_b{"B"}else{"A"}.into()),("pattern",(d.pattern+1).into()),("step",(d.step+1).into()),("editMode",d.edit_mode.into())])),("error",self.error.clone().map(Value::from).unwrap_or(Value::Null)),("pending",self.shared.pending().into()),("running",self.stream.is_some().into()),("status",self.status.clone().into()),("io",object([("audio",true.into()),("input",false.into()),("midi",true.into()),("outputs",Value::Array(self.outputs.clone())),("inputs",Value::Array(Vec::new())),("midis",Value::Array(self.midis.clone())),("note","Stop audio to change settings. Notes play when RUN is stopped; SYNC 2 follows MIDI clock.".into())]))])
+        object([("params",params),("leds",Value::Object(protocol::panel_lamps(d))),("selection",object([("mode",d.mode.into()),("group",d.group.into()),("track",d.track.into()),("section",if d.section_b{"B"}else{"A"}.into()),("pattern",(d.pattern+1).into()),("step",(d.step+1).into()),("editMode",d.edit_mode.into())])),("error",self.error.clone().map(Value::from).unwrap_or(Value::Null)),("pending",self.shared.pending().into()),("running",self.stream.is_some().into()),("status",shown_status.into()),("io",object([("audio",true.into()),("input",false.into()),("midi",true.into()),("outputs",Value::Array(self.outputs.clone())),("inputs",Value::Array(Vec::new())),("midis",Value::Array(self.midis.clone())),("note","Stop audio to change settings. Notes play when RUN is stopped; SYNC 2 follows MIDI clock.".into())]))])
     }
 }
 /// Last working Audio/MIDI settings (the exact Start message), beside state.bin.
