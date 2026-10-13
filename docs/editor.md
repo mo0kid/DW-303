@@ -155,3 +155,20 @@ labels. It has 47 filters; the page as a whole has 55.
 - **Buttons:** every button control draws a 2 px dark outline
   (`box-shadow: 0 0 0 2px #231b1c`). The controls align exactly with the
   button shapes in the SVG.
+
+### Knob cap shading
+
+The 'D'-shaped cap segment of each knob is the `#C8C6C6` path starting
+`M39.6124 8C` in the small knob and `M54.1758 9C` in the large one. Its fill is
+`var(--cap, #C8C6C6)`, which inherits through `<use>`.
+
+Each knob's paint hook sets `--cap` by linear interpolation in sRGB, with
+`t = |2·position − 1|`:
+
+| Knob position | Cap colour |
+|---|---|
+| Centre (5/10) | `#C8C6C6` |
+| Either end (0/10, 10/10) | `#5E524C` |
+
+TEMPO computes its position over 40–300 BPM. The WebKit probe checks the
+centre colour.
