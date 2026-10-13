@@ -10,13 +10,15 @@ __pycache__/
 /reference/captures/2026-10-12-essentials-silent/
 /reference/captures/2026-10-12-probe/
 /reference/captures/2026-10-12-test*/
-/tools/analysis/harness/cache/
 __pycache__/
-/tools/analysis/harness/.cache/
-# Analysis result data (kept local, not in git)
-/tools/analysis/harness/results/
-/tools/analysis/td3-results/
-/crates/dw303-vcf/analysis/*.json
-/crates/dw303-vcf/analysis/*.patch
 # Roland service notes: private reference, never commit
 /reference/schematic/TB-303.pdf
+# Private working files (kept local, not in git)
+/PLAN.md
+/docs/STATUS.md
+/docs/harness.md
+/docs/td3-comparison-*.md
+/docs/circuit/*-round*.md
+/docs/circuit/*-2026-10-12.md
+/tools/analysis/
+/crates/*/analysis/
