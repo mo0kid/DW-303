@@ -539,7 +539,7 @@ mod tests {
         assert!(page.len() < 1_048_576);
         // All 37 original SVG filters (section shadows, button bevels) are kept.
         // 37 panel filters plus the knob/switch artwork's own shadows.
-        assert_eq!(page.matches("<filter").count(), 45);
+        assert_eq!(page.matches("<filter").count(), 55);
         for id in 1..=8 {
             assert!(page.contains(&format!("id=\"param-{id}\"")));
         }

@@ -134,3 +134,24 @@ inside the drop-shadow and inner-shadow filters, so the light direction stays
 fixed: the shadow is always cast down and to the right. The filter regions are
 widened to cover the whole switch, so the rotated bar is never clipped. Knobs
 still rotate as a whole, which is fine for their small, symmetric shadows.
+
+### Panel v2 (2026-10-13)
+
+The page is rebuilt from the owner's updated `media/DW-303_UI.svg`, which adds
+scale ticks, the TRACK / PATT. GROUP and MODE legends, and SLOW/FAST and OFF/MAX
+labels. It has 47 filters; the page as a whole has 55.
+
+- **LEDs:** all 21 LED IDs are reapplied by position.
+- **Holes and sizing:** the dark knob holes are kept. The knobs and switches
+  are drawn at their natural size inside them, so a dark ring shows:
+  - small knobs: 80×82 in an 82 px hole;
+  - large knobs: 109 in a 113.7 px hole;
+  - switches: 108 in a 113.7 px hole.
+- **Switch detents:** the switches point at the measured angles of the legend
+  dots (clockwise from 12 o'clock):
+  - Patt. Group 1–7: −105.2, −72.4, −42.3, −12.0, 16.9, 46.3, 75.3;
+  - Mode (Track Write, Track Play, Pattern Play, Pattern Write): 45.7, 75.5,
+    104.1, 132.8.
+- **Buttons:** every button control draws a 2 px dark outline
+  (`box-shadow: 0 0 0 2px #231b1c`). The controls align exactly with the
+  button shapes in the SVG.
