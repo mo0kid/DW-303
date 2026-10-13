@@ -13,3 +13,8 @@ __pycache__/
 /tools/analysis/harness/cache/
 __pycache__/
 /tools/analysis/harness/.cache/
+# Analysis result data (kept local, not in git)
+/tools/analysis/harness/results/
+/tools/analysis/td3-results/
+/crates/dw303-vcf/analysis/*.json
+/crates/dw303-vcf/analysis/*.patch
