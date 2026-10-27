@@ -3,6 +3,8 @@
 A circuit-modelled bass line synthesizer and step sequencer, built on RAVET.
 Formats: CLAP, AU, VST3, LV2, AAX and standalone.
 
+![DW-303 standalone app](docs/images/dw-303-standalone.png)
+
 Signed, ready-to-install builds are available from [djwaudio.co](https://djwaudio.co).
 
 ## License
