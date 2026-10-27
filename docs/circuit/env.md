@@ -351,14 +351,6 @@ exceeds the approximate 18% target and remains a performance limitation.
 The default held-note check above meets the target. ENV alone costs 1.55%;
 the permitted fitting scope does not include changing the VCF solver.
 
-Commit attempt was blocked by the session filesystem policy: both `git add`
-and `git commit` failed creating
-`/Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/.git/worktrees/dw303-wt-env/index.lock`
-with `Operation not permitted`. The external Git directory is outside the
-writable roots. The four scoped files remain uncommitted on `fit1/env`;
-no other branch or Git history was changed.
-
-
 ## Session-1 fitting round 2 (2026-10-12)
 
 The starting worktree reproduces round1.json: **1.7143** overall. Changes are

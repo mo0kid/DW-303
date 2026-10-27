@@ -33,7 +33,7 @@ open target/standalone/release/DW-303.app
 ```
 
 The built bundle is
-`/Volumes/PROTOOLS/Dropbox/DEVELOPER/dw-303/target/standalone/release/DW-303.app`.
+`target/standalone/release/DW-303.app`.
 `--profile debug` produces `target/standalone/debug/DW-303.app`. The script gets
 the actual executable path from the package-scoped Cargo build, so a configured
 Cargo target directory is supported. The bundle identifier is
