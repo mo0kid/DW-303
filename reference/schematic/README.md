@@ -1,9 +1,10 @@
 # TB-303 service notes
 
-`TB-303.pdf` is the Roland TB-303 Service Notes, first edition (Feb. 19 1982), 3rd
-printing (Sep. 1986), with the 1992 errata pages. It is a scanned copy supplied
-by the project owner. Roland owns its copyright. It is kept here for private
-reference only and must not be redistributed.
+The transcriptions here were made from the Roland TB-303 Service Notes, first
+edition (Feb. 19 1982), 3rd printing (Sep. 1986), with the 1992 errata pages.
+Roland owns their copyright, so the PDF is not part of this repository. To
+regenerate the page renders, place your own scanned copy at
+`reference/schematic/TB-303.pdf` (git-ignored).
 
 | Page | Content |
 |---|---|
