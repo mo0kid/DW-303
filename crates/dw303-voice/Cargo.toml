@@ -10,7 +10,7 @@ description = "DW-303 circuit voice: composes the oscillator, VCF and envelope s
 dw303-osc = { path = "../dw303-osc" }
 dw303-vcf = { path = "../dw303-vcf" }
 dw303-env = { path = "../dw303-env" }
-ravet-signal = { path = "../../../ravet/crates/ravet-signal" }
+ravet-signal = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
 
 [lints]
 workspace = true
