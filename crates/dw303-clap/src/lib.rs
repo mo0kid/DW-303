@@ -19,7 +19,10 @@ use std::{
 
 mod editor;
 pub use editor::EditError;
-#[cfg(all(target_os = "macos", feature = "native-editor"))]
+#[cfg(all(
+    feature = "native-editor",
+    any(target_os = "macos", target_os = "windows", target_os = "linux")
+))]
 #[allow(unsafe_code)]
 mod gui;
 
@@ -43,8 +46,14 @@ impl Plugin for Dw303Plugin {
             .register::<PluginParams>()
             .register::<PluginState>()
             .register::<PluginTail>();
-        #[cfg(all(target_os = "macos", feature = "native-editor"))]
+        #[cfg(all(
+            feature = "native-editor",
+            any(target_os = "macos", target_os = "windows", target_os = "linux")
+        ))]
         builder.register::<clack_extensions::gui::PluginGui>();
+        // Linux editors run GTK work from the host's UI timer.
+        #[cfg(all(feature = "native-editor", target_os = "linux"))]
+        builder.register::<clack_extensions::timer::PluginTimer>();
     }
 }
 
@@ -74,7 +83,10 @@ impl DefaultPluginFactory for Dw303Plugin {
         Ok(Dw303Main {
             host,
             shared,
-            #[cfg(all(target_os = "macos", feature = "native-editor"))]
+            #[cfg(all(
+                feature = "native-editor",
+                any(target_os = "macos", target_os = "windows", target_os = "linux")
+            ))]
             gui: std::cell::RefCell::new(None),
         })
     }
@@ -141,7 +153,10 @@ fn index_of(id: ClapId) -> Option<usize> {
 pub struct Dw303Main<'a> {
     host: HostMainThreadHandle<'a>,
     shared: &'a Dw303Shared,
-    #[cfg(all(target_os = "macos", feature = "native-editor"))]
+    #[cfg(all(
+        feature = "native-editor",
+        any(target_os = "macos", target_os = "windows", target_os = "linux")
+    ))]
     gui: std::cell::RefCell<Option<gui::GuiState<'a>>>,
 }
 

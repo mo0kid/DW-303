@@ -8,6 +8,7 @@ members = [
     "crates/dw303-engine",
     "crates/dw303-clap",
     "crates/dw303-standalone",
+    "crates/dw303-native",
     "tools/dw303-render",
     "tools/dw303-capture",
 ]

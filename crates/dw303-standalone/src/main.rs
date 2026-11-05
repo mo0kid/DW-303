@@ -1,4 +1,7 @@
-//! DW-303 macOS standalone host. Device lifecycle and state I/O stay on main.
+//! DW-303 standalone host (macOS, Windows, Linux). Device lifecycle and state
+//! I/O stay on the main thread.
+// Release builds on Windows are GUI applications without a console window.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 mod audio;
 mod json;
 mod protocol;
@@ -140,10 +143,16 @@ impl Host {
             ]));
         }
         self.outputs = outputs;
-        self.midis = ravet_midi_device::input_ports()?
-            .into_iter()
-            .map(|p| object([("id", p.id.into()), ("name", p.name.into())]))
-            .collect();
+        // A machine without a MIDI backend (for example Linux without the ALSA
+        // sequencer) still plays from the panel; it just lists no MIDI inputs.
+        self.midis = ravet_midi_device::input_ports()
+            .map(|ports| {
+                ports
+                    .into_iter()
+                    .map(|p| object([("id", p.id.into()), ("name", p.name.into())]))
+                    .collect()
+            })
+            .unwrap_or_default();
         Ok(())
     }
     fn stop(&mut self) -> Result<()> {
