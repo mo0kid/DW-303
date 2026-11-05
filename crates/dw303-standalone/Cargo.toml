@@ -15,11 +15,11 @@ workspace = true
 [dependencies]
 dw303-engine = { path = "../dw303-engine" }
 ravet-foundation.workspace = true
-ravet-device = { path = "../../../ravet/crates/ravet-device" }
-ravet-midi-device = { path = "../../../ravet/crates/ravet-midi-device" }
-ravet-webview = { path = "../../../ravet/crates/ravet-webview" }
-ravet-surface = { path = "../../../ravet/crates/ravet-surface" }
-ravet-native-dsp = { path = "../../../ravet/crates/ravet-native-dsp" }
+ravet-device = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
+ravet-midi-device = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
+ravet-webview = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
+ravet-surface = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
+ravet-native-dsp = { git = "https://github.com/mo0kid/ravet", tag = "v0.1.0" }
 
 [dev-dependencies]
 dw303-sequencer = { path = "../dw303-sequencer" }

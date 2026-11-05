@@ -834,11 +834,13 @@ dependencies = [
 
 [[package]]
 name = "ravet-audio-file"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 
 [[package]]
 name = "ravet-clap"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "clack-extensions",
  "clack-plugin",
@@ -847,7 +849,8 @@ dependencies = [
 
 [[package]]
 name = "ravet-device"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "cpal",
  "ravet-audio-file",
@@ -859,14 +862,16 @@ dependencies = [
 
 [[package]]
 name = "ravet-foundation"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "ravet-graph"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "ravet-foundation",
  "rtrb",
@@ -874,7 +879,8 @@ dependencies = [
 
 [[package]]
 name = "ravet-midi-device"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "midir",
  "ravet-foundation",
@@ -883,25 +889,29 @@ dependencies = [
 
 [[package]]
 name = "ravet-native-dsp"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "libm",
 ]
 
 [[package]]
 name = "ravet-signal"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 
 [[package]]
 name = "ravet-surface"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "ravet-foundation",
 ]
 
 [[package]]
 name = "ravet-webview"
-version = "0.0.1"
+version = "0.1.0"
+source = "git+https://github.com/mo0kid/ravet?tag=v0.1.0#d4336682398a2ce7d79b4a42c5b4fe1b082818f7"
 dependencies = [
  "cc",
  "pkg-config",
