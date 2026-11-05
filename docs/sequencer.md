@@ -204,16 +204,26 @@ is not a synchronisation primitive and must not be concurrently mutated.
 The transition table covers stopped Pattern Write's Normal/Pitch/Time modes.
 Procedures supported by the scenario tests:
 
-- Select a pattern, hold its selector, and press CLEAR. Default straight length
-  is sixteen. Hold FUNCTION and press STEP once per required rhythm position.
-  FUNCTION + triplet sets twelve positions; explicit triplet length caps at fifteen.
+- Select a pattern, hold its selector, and press CLEAR. This empties timing data
+  (sixteen straight Rests, so the pattern is silent) and keeps pitch data. Hold FUNCTION and press STEP
+  once per required rhythm position; counting clears timing data to Rests. FUNCTION +
+  3/4 (triplet) sets twelve positions and keeps timing data. In 3/4 the count
+  stops at fifteen, and a sixteenth STEP press returns the pattern to 4/4.
+  Procedure source: [tinyloops TB-303 pattern write](https://www.tinyloops.com/tb303/pattern_write.html).
 - PITCH MODE rewinds the pitch cursor. Pitch keys write and advance, with held
   DOWN/UP choosing octave. BACK returns one position for correction. FUNCTION
   returns to Normal. Re-enter PITCH MODE and TAP to recall each pitch; hold TAP
-  to toggle accent, slide or octave on the recalled pitch.
+  to toggle accent, slide or octave on the recalled pitch. Changing the pitch
+  key resets accent and slide; entering the same pitch key or changing properties
+  with WRITE/NEXT preserves the flags unless explicitly toggled.
 - TIME MODE rewinds the independent rhythm cursor. Note/sustain/rest advance
   it without sounding a preview. TAP checks time data without changing it.
   The last rhythm position automatically returns to Normal.
+- Pattern Write retains its Normal/Pitch/Time submode across RUN/STOP. FUNCTION,
+  PITCH MODE and TIME MODE cannot change that submode while running; stopped
+  editing resumes in the retained mode. Keyboard lamps still show pattern
+  selection during playback. While stopped, hold FUNCTION to inspect the
+  3/4 state on the shared UP/triplet lamp (on for triplets, off for straight).
 - In Pattern Play hold two selector endpoints in the same four-pattern block
   (1–4 or 5–8). The inclusive ascending range repeats. A cross-block chord
   selects only the latest key. Queue another selection while running; it takes
@@ -239,13 +249,51 @@ was unavailable in this environment, so secondary-symbol placement remains a
 verification item. These tests encode procedures and chosen interpretations;
 they do not establish firmware or hardware equivalence.
 
+### tinyloops Pattern Write comparison
+
+The Pattern Write changes above follow the supplied text and HTML extraction of
+the [tinyloops Pattern Write guide](https://www.tinyloops.com/tb303/pattern_write.html),
+a third-party procedure guide, not Roland's manual or a hardware measurement.
+The HTML image names identify the missing 3/4, note, sustain and rest legends.
+NORMAL selection/CLEAR, FUNCTION length counts and triplet changes, stopped
+pitch entry/recall/BACK/rewind/finish, and time entry/automatic return now follow
+the described procedures. Rests suppress gate, trigger, accent and slide without
+erasing the independent pitch properties; sustain after a rest stays silent.
+
+Interpretation limits: “pitch changed” here means a different C..C' key value.
+Repeated identical keys preserve flags, as do WRITE/NEXT octave adjustments.
+The page does not establish whether an octave change during fresh key entry
+should count as a pitch change, or how equivalent pitches at the C/C' octave
+boundary behave. It says the lit 3/4 lamp means fifteen steps but also prescribes
+FUNCTION + 3/4 as twelve steps; the lamp is treated as a triplet-mode indication,
+not an exact length readout. Full FUNCTION step-count lamp encoding remains
+unverified. RUN locks the three write submodes; changing the main MODE rotary
+still stops the transport, a separate existing host interpretation.
+
+Real-time timing recording is not implemented. In DW-303, RUN auditions the
+stored pattern in any write submode; running CLEAR/TAP do not arm or record a
+rhythm. The guide instead describes silent slave start, local RUN/STOP disabled
+while slaved, CLEAR erasing timing and arming a metronome, normal-mode CLEAR
+preserving master phase, pitch/time CLEAR restarting the bar, TAP producing a
+Note followed by Ties while held and Rests after release, selector + TAP sustain,
+and automatic playback after the recording loop. Implementing this requires an
+explicit record/armed state, sample-timed TAP edges and clock quantization,
+phase-preserving versus bar-reset paths, metronome audio, bounded writes and
+memory publication, slave transport policy, and loop-end playback handoff.
+The guide calls normal-mode phase preservation undocumented; TAP quantization,
+late taps, selector + TAP details and external-start silence need stronger
+evidence before implementation. Pitch recording remains step-only. Hardware's
+reported 48 random power-up pitches are also absent: the model has sixteen
+deterministic pitch slots and factory content, with no memory-format change.
+
 ### Panel LED output
 
 `leds(&memory)` provides C..C', selector lamps, A/B, Normal/Pitch/Time, RUN,
 BACK/sign, DOWN/UP/ACCENT/SLIDE, and step-mode indications. Shared white-key
 pitch and selector outputs agree, so the adapter does not drive one physical
 lamp with conflicting values. Playing/selected patterns blink; other active
-chain participants stay lit. Queued patterns blink. `Led::lit(phase)` resolves
+chain participants stay lit. Queued patterns blink. While running, the keyboard lamps
+show pattern selection only; they do not follow the sounding note. `Led::lit(phase)` resolves
 Off/On/Blink using the host's common blink phase; blink frequency is not baked
 into sample timing. The sixteen-element `steps` array is an additional logical
 cursor view, **not** a claim that the original has sixteen step LEDs. Battery
@@ -256,7 +304,7 @@ state belongs to the host; RUN/BATTERY here indicates transport only.
 All new uncertainty annotations are in `edit.rs`:
 
 1. `Leds` / `Editor::leds`: exact firmware LED multiplexing, queued selection,
-   FUNCTION step-count display, recall and last-step indications, BACK/sign
+   FUNCTION exact step-count display, recall and last-step indications, BACK/sign
    indication and blink cadence require an original-unit comparison. The current
    display is deterministic and accounts for shared white-key emitters.
 2. `PanelAction::Mode`: implicit stop on MODE change implements the manual's
@@ -268,12 +316,14 @@ All new uncertainty annotations are in `edit.rs`:
    secondary legend mapping need confirmation against a clearer panel scan.
 5. `Editor::pitch`: track/pattern shift treats C as zero, C' as +12, and held
    DOWN as the -12..0 range. Exact original negative-shift procedure is uncertain.
-   Pitch entry saturates at sixteen until BACK or PITCH MODE; behaviour beyond
-   the sixteenth original pitch has not been established.
+   Pitch entry and TAP recall stop at the pattern's step count (no later pitch
+   can sound) until BACK or PITCH MODE. The original stores sixteen pitches
+   regardless of step count; whether its cursor stops there is unconfirmed.
 6. `Editor::preview_note`: preview gate remains high until key/TAP release;
    analog VEG supplies decay. Original CPU preview-gate pulse width is unmeasured.
-7. CLEAR uses deterministic Mid-C/default rhythm storage rather than emulating
-   undocumented stale/random pitch data on the original machine.
+7. CLEAR resets timing only, per the tinyloops procedure; pitch data remains.
+   Uninitialised memory is Mid-C/default rhythm rather than the original's
+   undocumented power-up contents.
 8. `Editor::tick`: a discontinuous host seek restarts the current chain at the
    new beat. Original hardware has no corresponding host-seek history.
 

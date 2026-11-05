@@ -33,6 +33,149 @@ fn start(e: &mut Editor, m: &mut Memory, s: &mut Sequencer) {
 }
 
 #[test]
+fn pitch_changes_reset_flags_but_recall_and_same_pitch_keep_them() {
+    let mut e = Editor::new();
+    let mut m = Memory::default();
+    mode(&mut e, &mut m, Mode::PatternWrite);
+    m.bank.patterns[0].steps[0] = Step {
+        pitch: 5,
+        accent: true,
+        slide: true,
+        ..Step::default()
+    };
+    tap(&mut e, &mut m, Button::PitchMode);
+    tap(&mut e, &mut m, Button::Pitch(5));
+    assert!(m.bank.patterns[0].steps[0].accent && m.bank.patterns[0].steps[0].slide);
+    tap(&mut e, &mut m, Button::Back);
+    tap(&mut e, &mut m, Button::Pitch(7));
+    assert!(!m.bank.patterns[0].steps[0].accent && !m.bank.patterns[0].steps[0].slide);
+    // Rewind and keep the pitch with WRITE/NEXT while changing its properties.
+    tap(&mut e, &mut m, Button::PitchMode);
+    press(&mut e, &mut m, Button::Tap);
+    for b in [Button::Down, Button::Accent, Button::Slide] {
+        tap(&mut e, &mut m, b);
+    }
+    release(&mut e, &mut m, Button::Tap);
+    let kept = m.bank.patterns[0].steps[0];
+    assert_eq!((kept.pitch, kept.octave), (7, Octave::Down));
+    assert!(kept.accent && kept.slide);
+    // BACK revisits that same pitch; held UP changes octave on entry.
+    tap(&mut e, &mut m, Button::Back);
+    press(&mut e, &mut m, Button::Up);
+    tap(&mut e, &mut m, Button::Pitch(7));
+    release(&mut e, &mut m, Button::Up);
+    let same = m.bank.patterns[0].steps[0];
+    assert_eq!(same.octave, Octave::Up);
+    assert!(same.accent && same.slide);
+    tap(&mut e, &mut m, Button::Function);
+    assert_eq!(e.edit_mode(), EditMode::Normal);
+    assert_eq!(m.bank.patterns[0].steps[0], same);
+}
+
+#[test]
+fn pattern_write_submodes_lock_during_run_and_resume_after_stop() {
+    for (button, submode) in [
+        (Button::Function, EditMode::Normal),
+        (Button::PitchMode, EditMode::Pitch),
+        (Button::TimeMode, EditMode::Time),
+    ] {
+        let mut e = Editor::new();
+        let mut m = Memory::default();
+        let mut s = Sequencer::default();
+        mode(&mut e, &mut m, Mode::PatternWrite);
+        tap(&mut e, &mut m, button);
+        let before = m.clone();
+        start(&mut e, &mut m, &mut s);
+        assert_eq!(e.edit_mode(), submode);
+        assert_eq!(e.leds(&m).pitch[0], Led::Blink);
+        assert_eq!(e.leds(&m).modifiers, [Led::Off; 4]);
+        for b in [
+            Button::Function,
+            Button::PitchMode,
+            Button::TimeMode,
+            Button::Pitch(7),
+            Button::Tap,
+        ] {
+            assert!(!tap(&mut e, &mut m, b).changed);
+            assert_eq!(e.edit_mode(), submode);
+        }
+        assert_eq!(m, before);
+        start(&mut e, &mut m, &mut s); // RUN/STOP stops this run.
+        assert!(!e.running());
+        assert_eq!(e.edit_mode(), submode);
+        tap(&mut e, &mut m, Button::PitchMode);
+        assert_eq!(e.edit_mode(), EditMode::Pitch);
+        tap(&mut e, &mut m, Button::Function);
+        assert_eq!(e.edit_mode(), EditMode::Normal);
+    }
+}
+
+#[test]
+fn function_displays_triplet_information_without_changing_timing() {
+    let mut e = Editor::new();
+    let mut m = Memory::default();
+    mode(&mut e, &mut m, Mode::PatternWrite);
+    let before = m.clone();
+    press(&mut e, &mut m, Button::Function);
+    assert_eq!(e.leds(&m).modifiers[1], Led::Off);
+    assert_eq!(e.leds(&m).step_mode, [Led::On, Led::Off]);
+    assert_eq!(m, before);
+    tap(&mut e, &mut m, Button::Triplet);
+    assert_eq!(e.leds(&m).modifiers[1], Led::On);
+    assert_eq!(e.leds(&m).step_mode, [Led::Off, Led::On]);
+    assert_eq!(m.bank.patterns[0].time, before.bank.patterns[0].time);
+    release(&mut e, &mut m, Button::Function);
+    assert_eq!(e.leds(&m).modifiers[1], Led::Off);
+    length(&mut e, &mut m, 16);
+    press(&mut e, &mut m, Button::Function);
+    assert_eq!(e.leds(&m).modifiers[1], Led::Off);
+    release(&mut e, &mut m, Button::Function);
+}
+
+#[test]
+fn time_entry_rests_and_orphan_sustains_ignore_pitch_properties() {
+    let mut e = Editor::new();
+    let mut m = Memory::default();
+    let mut s = Sequencer::default();
+    mode(&mut e, &mut m, Mode::PatternWrite);
+    length(&mut e, &mut m, 5);
+    m.bank.patterns[0].steps[0].accent = true;
+    m.bank.patterns[0].steps[0].slide = true;
+    m.bank.patterns[0].steps[1].pitch = 7;
+    let pitches = m.bank.patterns[0].steps;
+    tap(&mut e, &mut m, Button::TimeMode);
+    for b in [Button::Down, Button::Up, Button::Accent, Button::Up] {
+        assert!(tap(&mut e, &mut m, b).changed);
+        assert_eq!(e.edit_mode(), EditMode::Time);
+    }
+    tap(&mut e, &mut m, Button::Down);
+    assert_eq!(e.edit_mode(), EditMode::Normal);
+    let p = &m.bank.patterns[0];
+    assert_eq!(p.steps, pitches);
+    assert_eq!(
+        &p.time[..5],
+        &[Time::Note, Time::Tie, Time::Rest, Time::Tie, Time::Note]
+    );
+    for index in 0..5 {
+        let c = s.tick_at(
+            p,
+            StepEvent {
+                index,
+                edge: true,
+                running: true,
+                ..StepEvent::default()
+            },
+        );
+        if index == 2 || index == 3 {
+            assert!(!c.gate && !c.trigger && !c.accent && !c.slide);
+        } else {
+            assert!(c.gate);
+            assert_eq!(c.note, if index == 4 { 19 } else { 12 });
+        }
+    }
+}
+
+#[test]
 fn manual_pitch_then_time_then_tap_held_accent_slide() {
     let mut e = Editor::new();
     let mut m = Memory::default();
@@ -100,8 +243,13 @@ fn clear_chord_length_triplets_and_time_last_step() {
     mode(&mut e, &mut m, Mode::PatternWrite);
     m.bank.patterns[0].steps[0].pitch = 7;
     assert!(!tap(&mut e, &mut m, Button::Clear).changed);
+    m.bank.patterns[0].time[0] = Time::Rest;
+    m.bank.patterns[0].length = 5;
     clear(&mut e, &mut m, 1);
-    assert_eq!(m.bank.patterns[0], Pattern::default());
+    // CLEAR empties timing (all Rests) but keeps pitch data.
+    assert_eq!(m.bank.patterns[0].steps[0].pitch, 7);
+    assert_eq!(m.bank.patterns[0].time, [Time::Rest; 16]);
+    assert_eq!(m.bank.patterns[0].length, 16);
     length(&mut e, &mut m, 3);
     assert_eq!(m.bank.patterns[0].length, 3);
     tap(&mut e, &mut m, Button::TimeMode);
@@ -123,8 +271,24 @@ fn clear_chord_length_triplets_and_time_last_step() {
         (m.bank.patterns[0].triplet, m.bank.patterns[0].length),
         (true, 12)
     );
+    // FUNCTION + 3/4 keeps timing data; counting STEP clears it.
+    assert_eq!(m.bank.patterns[0].time[1], Time::Rest);
+    length(&mut e, &mut m, 15);
+    assert_eq!(
+        (m.bank.patterns[0].triplet, m.bank.patterns[0].length),
+        (true, 15)
+    );
+    assert_eq!(m.bank.patterns[0].time, [Time::Rest; 16]);
+    // Sixteen STEP presses return 3/4 to 4/4.
     length(&mut e, &mut m, 16);
-    assert_eq!(m.bank.patterns[0].length, 15);
+    assert_eq!(
+        (m.bank.patterns[0].triplet, m.bank.patterns[0].length),
+        (false, 16)
+    );
+    tap(&mut e, &mut m, Button::Triplet);
+    press(&mut e, &mut m, Button::Function);
+    tap(&mut e, &mut m, Button::Triplet);
+    release(&mut e, &mut m, Button::Function);
     clear(&mut e, &mut m, 1);
     assert!(!m.bank.patterns[0].triplet);
     assert_eq!(m.bank.patterns[0].length, 16);
@@ -318,6 +482,14 @@ fn leds_blink_phase_shared_lamps_modes_and_preview_consumption() {
     let out = tap(&mut e, &mut m, Button::RunStop);
     e.apply_transport(&mut s, out);
     assert_eq!(e.leds(&m).run, Led::On);
+    // Keyboard lamps do not follow the sounding note during playback.
+    for _ in 0..48_000 {
+        e.tick(&mut s, &m);
+    }
+    let leds = e.leds(&m);
+    assert_eq!(leds.pitch[3], Led::Off);
+    assert_eq!(leds.modifiers, [Led::Off; 4]);
+    assert_eq!(leds.pitch[0], Led::Blink);
     mode(&mut e, &mut m, Mode::TrackPlay);
     assert_eq!(e.leds(&m).run, Led::Off);
 }
@@ -441,30 +613,71 @@ fn panel_triplet_midi_requires_eight_received_pulses() {
     }
 }
 
-/// Turning PATT.GROUP during pattern playback must not restart the sequence;
-/// a group change is queued for the next pattern boundary. In track modes the
-/// same knob selects a track and restarts track playback.
+/// Turning PATT.GROUP in pattern modes never restarts or switches the sequence;
+/// it only sets the group addressed by the next pattern-key press. In track
+/// modes the same knob selects a track and restarts track playback.
 #[test]
-fn patt_group_knob_queues_in_pattern_play_and_restarts_only_in_track_modes() {
+fn patt_group_knob_waits_for_pattern_key_and_restarts_only_in_track_modes() {
     let mut e = Editor::new();
     let mut m = Memory::default();
     let mut s = Sequencer::default();
     s.prepare(48_000.0).unwrap();
     mode(&mut e, &mut m, Mode::PatternPlay);
+    tap(&mut e, &mut m, Button::Number(3));
     start(&mut e, &mut m, &mut s);
     assert!(e.running());
-    for detent in [0u8, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1, 0] {
+    for detent in [0u8, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 1, 0, 2] {
         let out = e.action(&mut m, PanelAction::Track(detent)).unwrap();
         assert_eq!(out.transport, TransportCommand::None, "detent {detent}");
-        assert_eq!(e.selection().pattern.group, detent / 2);
+        assert_eq!(e.selection().pattern.group, 0, "detent {detent}");
+        assert_eq!(e.queued_chain(), None, "detent {detent}");
     }
-    // Leaving the knob on group II queues group II for the next boundary.
-    e.action(&mut m, PanelAction::Track(2)).unwrap();
-    assert_eq!(e.queued_chain().map(|c| c.first.group), Some(1));
-    assert!(e.running());
+    assert_eq!(e.playing_pattern().pattern, 2);
+    // The next pattern key adopts the knob's group (II), queued while running.
+    tap(&mut e, &mut m, Button::Number(5));
+    assert_eq!(e.selection().pattern.group, 1);
+    assert_eq!(
+        e.queued_chain().map(|c| (c.first.group, c.first.pattern)),
+        Some((1, 4))
+    );
+
+    // Stopped Pattern Write: the edit target also waits for a pattern key.
+    mode(&mut e, &mut m, Mode::PatternWrite);
+    e.action(&mut m, PanelAction::Track(6)).unwrap();
+    assert_eq!(e.selection().pattern.group, 1);
+    tap(&mut e, &mut m, Button::Number(1));
+    assert_eq!(
+        (e.selection().pattern.group, e.selection().pattern.pattern),
+        (3, 0)
+    );
 
     mode(&mut e, &mut m, Mode::TrackPlay);
     let out = e.action(&mut m, PanelAction::Track(3)).unwrap();
     assert_eq!(out.transport, TransportCommand::Reset);
     assert_eq!(e.selection().track, 3);
+    assert_eq!(e.selection().pattern.group, 1);
+}
+
+#[test]
+fn pitch_entry_and_recall_stop_at_pattern_length() {
+    let mut e = Editor::new();
+    let mut m = Memory::default();
+    mode(&mut e, &mut m, Mode::PatternWrite);
+    clear(&mut e, &mut m, 1);
+    length(&mut e, &mut m, 4);
+    tap(&mut e, &mut m, Button::PitchMode);
+    for _ in 0..4 {
+        assert!(tap(&mut e, &mut m, Button::Pitch(5)).changed);
+    }
+    assert!(!tap(&mut e, &mut m, Button::Pitch(9)).changed);
+    assert_eq!(m.bank.patterns[0].steps[4].pitch, Step::default().pitch);
+    tap(&mut e, &mut m, Button::Back);
+    assert!(tap(&mut e, &mut m, Button::Pitch(9)).changed);
+    assert_eq!(m.bank.patterns[0].steps[3].pitch, 9);
+    // WRITE/NEXT recall also stops after the fourth pitch.
+    tap(&mut e, &mut m, Button::PitchMode);
+    for _ in 0..4 {
+        assert!(tap(&mut e, &mut m, Button::Tap).preview.is_some());
+    }
+    assert!(tap(&mut e, &mut m, Button::Tap).preview.is_none());
 }

@@ -69,13 +69,39 @@ order: Track Write, Track Play, Pattern Play, Pattern Write. JS positions their
 indicators at approximately 45/75/105/135 degrees, using the existing CSS.
 PATT.GROUP has seven positions, approximately -105 through 75 degrees in
 30-degree increments. Every position submits `Track(0..6)`: track pairs 1/2
-select group I, 3/4 II, 5/6 III, and track 7 IV, also in pattern modes.
+select group I, 3/4 II, 5/6 III, and track 7 IV, also in pattern modes. In pattern
+modes the knob only chooses the group the pattern keys address: the selected
+and playing pattern change when a pattern key is next pressed (queued to the
+pattern boundary while running), never on the knob turn itself.
 
 The 100/200 keys select section A/B in Normal mode; the same physical switches
 are ACCENT/SLIDE in pitch mode. TIME uses DOWN=note, UP=tie, ACCENT=rest. Hold
 FUNCTION with DOWN (STEP) to enter length and with UP to select triplets.
 FUNCTION+C/D implements DEL/INS through the sequencer. All physical switches
 send press and release, including secondary STEP/triplet aliases.
+
+A mouse holds only one button, so Shift-click latches any panel button down
+(red outline) until it is clicked again. Shift-click PATTERN CLEAR in Normal
+mode clears the selected pattern in one step (it sends the pattern-key + CLEAR
+chord). Other chords work by latching: latch a pattern key and click CLEAR; latch FUNCTION and click DOWN (STEP)
+once per step; latch DOWN/UP while entering pitches. A latched button survives
+focus changes.
+
+Computer-keyboard shortcuts use physical key positions (`KeyboardEvent.code`),
+so they follow this layout on any keyboard layout. Held keys are real holds, so
+chords such as FUNCTION + STEP need no Shift-click. Shift + 1 clears the selected
+pattern. Cmd/Ctrl/Alt combinations pass through; Space and Return on a focused
+panel button still activate that button. Tooltips show each key.
+
+| Keys | Buttons |
+| --- | --- |
+| A W S E D F T G Y H U J K | C C# D D# E F F# G G# A A# B C' (also pattern 1–8 on white keys) |
+| Z X C V | DOWN (note/STEP), UP (tie/3-4), ACCENT (rest/A), SLIDE (B) |
+| 1 2 3 4 | PATTERN CLEAR, FUNCTION, PITCH MODE, TIME MODE |
+| Space, `.`, `,` | RUN/STOP, WRITE/NEXT (TAP), BACK |
+
+In a plugin host, the panel must have keyboard focus, and hosts may keep keys
+such as Space for their own transport.
 
 The old HTML target IDs were misplaced relative to the artwork. JS preserves
 DOM IDs and coordinates but maps `function` to CLEAR, `key-down` to FUNCTION,
@@ -93,11 +119,13 @@ Every physical lamp is present in snapshots:
 | pattern | TIME mode (`modes[2]`) |
 | pitch-c-sharp, pitch-d-sharp, pitch-f-sharp, pitch-g-sharp, pitch-a-sharp | Black-key `pitch` lamps |
 | step-1..8 | Shared white-key pitch/selector lamps |
-| step-9..10 | DOWN/UP modifiers |
+| step-9..10 | DOWN/UP modifiers; stopped Pattern Write FUNCTION shows 3/4 on step-10 |
 | step-11..12 | Section A/B in Normal; ACCENT/SLIDE in pitch/time |
 
 Logical `back`, `step_mode` and the auxiliary sixteen `steps` have no dedicated
-lamps in this artwork. The auxiliary steps supply status text. LEDs remain
+lamps in this artwork; FUNCTION exposes triplet state through the shared UP lamp.
+The auxiliary steps supply status text. Pattern Write submode routing follows
+the engine's RUN lock, retaining Normal/Pitch/Time until stopped. LEDs remain
 logical in JSON; JS resolves blink locally with a common 200 ms half-cycle
 (2.5 Hz), clearing missing lamps on each snapshot.
 
