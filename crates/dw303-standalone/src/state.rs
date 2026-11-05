@@ -39,11 +39,26 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<([f32; params::COUNT], Memory)> {
         Memory::decode(&bytes[PARAM_BYTES + 4..]).map_err(|_| "Invalid DW-303 memory")?,
     ))
 }
+/// Per-user state file: Application Support on macOS, `%APPDATA%` on Windows
+/// and `$XDG_CONFIG_HOME` (or `~/.config`) elsewhere.
 pub(crate) fn path() -> Result<PathBuf> {
-    Ok(
-        PathBuf::from(std::env::var_os("HOME").ok_or("HOME unavailable")?)
-            .join("Library/Application Support/DW-303/state.bin"),
-    )
+    let home = || -> Result<PathBuf> {
+        Ok(PathBuf::from(
+            std::env::var_os("HOME").ok_or("HOME unavailable")?,
+        ))
+    };
+    let directory = if cfg!(target_os = "macos") {
+        home()?.join("Library/Application Support/DW-303")
+    } else if cfg!(windows) {
+        PathBuf::from(std::env::var_os("APPDATA").ok_or("APPDATA unavailable")?).join("DW-303")
+    } else {
+        match std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from) {
+            Some(config) if config.is_absolute() => config,
+            _ => home()?.join(".config"),
+        }
+        .join("dw-303")
+    };
+    Ok(directory.join("state.bin"))
 }
 pub(crate) fn read(path: &Path) -> Result<([f32; params::COUNT], Memory)> {
     use std::io::Read;
@@ -67,6 +82,8 @@ pub(crate) fn write(path: &Path, values: [f32; params::COUNT], memory: &Memory) 
         file.sync_all()?;
         drop(file);
         std::fs::rename(&temporary, path)?;
+        // Directories cannot be opened as files on Windows; NTFS journals the rename.
+        #[cfg(unix)]
         std::fs::File::open(parent)?.sync_all()?;
         Ok(())
     })();

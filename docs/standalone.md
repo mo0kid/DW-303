@@ -1,6 +1,6 @@
 # DW-303 standalone (phase 8)
 
-The macOS standalone uses the existing DW-303 engine, factory pattern memory,
+The standalone app (macOS, Windows and Linux) uses the existing DW-303 engine, factory pattern memory,
 front-panel editor and circuit voice. No circuit components or tuning constants
 are introduced here. The unchanged `editor/index.html` is assembled with
 `ravet_surface::embed_web_controls`, exactly as in the CLAP editor. The window
@@ -25,7 +25,11 @@ shared sequencer. Choose **SYNC = MIDI clock** for MIDI Start/Continue/Stop and
 Timing Clock. The Host sync option remains in the shared page, but this app
 supplies no DAW host transport; use Internal or MIDI clock.
 
-Build a local ad-hoc signed bundle:
+On Windows and Linux the app is a single executable (`cargo build --release -p
+dw303-standalone --bin DW-303`, or `scripts/bundle-plugins.py`, which also
+stages it); the Audio/MIDI settings button sits in the window's menu bar on
+Windows and in its header bar on Linux. On macOS, build a local ad-hoc signed
+bundle:
 
 ```sh
 python3 scripts/bundle-app.py
@@ -43,10 +47,12 @@ notarisation are separate release work; this is a local ad-hoc bundle.
 
 ## State and lifecycle
 
-Closing the window or using Cmd-Q stops/drops the audio stream on the control
+Closing the window (or Cmd-Q on macOS) stops/drops the audio stream on the control
 thread, closes MIDI connections, applies remaining queued edits through the
 hardware-free renderer and saves params plus all pattern/track memory to
-`~/Library/Application Support/DW-303/state.bin`. It uses the same product ID,
+`~/Library/Application Support/DW-303/state.bin` on macOS,
+`%APPDATA%\DW-303\state.bin` on Windows and
+`$XDG_CONFIG_HOME/dw-303/state.bin` (default `~/.config`) on Linux. It uses the same product ID,
 parameter records, v2 memory payload and length validation as CLAP; v1 parameter
 state restores factory memory. The bounded read rejects oversized state.
 Writes use a same-directory temporary file, file sync, atomic rename and

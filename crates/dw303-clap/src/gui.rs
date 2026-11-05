@@ -1,4 +1,7 @@
-//! macOS-only embedded GUI; FFI parent attachment stays isolated here.
+//! Embedded GUI (Cocoa, Win32 or X11 parent); FFI parent attachment stays
+//! isolated here. Windows and X11 sizes are physical pixels scaled by the host's
+//! `set_scale`; Cocoa sizes are logical points. Linux editors pump GTK from a
+//! host timer, so a Linux host without timer support gets no embedded editor.
 use super::*;
 use clack_extensions::gui::*;
 use ravet_surface::{AttachmentError, ParameterAttachment, ParameterControl};
@@ -11,10 +14,19 @@ const SIZE: GuiSize = GuiSize {
     height: 589,
 };
 const HTML: &str = include_str!("../../../editor/index.html");
+/// The host's native window API on this platform.
+const API: GuiApiType<'static> = match GuiApiType::default_for_current_platform() {
+    Some(api) => api,
+    None => GuiApiType::COCOA,
+};
 pub(super) struct GuiState<'a> {
     view: WebView<'a>,
     attached: bool,
     size: GuiSize,
+    /// Host content scale for physical-pixel APIs; always 1 on Cocoa.
+    scale: f64,
+    #[cfg(target_os = "linux")]
+    timer: Option<clack_extensions::timer::TimerId>,
 }
 struct Dw303Callbacks<'a> {
     shared: &'a Dw303Shared,
@@ -184,15 +196,24 @@ fn panel_lamps(d: Display) -> serde_json::Map<String, Value> {
     }
     map
 }
+#[cfg(test)]
 fn panel_size(size: GuiSize) -> GuiSize {
+    scaled_panel_size(size, 1.0)
+}
+/// Nearest panel-aspect size within the 818–2045 point range at `scale`.
+fn scaled_panel_size(size: GuiSize, scale: f64) -> GuiSize {
     let rounded_height = |width: u32| (width as f64 * 785.0 / 1636.0).round() as u32;
+    let (minimum, maximum) = (
+        (818.0 * scale).round() as u32,
+        (2045.0 * scale).round() as u32,
+    );
     let width = if size.height == rounded_height(size.width) {
         size.width
     } else {
         size.width
             .min((size.height as f64 * 1636.0 / 785.0).round() as u32)
     }
-    .clamp(818, 2045);
+    .clamp(minimum, maximum);
     GuiSize {
         width,
         height: rounded_height(width),
@@ -311,11 +332,11 @@ impl Drop for Dw303Callbacks<'_> {
 }
 impl PluginGuiImpl for Dw303Main<'_> {
     fn is_api_supported(&self, configuration: GuiConfiguration) -> bool {
-        configuration.api_type == GuiApiType::COCOA && !configuration.is_floating
+        configuration.api_type == API && !configuration.is_floating
     }
     fn get_preferred_api(&self) -> Option<GuiConfiguration<'_>> {
         Some(GuiConfiguration {
-            api_type: GuiApiType::COCOA,
+            api_type: API,
             is_floating: false,
         })
     }
@@ -348,23 +369,62 @@ impl PluginGuiImpl for Dw303Main<'_> {
             .map_err(|_| PluginError::Message("native editor creation failed or wrong thread"))?;
         view.set_background(23.0 / 255.0, 29.0 / 255.0, 36.0 / 255.0);
         view.set_visible(false);
+        #[cfg(target_os = "linux")]
+        let timer = Some(
+            self.host
+                .get_extension::<clack_extensions::timer::HostTimer>()
+                .ok_or(PluginError::Message(
+                    "host has no timer support for the editor",
+                ))?
+                .register_timer(&self.host, 10)
+                .map_err(|_| PluginError::Message("host refused the editor timer"))?,
+        );
         *self.gui.borrow_mut() = Some(GuiState {
             view,
             attached: false,
             size: SIZE,
+            scale: 1.0,
+            #[cfg(target_os = "linux")]
+            timer,
         });
         Ok(())
     }
     fn destroy(&self) {
         let editor = self.gui.borrow_mut().take();
+        #[cfg(target_os = "linux")]
+        if let (Some(timer), Some(host_timer)) = (
+            editor.as_ref().and_then(|state| state.timer),
+            self.host
+                .get_extension::<clack_extensions::timer::HostTimer>(),
+        ) {
+            let _ = host_timer.unregister_timer(&self.host, timer);
+        }
         drop(editor);
     }
     fn set_scale(&self, scale: f64) -> Result<(), PluginError> {
-        if scale.is_finite() && scale > 0.0 {
-            Ok(())
-        } else {
-            Err(PluginError::Message("invalid editor scale"))
+        if !scale.is_finite() || scale <= 0.0 {
+            return Err(PluginError::Message("invalid editor scale"));
         }
+        if API.uses_logical_size() {
+            return Ok(());
+        }
+        let mut state = self.gui.borrow_mut();
+        let state = state
+            .as_mut()
+            .ok_or(PluginError::Message("editor not created"))?;
+        let scale = scale.clamp(1.0, 4.0);
+        let size = GuiSize {
+            width: (state.size.width as f64 / state.scale * scale).round() as u32,
+            height: (state.size.height as f64 / state.scale * scale).round() as u32,
+        };
+        state.scale = scale;
+        state.size = scaled_panel_size(size, scale);
+        if state.attached {
+            state
+                .view
+                .set_size(state.size.width as f64, state.size.height as f64);
+        }
+        Ok(())
     }
     fn get_size(&self) -> Option<GuiSize> {
         self.gui.borrow().as_ref().map(|state| state.size)
@@ -383,7 +443,8 @@ impl PluginGuiImpl for Dw303Main<'_> {
         })
     }
     fn adjust_size(&self, size: GuiSize) -> Option<GuiSize> {
-        Some(panel_size(size))
+        let scale = self.gui.borrow().as_ref().map_or(1.0, |state| state.scale);
+        Some(scaled_panel_size(size, scale))
     }
     fn set_size(&self, size: GuiSize) -> Result<(), PluginError> {
         if self.adjust_size(size) != Some(size) {
@@ -402,20 +463,33 @@ impl PluginGuiImpl for Dw303Main<'_> {
         Ok(())
     }
     fn set_parent(&self, window: Window) -> Result<(), PluginError> {
+        #[cfg(target_os = "macos")]
+        let parent = window.as_cocoa_nsview();
+        #[cfg(target_os = "windows")]
+        let parent = window.as_win32_hwnd();
+        #[cfg(target_os = "linux")]
         let parent = window
-            .as_cocoa_nsview()
-            .and_then(NonNull::new)
-            .ok_or(PluginError::Message("editor requires Cocoa NSView parent"))?;
+            .as_x11_handle()
+            .map(|id| id as usize as *mut std::ffi::c_void);
+        let parent = parent.and_then(NonNull::new).ok_or(PluginError::Message(
+            "editor requires a native parent window",
+        ))?;
         let mut state = self.gui.borrow_mut();
         let state = state
             .as_mut()
             .ok_or(PluginError::Message("editor not created"))?;
-        // SAFETY: CLAP host must supply a live NSView on the Cocoa main thread
-        // and retain it until detach/destroy, as required by its GUI contract.
+        // SAFETY: the CLAP host supplies a live native parent (NSView, HWND or
+        // X11 window) on its UI thread and retains it until detach/destroy, as
+        // required by its GUI contract.
         unsafe {
             state.view.attach(parent);
         }
         state.attached = true;
+        if !API.uses_logical_size() {
+            state
+                .view
+                .set_size(state.size.width as f64, state.size.height as f64);
+        }
         Ok(())
     }
     fn set_transient(&self, _: Window) -> Result<(), PluginError> {
@@ -437,6 +511,14 @@ impl PluginGuiImpl for Dw303Main<'_> {
             .ok_or(PluginError::Message("editor not created"))?;
         state.view.set_visible(false);
         Ok(())
+    }
+}
+#[cfg(target_os = "linux")]
+impl clack_extensions::timer::PluginTimerImpl for Dw303Main<'_> {
+    fn on_timer(&self, _: clack_extensions::timer::TimerId) {
+        if self.gui.borrow().is_some() {
+            ravet_webview::pump();
+        }
     }
 }
 #[cfg(test)]
@@ -466,6 +548,9 @@ mod tests {
             let adjusted = panel_size(size);
             assert_eq!(panel_size(adjusted), adjusted);
             assert!((818..=2045).contains(&adjusted.width));
+            let doubled = scaled_panel_size(size, 2.0);
+            assert_eq!(scaled_panel_size(doubled, 2.0), doubled);
+            assert!((1636..=4090).contains(&doubled.width));
             assert!((adjusted.height as f64 - adjusted.width as f64 * 785.0 / 1636.0).abs() <= 0.5);
         }
     }

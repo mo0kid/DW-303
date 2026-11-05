@@ -284,6 +284,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "dw303-native"
+version = "0.1.0"
+dependencies = [
+ "dw303-engine",
+ "ravet-foundation",
+ "ravet-native-dsp",
+ "ravet-surface",
+ "ravet-webview",
+ "serde_json",
+]
+
+[[package]]
 name = "dw303-osc"
 version = "0.1.0"
 dependencies = [
@@ -310,6 +322,7 @@ name = "dw303-standalone"
 version = "0.1.0"
 dependencies = [
  "dw303-engine",
+ "dw303-sequencer",
  "ravet-device",
  "ravet-foundation",
  "ravet-midi-device",
@@ -889,6 +902,10 @@ dependencies = [
 [[package]]
 name = "ravet-webview"
 version = "0.0.1"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
 
 [[package]]
 name = "redox_syscall"

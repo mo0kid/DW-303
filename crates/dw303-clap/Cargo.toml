@@ -21,9 +21,10 @@ clack-extensions = { version = "=0.2.0", features = ["clack-plugin", "audio-port
 
 [features]
 default = ["native-editor"]
-native-editor = ["dep:ravet-webview", "dep:ravet-surface", "dep:serde_json", "clack-extensions/gui"]
+native-editor = ["dep:ravet-webview", "dep:ravet-surface", "dep:serde_json", "clack-extensions/gui", "clack-extensions/timer"]
 
-[target.'cfg(target_os = "macos")'.dependencies]
+# Cocoa/WebKit, Win32/WebView2 and GTK/WebKitGTK editors; see docs/plugins.md.
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 ravet-webview = { path = "../../../ravet/crates/ravet-webview", optional = true }
 ravet-surface = { path = "../../../ravet/crates/ravet-surface", optional = true }
 serde_json = { version = "=1.0.151", optional = true }
