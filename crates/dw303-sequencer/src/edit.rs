@@ -242,6 +242,8 @@ pub struct Editor {
     displayed: Option<u8>,
     bar_number: u16,
     track_start: u8,
+    /// PATT.GROUP position in pattern modes; applies at the next pattern-key press.
+    group_knob: u8,
 }
 impl Default for Editor {
     fn default() -> Self {
@@ -288,6 +290,7 @@ impl Editor {
             displayed: None,
             bar_number: 0,
             track_start: 0,
+            group_knob: 0,
         }
     }
     /// MODE switch position.
@@ -407,6 +410,13 @@ impl Editor {
                 self.preview = VoiceCommand::default();
                 out.preview = Some(self.preview);
                 out.transport = TransportCommand::Stop;
+                // Track modes are tied to the knob's group; adopt any pending group.
+                if matches!(mode, Mode::TrackWrite | Mode::TrackPlay)
+                    && self.selection.pattern.group != self.group_knob
+                {
+                    self.selection.pattern.group = self.group_knob;
+                    self.select_chain();
+                }
             }
             PanelAction::Group(n) => {
                 if n >= 4
@@ -415,33 +425,32 @@ impl Editor {
                 {
                     return Err(EditError::InvalidAction);
                 }
-                self.selection.pattern.group = n;
-                self.normal();
-                self.select_chain();
+                self.group_knob = n;
+                if matches!(self.mode, Mode::TrackWrite | Mode::TrackPlay) {
+                    self.selection.pattern.group = n;
+                    self.normal();
+                    self.select_chain();
+                }
             }
             PanelAction::Track(n) => {
                 if n >= 7 {
                     return Err(EditError::InvalidAction);
                 }
                 // Original track pairs share a pattern group: 1/2=I, 3/4=II, 5/6=III, 7=IV.
-                let group_changed = self.selection.pattern.group != n / 2;
                 self.selection.track = n;
-                self.selection.pattern.group = n / 2;
+                self.group_knob = n / 2;
                 if matches!(self.mode, Mode::TrackWrite | Mode::TrackPlay) {
+                    self.selection.pattern.group = n / 2;
                     // Selecting a track restarts track playback from measure 1.
                     self.selection.measure = 0;
                     self.transpose = 0;
                     self.select_chain();
                     self.restart = true;
                     out.transport = TransportCommand::Reset;
-                } else if group_changed {
-                    // In pattern modes the knob is PATT.GROUP: the new group's
-                    // pattern is queued for the next pattern boundary while
-                    // running (select_chain), without restarting playback.
-                    // Previously every detent restarted the sequence (user-
-                    // reported hesitation).
-                    self.select_chain();
                 }
+                // In pattern modes the knob is PATT.GROUP: it only chooses the
+                // group the pattern keys address. The selected/playing pattern
+                // changes when a pattern key is pressed (`number`).
             }
             PanelAction::Section(section) => {
                 self.selection.pattern.section = section;
@@ -474,8 +483,8 @@ impl Editor {
         }
         Ok(out)
     }
-    /// VERIFY: CLEAR supplies deterministic default data rather than the
-    /// original machine's undocumented stale/random pitch memory contents.
+    /// PATTERN CLEAR empties timing data (sixteen straight Rests, so the pattern
+    /// is silent) and keeps the pitch data, which PITCH MODE + TAP can still recall.
     fn press(&mut self, memory: &mut Memory, b: Button, out: &mut EditOutput) {
         let index = self.pattern_index();
         let writing = self.mode == Mode::PatternWrite && !self.running;
@@ -499,7 +508,9 @@ impl Editor {
                 if self.running {
                     self.track_start = self.selection.measure;
                 }
-                self.normal();
+                if self.mode != Mode::PatternWrite {
+                    self.normal();
+                }
                 self.restart = true;
                 self.last_position = None;
                 self.preview.gate = false;
@@ -511,7 +522,7 @@ impl Editor {
                     TransportCommand::Stop
                 };
             }
-            Button::Function => {
+            Button::Function if self.mode != Mode::PatternWrite || !self.running => {
                 self.normal();
                 self.length_count = 0;
                 self.bar_number = 0;
@@ -534,7 +545,12 @@ impl Editor {
                     && self.edit == EditMode::Normal
                     && (1..=8).any(|n| self.down(Button::Number(n)))
                 {
-                    memory.bank.patterns[index] = Pattern::default();
+                    let pitches = memory.bank.patterns[index].steps;
+                    memory.bank.patterns[index] = Pattern {
+                        steps: pitches,
+                        time: [Time::Rest; 16],
+                        ..Pattern::default()
+                    };
                     out.changed = true;
                     self.pitch_cursor = 0;
                     self.time_cursor = 0;
@@ -554,13 +570,17 @@ impl Editor {
                 out.changed = true;
             }
             Button::Step if writing && self.down(Button::Function) => {
-                let max = if memory.bank.patterns[index].triplet {
-                    15
-                } else {
-                    16
-                };
-                self.length_count = self.length_count.saturating_add(1).min(max);
-                memory.bank.patterns[index].length = self.length_count;
+                // Counting steps clears timing data. A sixteenth press in 3/4
+                // (maximum fifteen steps) returns the pattern to 4/4.
+                let p = &mut memory.bank.patterns[index];
+                if self.length_count == 0 {
+                    p.time = [Time::Rest; 16];
+                }
+                self.length_count = self.length_count.saturating_add(1).min(16);
+                if self.length_count == 16 {
+                    p.triplet = false;
+                }
+                p.length = self.length_count;
                 out.changed = true;
             }
             Button::Number(n) => self.number(memory, n, b, out),
@@ -646,7 +666,8 @@ impl Editor {
                 self.selection.measure = self.selection.measure.saturating_sub(1);
             }
             Button::Tap if writing && self.edit == EditMode::Pitch => {
-                if self.pitch_cursor < 16 {
+                // Only the first `length` pitches can sound, so recall stops there.
+                if self.pitch_cursor < memory.bank.patterns[index].length.clamp(1, 16) {
                     let slot = self.pitch_cursor;
                     self.recalled = Some(slot);
                     self.displayed = Some(slot);
@@ -680,6 +701,7 @@ impl Editor {
         {
             self.pitch(memory, WHITE_PITCHES[usize::from(n - 1)], owner, out);
         } else if self.edit == EditMode::Normal {
+            self.selection.pattern.group = self.group_knob;
             self.selection.pattern.pattern = n - 1;
             self.select_chain();
             if self.mode == Mode::TrackWrite {
@@ -709,8 +731,10 @@ impl Editor {
         }
     }
     /// VERIFY: keyboard C is unshifted, C' is +12; DOWN selects -12..0.
-    /// VERIFY: pitch entry saturates at sixteen and requires BACK or PITCH MODE
-    /// to overwrite; original behaviour after the sixteenth pitch is unclear.
+    /// Pitch entry stops at the pattern's step count, since no later pitch can
+    /// sound; BACK or PITCH MODE allow overwriting.
+    /// VERIFY: the original stores sixteen pitches regardless of step count;
+    /// whether its cursor stops at the step count is unconfirmed.
     fn pitch(&mut self, memory: &mut Memory, pitch: u8, owner: Button, out: &mut EditOutput) {
         if matches!(self.mode, Mode::TrackWrite | Mode::PatternPlay) && self.down(Button::PitchMode)
         {
@@ -726,12 +750,17 @@ impl Editor {
                 );
             }
         } else if self.mode == Mode::PatternWrite && !self.running && self.edit == EditMode::Pitch {
+            let index = self.pattern_index();
             let slot = self.recalled.unwrap_or(self.pitch_cursor);
-            if slot >= 16 {
+            if slot >= memory.bank.patterns[index].length.clamp(1, 16) {
                 return;
             }
-            let index = self.pattern_index();
             let s = &mut memory.bank.patterns[index].steps[usize::from(slot)];
+            // Pitch-key changes reset flags; WRITE/NEXT property edits keep them.
+            if s.pitch != pitch {
+                s.accent = false;
+                s.slide = false;
+            }
             s.pitch = pitch;
             if self.down(Button::Down) {
                 s.octave = Octave::Down;
@@ -876,22 +905,15 @@ impl Editor {
             self.selection.step.min(15)
         };
         leds.steps[usize::from(cursor.min(15))] = Led::On;
-        if self.edit == EditMode::Pitch || self.running || self.down(Button::PitchMode) {
-            let slot = if self.running {
-                p.time
-                    .iter()
-                    .take(usize::from(self.play_step))
-                    .filter(|&&t| t == Time::Note)
-                    .count()
-                    .min(15)
-            } else {
-                usize::from(
-                    self.recalled
-                        .or(self.displayed)
-                        .unwrap_or(self.pitch_cursor)
-                        .min(15),
-                )
-            };
+        // Playback does not follow the sounding note on the keyboard lamps; they
+        // keep showing pattern selection while running.
+        if !self.running && (self.edit == EditMode::Pitch || self.down(Button::PitchMode)) {
+            let slot = usize::from(
+                self.recalled
+                    .or(self.displayed)
+                    .unwrap_or(self.pitch_cursor)
+                    .min(15),
+            );
             let s = p.steps[slot];
             let pitch = if self.down(Button::PitchMode)
                 && matches!(self.mode, Mode::TrackWrite | Mode::PatternPlay)
@@ -911,7 +933,7 @@ impl Editor {
                     *led = Led::On;
                 }
             }
-        } else if self.edit == EditMode::Time {
+        } else if !self.running && self.edit == EditMode::Time {
             let t = p.time[usize::from(self.recalled.unwrap_or(self.time_cursor).min(15))];
             leds.modifiers[match t {
                 Time::Note => 0,
@@ -919,9 +941,15 @@ impl Editor {
                 Time::Rest => 2,
             }] = Led::On;
         }
+        // FUNCTION exposes the 3/4 indication on the shared UP/triplet lamp.
+        if self.mode == Mode::PatternWrite && !self.running && self.down(Button::Function) {
+            leds.modifiers[1] = if p.triplet { Led::On } else { Led::Off };
+        }
         // The eight white-key lamps have two legends but one physical emitter.
         for (i, pitch) in WHITE_PITCHES.iter().enumerate() {
-            let led = if self.edit != EditMode::Normal || self.down(Button::PitchMode) {
+            let led = if !self.running
+                && (self.edit != EditMode::Normal || self.down(Button::PitchMode))
+            {
                 leds.pitch[usize::from(*pitch)]
             } else {
                 leds.selectors[i]

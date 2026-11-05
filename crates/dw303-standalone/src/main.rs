@@ -496,6 +496,66 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     #[test]
+    fn selected_pattern_clear_chord_reaches_memory_and_playback() {
+        let mut h = Host::new(true).unwrap();
+        let index = 3 * 16; // IV A1
+        let mut memory = h.shared.link.memory();
+        memory.bank.patterns[index].length = 5;
+        memory.bank.patterns[index].triplet = true;
+        memory.bank.patterns[index].time = [dw303_sequencer::Time::Note; 16];
+        h.shared.link.load_memory(memory);
+        h.handle(r#"{"type":"panel","action":"mode","value":3}"#)
+            .unwrap();
+        h.handle(r#"{"type":"panel","action":"pattern-group","value":6}"#)
+            .unwrap();
+        h.render_idle();
+        // PATT.GROUP alone does not change the selected pattern.
+        let selection = h.snapshot()["selection"].clone();
+        assert_eq!(selection["group"].as_u64(), Some(0));
+        assert_eq!(selection["editMode"].as_u64(), Some(0));
+        let before = h.shared.link.memory();
+        // These are the four WebKit messages emitted by Shift-click PATTERN CLEAR.
+        // Use the physical white key, not the Editor-only Number alias.
+        for (key, edge) in [
+            ("key-c", "press"),
+            ("clear", "press"),
+            ("clear", "release"),
+            ("key-c", "release"),
+        ] {
+            h.handle(&format!(
+                r#"{{"type":"panel","action":"button","key":"{key}","edge":"{edge}"}}"#
+            ))
+            .unwrap();
+            // Edges may land in separate audio blocks.
+            h.render_idle();
+        }
+        // The chord's pattern key adopts the knob's group: IV A1.
+        let selection = h.snapshot()["selection"].clone();
+        assert_eq!(selection["group"].as_u64(), Some(3));
+        assert_eq!(selection["pattern"].as_u64(), Some(1));
+        let after = h.shared.link.memory();
+        let cleared = after.bank.patterns[index];
+        assert_eq!(cleared.steps, before.bank.patterns[index].steps);
+        assert_eq!(cleared.length, 16);
+        assert!(!cleared.triplet);
+        assert_eq!(cleared.time, [dw303_sequencer::Time::Rest; 16]);
+        let mut expected = before;
+        expected.bank.patterns[index] = cleared;
+        assert_eq!(after, expected);
+        h.handle(r#"{"type":"panel","action":"button","key":"run-stop","edge":"press"}"#)
+            .unwrap();
+        h.handle(r#"{"type":"panel","action":"button","key":"run-stop","edge":"release"}"#)
+            .unwrap();
+        let mut samples = [0.; 960];
+        // More than two complete patterns at the default 120 BPM.
+        for _ in 0..500 {
+            h.idle.as_mut().unwrap().render(&mut samples);
+            assert!(samples.iter().all(|&s| s == 0.));
+        }
+        assert!(h.shared.link.display().unwrap().running);
+        assert_eq!(h.shared.link.memory(), after);
+    }
+    #[test]
     fn panel_protocol_and_parameter_gestures() {
         let mut h = Host::new(true).unwrap();
         assert!(h.handle(r#"{"type":"edit","id":99,"value":0}"#).is_err());

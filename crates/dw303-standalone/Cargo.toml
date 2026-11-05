@@ -20,3 +20,6 @@ ravet-midi-device = { path = "../../../ravet/crates/ravet-midi-device" }
 ravet-webview = { path = "../../../ravet/crates/ravet-webview" }
 ravet-surface = { path = "../../../ravet/crates/ravet-surface" }
 ravet-native-dsp = { path = "../../../ravet/crates/ravet-native-dsp" }
+
+[dev-dependencies]
+dw303-sequencer = { path = "../dw303-sequencer" }
