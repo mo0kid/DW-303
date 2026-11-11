@@ -210,9 +210,13 @@ app in `~/.local/lib/dw-303`, `~/.local/bin/dw-303`, a desktop entry);
 `--dry-run` are also accepted. It warns, with the package-manager command,
 when WebKitGTK 4.1, GTK 3, json-glib or ALSA is missing. Every installed path
 is recorded in `<lib dir>/install-manifest.txt`, and
-`<lib dir>/uninstall.sh` removes exactly those. Runtime needs GTK 3,
-WebKitGTK 4.1 (2.40+) and X11 or XWayland; hosts that load a different GTK
-(for example Ardour) show generic controls instead of the panel. The website
+`<lib dir>/uninstall.sh` removes exactly those. The panel needs GTK 3,
+WebKitGTK 4.1 (2.40+) and X11 or XWayland. The plug-ins do not link those
+libraries (RAVET loads them when the panel opens), so without them DW-303
+still loads and plays, with the host's generic controls instead of the panel.
+That includes Flatpak hosts, whose runtimes do not see system libraries and
+lack WebKitGTK (Bitwig Studio's Flatpak), and hosts that load a different GTK
+(for example Ardour). The website
 serves the tarball as `downloads/dw-303-linux-latest.tar.gz`.
 
 ## Limits

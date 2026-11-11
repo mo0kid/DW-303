@@ -96,6 +96,10 @@ Requirements
       Arch:          sudo pacman -S webkit2gtk-4.1 gtk3 json-glib alsa-lib
       openSUSE:      sudo zypper install libwebkit2gtk-4_1-0 libgtk-3-0 libjson-glib-1_0-0 libasound2
   - X11 or XWayland for the panel editor
+  The panel needs GTK 3 and WebKitGTK; without them the plug-ins still load and
+  play, with the host's generic controls. Flatpak hosts (Bitwig Studio's
+  Flatpak, for one) cannot see these system libraries, so they show generic
+  controls; use the host's native package for the panel.
 
 Install
   ./install.sh                 for your user (~/.vst3, ~/.clap, ~/.lv2, ~/.local)

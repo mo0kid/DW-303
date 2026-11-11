@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 # The version and host identities are defined here once and flow into every bundle.
-project(DW303 VERSION 0.1.0 LANGUAGES C CXX)
+project(DW303 VERSION 0.1.1 LANGUAGES C CXX)
 # macOS: VST3, AU, AAX, LV2. Windows: VST3. Linux: VST3, LV2.
 if(APPLE)
     enable_language(OBJCXX)

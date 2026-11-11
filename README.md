@@ -15,7 +15,10 @@ Installers for macOS, Windows and Linux are on the
 | Linux x86_64 | VST3, LV2, CLAP, standalone | `.tar.gz` with `install.sh` |
 
 The panel editor needs the Microsoft Edge WebView2 Runtime on Windows, and
-GTK 3 with WebKitGTK 4.1 on Linux (X11 or XWayland).
+GTK 3 with WebKitGTK 4.1 on Linux (X11 or XWayland). Without them the
+plug-ins still load and play, with the host's generic controls; Flatpak hosts
+(for example Bitwig Studio's Flatpak) cannot see system WebKitGTK and show
+generic controls.
 
 ## Building from source
 
